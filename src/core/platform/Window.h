@@ -1,7 +1,9 @@
 #pragma once
 
+#include "renderer/GraphicsContext.h"
 #include <string>
 #include <functional>
+#include <memory>
 
 // Forward declaration of GLFWwindow
 struct GLFWwindow;
@@ -15,7 +17,7 @@ struct WindowProps
     uint32_t Width;
     uint32_t Height;
 
-    WindowProps(const std::string& title = "Game Engine",
+    WindowProps(const std::string& title = "GEngine",
                 uint32_t width = 1280,
                 uint32_t height = 720)
         : Title(title), Width(width), Height(height)
@@ -54,6 +56,7 @@ private:
 
 private:
     GLFWwindow* window_;
+    std::unique_ptr<renderer::GraphicsContext> context_;
 
     struct WindowData
     {
