@@ -2,43 +2,44 @@
 
 #include <vector>
 #include <cstdint>
+#include <memory>
 
 namespace ge {
 namespace renderer {
 
-/**
- * @brief Simple Vertex structure.
- */
-struct Vertex
-{
-    float Position[3];
-    float Color[3];
-};
+    /**
+     * @brief Simple Vertex structure.
+     */
+    struct Vertex
+    {
+        float Position[3];
+        float Color[3];
+    };
 
-/**
- * @brief Manages Vertex Array Objects (VAOs), Vertex Buffers (VBOs), and Element Buffers (EBOs).
- */
-class Mesh
-{
-public:
-    Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
-    ~Mesh();
+    /**
+     * @brief Interface for Mesh storage (VAOs, Buffers).
+     * Abstracted to support multiple rendering backends.
+     */
+    class Mesh
+    {
+    public:
+        virtual ~Mesh() = default;
 
-    void Bind() const;
-    void Unbind() const;
+        virtual void Bind() const = 0;
+        virtual void Unbind() const = 0;
 
-    void Draw() const;
+        virtual void Draw() const = 0;
 
-    [[nodiscard]] uint32_t GetIndexCount() const { return indexCount_; }
+        virtual uint32_t GetIndexCount() const = 0;
 
-public:
-    // Helper to create a basic unit cube
-    static Mesh* CreateCube();
-
-private:
-    uint32_t vao_, vbo_, ebo_;
-    uint32_t indexCount_;
-};
+        /**
+         * @brief Factory method to create a mesh of the current API type.
+         */
+        static std::shared_ptr<Mesh> Create(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+        
+        // Helper to create a basic unit cube for the demo
+        static std::shared_ptr<Mesh> CreateCube();
+    };
 
 } // namespace renderer
 } // namespace ge
