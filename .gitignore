@@ -1,0 +1,28 @@
+# Build directories
+build/
+bin/
+lib/
+out/
+
+# IDE files
+.vs/
+.vscode/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.db
+*.opendb
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Git markers
+.git/

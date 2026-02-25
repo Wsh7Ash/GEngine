@@ -1,0 +1,139 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(GameEngine
+    VERSION     0.1.0
+    LANGUAGES   CXX
+    DESCRIPTION "GEngine — Phase 1 Foundation Layer"
+)
+
+# ── C++ standard ────────────────────────────────────────────────
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# ── Output directories ──────────────────────────────────────────
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# ── Dependencies ───────────────────────────────────────────────
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(deps/glfw)
+
+# ── Compiler warnings ──────────────────────────────────────────
+if(MSVC)
+    add_compile_options(/W4 /WX- /permissive-)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+
+# ================================================================
+#  Core Engine Library  (static)
+# ================================================================
+
+set(GE_CORE_HEADERS
+    src/core/ge_core.h
+    # Memory
+    src/core/memory/allocator.h
+    # Math
+    src/core/math/mathUtils.h
+    src/core/math/VecTypes.h
+    src/core/math/Mat4x4.h
+    src/core/math/quaternion.h
+    # Debug
+    src/core/debug/log.h
+    src/core/debug/assert.h
+    # Containers
+    src/core/containers/dynamic_array.h
+    src/core/containers/hash_map.h
+    src/core/containers/handle.h
+    # Platform
+    src/core/platform/platform.h
+    src/core/platform/Window.h
+    src/core/platform/Input.h
+    src/core/platform/GLFWInput.h
+    #ECS
+    src/core/ecs/World.h
+    src/core/ecs/System.h
+    src/core/ecs/SystemManager.h
+    src/core/ecs/Entity.h
+    src/core/ecs/ComponentArray.h
+    src/core/ecs/ComponentRegistry.h
+    src/core/ecs/EntityManager.h
+    src/core/ecs/Query.h
+    src/core/ecs/components/TransformComponent.h
+    src/core/ecs/components/VelocityComponent.h
+    src/core/ecs/components/TagComponent.h
+    src/core/ecs/components/MeshComponent.h
+    src/core/ecs/systems/RenderSystem.h
+    # Renderer
+    src/core/renderer/Shader.h
+    src/core/renderer/Mesh.h
+)
+
+set(GE_CORE_SOURCES
+    src/core/memory/allocator.cpp
+    src/core/debug/log.cpp
+    src/core/platform/platform.cpp
+    src/core/platform/Window.cpp
+    src/core/platform/GLFWInput.cpp
+    src/core/renderer/Shader.cpp
+    src/core/renderer/Mesh.cpp
+    src/core/ecs/systems/RenderSystem.cpp
+    deps/glad/src/glad.c
+)
+
+add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
+
+target_include_directories(ge_core
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/src/core
+        ${CMAKE_SOURCE_DIR}/deps/glfw/include
+        ${CMAKE_SOURCE_DIR}/deps/glad/include
+)
+
+# Platform-specific linking
+if(WIN32)
+    target_compile_definitions(ge_core PUBLIC GE_PLATFORM_WINDOWS=1)
+elseif(UNIX AND NOT APPLE)
+    target_compile_definitions(ge_core PUBLIC GE_PLATFORM_LINUX=1)
+elseif(APPLE)
+    target_compile_definitions(ge_core PUBLIC GE_PLATFORM_MACOS=1)
+endif()
+
+
+# ================================================================
+#  Main executable
+# ================================================================
+
+add_executable(GameEngine main.cpp)
+target_link_libraries(GameEngine PRIVATE ge_core glfw)
+
+
+# ================================================================
+#  Unit tests  (optional — build with -DBUILD_TESTS=ON)
+# ================================================================
+
+option(BUILD_TESTS "Build unit tests" OFF)
+
+if(BUILD_TESTS)
+    enable_testing()
+
+    add_executable(ge_tests
+        tests/test.cpp
+    )
+    target_link_libraries(ge_tests PRIVATE ge_core)
+    add_test(NAME CoreTests COMMAND ge_tests)
+
+    add_executable(ge_ecs_tests
+        tests/test_ecs.cpp
+    )
+    target_link_libraries(ge_ecs_tests PRIVATE ge_core)
+    add_test(NAME EcsTests COMMAND ge_ecs_tests)
+endif()
