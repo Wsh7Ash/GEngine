@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cmath>
+#include <memory>
 
 using namespace ge;
 using namespace ge::ecs;
@@ -14,8 +15,11 @@ int main()
     // Initialize logging
     ge::debug::log::Initialize();
 
+    // Select Renderer API (OpenGL for now)
+    RendererAPI::SetAPI(RenderAPI::OpenGL);
+
     // 1. Initialize Window & Renderer
-    WindowProps props("GEngine Phase 3 Demo", 1280, 720);
+    WindowProps props("GEngine Phase 4 Demo", 1280, 720);
     Window window(props);
     
     // We need to initialize the Input system with our window
@@ -35,13 +39,13 @@ int main()
     }
 
     // 3. Create Assets
-    Shader basicShader("../src/shaders/basic.vert", "../src/shaders/basic.frag");
-    Mesh* cubeMesh = Mesh::CreateCube();
+    auto basicShader = Shader::Create("../src/shaders/basic.vert", "../src/shaders/basic.frag");
+    auto cubeMesh = Mesh::CreateCube();
 
     // 4. Create Entity
     Entity cube = world.CreateEntity();
     world.AddComponent(cube, TransformComponent{ Math::Vec3f(0.0f, 0.0f, -5.0f) });
-    world.AddComponent(cube, MeshComponent{ cubeMesh, &basicShader });
+    world.AddComponent(cube, MeshComponent{ cubeMesh, basicShader });
 
     // 5. Main Loop
     float rotation = 0.0f;
@@ -73,7 +77,7 @@ int main()
         glEnable(GL_DEPTH_TEST);
 
         // Global Camera Uniforms
-        basicShader.Bind();
+        basicShader->Bind();
         
         Math::Mat4f view = Math::Mat4f::Identity(); // View matrix (cam at origin)
         // Camera usually looks down -Z. Our cube is at -5.0 on Z.
@@ -81,15 +85,14 @@ int main()
         float fov = 60.0f * (3.14159265f / 180.0f);
         Math::Mat4f projection = Math::Mat4f::Perspective(fov, 1280.0f / 720.0f, 0.1f, 100.0f);
         
-        basicShader.SetMat4("u_View", view);
-        basicShader.SetMat4("u_Projection", projection);
+        basicShader->SetMat4("u_View", view);
+        basicShader->SetMat4("u_Projection", projection);
 
         renderSystem->Render(world);
 
         window.OnUpdate();
     }
 
-    delete cubeMesh;
-
+    // No need to manual delete, shared_ptr handles it
     return 0;
 }
