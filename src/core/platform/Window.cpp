@@ -1,8 +1,10 @@
 #include "Window.h"
 #include "../debug/log.h"
 #include "../debug/assert.h"
+#include "../renderer/RendererAPI.h"
+#include "../renderer/opengl/OpenGLContext.h"
+#include "../renderer/dx11/DX11Context.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 namespace ge {
@@ -41,24 +43,33 @@ void Window::Init(const WindowProps& props)
         s_GLFWInitialized = true;
     }
 
-    // OpenGL 4.5 Core Profile
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    // Set Window Hints based on API
+    if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::OpenGL)
+    {
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    }
+    else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::DX11)
+    {
+        // No client API for DX11 context
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    }
 
     window_ = glfwCreateWindow((int)props.Width, (int)props.Height, data_.Title.c_str(), nullptr, nullptr);
     GE_ASSERT(window_, "Could not create window!");
 
-    glfwMakeContextCurrent(window_);
-    
-    // Initialize GLAD
-    int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-    GE_ASSERT(status, "Failed to initialize Glad!");
+    // Create Graphics Context
+    if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::OpenGL)
+    {
+        context_ = std::make_unique<renderer::OpenGLContext>(window_);
+    }
+    else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::DX11)
+    {
+        context_ = std::make_unique<renderer::DX11Context>(window_);
+    }
 
-    GE_LOG_INFO("OpenGL Info:");
-    GE_LOG_INFO("  Vendor:   %s", (const char*)glGetString(GL_VENDOR));
-    GE_LOG_INFO("  Renderer: %s", (const char*)glGetString(GL_RENDERER));
-    GE_LOG_INFO("  Version:  %s", (const char*)glGetString(GL_VERSION));
+    context_->Init();
 
     glfwSetWindowUserPointer(window_, &data_);
     SetVSync(true);
@@ -71,12 +82,12 @@ void Window::Init(const WindowProps& props)
         data.Height = height;
         
         // In the future, we'll dispatch a WindowResizeEvent here
-        glViewport(0, 0, width, height);
+        // For GL we might need glViewport, but that should probably stay in RenderAPI
     });
 
     glfwSetWindowCloseCallback(window_, [](GLFWwindow* window)
     {
-        WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
+        (void)window;
         // In the future, we'll dispatch a WindowCloseEvent here
     });
 }
@@ -89,15 +100,18 @@ void Window::Shutdown()
 void Window::OnUpdate()
 {
     glfwPollEvents();
-    glfwSwapBuffers(window_);
+    context_->SwapBuffers();
 }
 
 void Window::SetVSync(bool enabled)
 {
-    if (enabled)
-        glfwSwapInterval(1);
-    else
-        glfwSwapInterval(0);
+    if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::OpenGL)
+    {
+        if (enabled)
+            glfwSwapInterval(1);
+        else
+            glfwSwapInterval(0);
+    }
 
     data_.VSync = enabled;
 }
