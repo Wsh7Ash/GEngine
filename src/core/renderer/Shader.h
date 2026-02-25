@@ -3,40 +3,34 @@
 #include "../math/VecTypes.h"
 #include "../math/Mat4x4.h"
 #include <string>
-#include <unordered_map>
+#include <memory>
 
 namespace ge {
 namespace renderer {
 
-/**
- * @brief Manages OpenGL Shader Programs.
- */
-class Shader
-{
-public:
-    Shader(const std::string& vertexPath, const std::string& fragmentPath);
-    ~Shader();
+    /**
+     * @brief Interface for Shader programs.
+     * Backends (GL, DX11) will implement the specific logic for compiling and setting uniforms.
+     */
+    class Shader
+    {
+    public:
+        virtual ~Shader() = default;
 
-    void Bind() const;
-    void Unbind() const;
+        virtual void Bind() const = 0;
+        virtual void Unbind() const = 0;
 
-    // Set uniforms
-    void SetInt(const std::string& name, int value);
-    void SetFloat(const std::string& name, float value);
-    void SetVec3(const std::string& name, const Math::Vec3f& value);
-    void SetVec4(const std::string& name, const Math::Vec4f& value);
-    void SetMat4(const std::string& name, const Math::Mat4f& value);
+        virtual void SetInt(const std::string& name, int value) = 0;
+        virtual void SetFloat(const std::string& name, float value) = 0;
+        virtual void SetVec3(const std::string& name, const Math::Vec3f& value) = 0;
+        virtual void SetVec4(const std::string& name, const Math::Vec4f& value) = 0;
+        virtual void SetMat4(const std::string& name, const Math::Mat4f& value) = 0;
 
-private:
-    uint32_t CreateProgram(const std::string& vertexSource, const std::string& fragmentSource);
-    uint32_t CompileShader(uint32_t type, const std::string& source);
-    std::string ReadFile(const std::string& filepath);
-    int GetUniformLocation(const std::string& name);
-
-private:
-    uint32_t rendererID_;
-    std::unordered_map<std::string, int> uniformLocationCache_;
-};
+        /**
+         * @brief Factory method to create a shader of the current API type.
+         */
+        static std::shared_ptr<Shader> Create(const std::string& vertexPath, const std::string& fragmentPath);
+    };
 
 } // namespace renderer
 } // namespace ge
