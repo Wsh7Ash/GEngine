@@ -47,5 +47,7 @@
 #include "ecs/systems/RenderSystem.h"
 
 // Renderer
+#include "renderer/RendererAPI.h"
+#include "renderer/GraphicsContext.h"
 #include "renderer/Shader.h"
 #include "renderer/Mesh.h"
