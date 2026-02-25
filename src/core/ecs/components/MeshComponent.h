@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 namespace ge {
 namespace renderer {
     class Mesh;
@@ -13,8 +15,8 @@ namespace ecs {
  */
 struct MeshComponent
 {
-    renderer::Mesh*   MeshPtr   = nullptr;
-    renderer::Shader* ShaderPtr = nullptr;
+    std::shared_ptr<renderer::Mesh>   MeshPtr   = nullptr;
+    std::shared_ptr<renderer::Shader> ShaderPtr = nullptr;
 };
 
 } // namespace ecs
