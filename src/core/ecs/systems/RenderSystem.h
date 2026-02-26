@@ -3,6 +3,7 @@
 #include "../System.h"
 #include "../World.h"
 #include "../components/MeshComponent.h"
+#include "../components/SpriteComponent.h"
 #include "../components/TransformComponent.h"
 
 namespace ge {
@@ -15,6 +16,8 @@ class RenderSystem : public System
 {
 public:
     void Render(World& world);
+private:
+    std::shared_ptr<renderer::Mesh> quadMesh_; // Reuse a quad for all sprites
 };
 
 } // namespace ecs
