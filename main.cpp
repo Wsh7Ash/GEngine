@@ -22,7 +22,7 @@ int main()
     ge::platform::InitializeInput(&window);
 
     Renderer2D::Init();
-    EditorToolbar::Init(window.GetNativeWindow());
+    EditorToolbar::Init(window.GetNativeWindow(), world);
 
     // 2. Setup ECS
     World world;
