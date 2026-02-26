@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cmath>
 #include <memory>
+#include <imgui.h>
+#include "platform/ImGuiLayer.h"
 
 using namespace ge;
 using namespace ge::ecs;
@@ -16,11 +18,15 @@ int main()
     RendererAPI::SetAPI(RenderAPI::OpenGL);
 
     // 1. Initialize Window & Renderer
-    WindowProps props("GEngine Phase 6: Batching Demo", 1280, 720);
+    WindowProps props("GEngine Phase 7: Hybrid UI Demo", 1280, 720);
     Window window(props);
     ge::platform::InitializeInput(&window);
 
+    // native Win32 Menu
+    window.InitNativeMenuBar();
+
     Renderer2D::Init();
+    ImGuiLayer::Init(window.GetNativeWindow());
 
     // 2. Setup ECS
     World world;
@@ -85,18 +91,52 @@ int main()
         camera2D->SetPosition({ cameraPos, 0.0f, 0.0f });
 
         // Rendering
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClearColor(0.1f, 0.1f, 0.11f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
 
-        // Standard 3D Uniforms
+        // Render ECS World
         basicShader->Bind();
         Math::Mat4f projection = Math::Mat4f::Perspective(Math::DegreesToRadians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
         basicShader->SetMat4("u_ViewProjection", projection * Math::Mat4f::Identity());
-
         renderSystem->Render(world);
+
+        // Render ImGui UI
+        ImGuiLayer::Begin();
+
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("Tools"))
+            {
+                if (ImGui::MenuItem("Toggle Stats")) { /* Toggle logic */ }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+
+        // Toolbar Window
+        ImGui::SetNextWindowPos({ 0, 20 });
+        ImGui::SetNextWindowSize({ 200, 100 });
+        ImGui::Begin("Main Tools", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+        ImGui::Text("GEngine Toolkit");
+        ImGui::Separator();
+        if (ImGui::Button("Play")) { GE_LOG_INFO("Play started"); }
+        ImGui::SameLine();
+        if (ImGui::Button("Stop")) { GE_LOG_INFO("Play stopped"); }
+        ImGui::End();
+
+        // Stats Window
+        auto stats = Renderer2D::GetStats();
+        ImGui::Begin("Batch Renderer Stats");
+        ImGui::Text("Draw Calls: %d", stats.DrawCalls);
+        ImGui::Text("Quads: %d", stats.QuadCount);
+        ImGui::Text("Vertices: %d", stats.GetTotalVertexCount());
+        ImGui::Text("Indices: %d", stats.GetTotalIndexCount());
+        ImGui::End();
+
+        ImGuiLayer::End();
     }
 
+    ImGuiLayer::Shutdown();
     Renderer2D::Shutdown();
     return 0;
 }
