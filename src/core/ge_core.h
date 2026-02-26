@@ -44,6 +44,7 @@
 #include "ecs/components/VelocityComponent.h"
 #include "ecs/components/TagComponent.h"
 #include "ecs/components/MeshComponent.h"
+#include "ecs/components/SpriteComponent.h"
 #include "ecs/systems/RenderSystem.h"
 
 // Renderer
@@ -51,3 +52,4 @@
 #include "renderer/GraphicsContext.h"
 #include "renderer/Shader.h"
 #include "renderer/Mesh.h"
+#include "renderer/Texture.h"
