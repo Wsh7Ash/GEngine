@@ -52,7 +52,7 @@ namespace editor {
 
     void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity)
     {
-        auto& tag = context_->HasComponent<ecs::TagComponent>(entity) 
+        std::string tag = context_->HasComponent<ecs::TagComponent>(entity) 
             ? context_->GetComponent<ecs::TagComponent>(entity).tag 
             : "Entity " + std::to_string(entity.GetIndex());
 
@@ -79,7 +79,7 @@ namespace editor {
             auto& tag = context_->GetComponent<ecs::TagComponent>(entity).tag;
             char buffer[256];
             memset(buffer, 0, sizeof(buffer));
-            strcpy_s(buffer, sizeof(buffer), tag.c_str());
+            snprintf(buffer, sizeof(buffer), "%s", tag.c_str());
             if (ImGui::InputText("Tag", buffer, sizeof(buffer)))
             {
                 tag = std::string(buffer);
