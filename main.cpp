@@ -21,9 +21,6 @@ int main()
     Window window(props);
     ge::platform::InitializeInput(&window);
 
-    Renderer2D::Init();
-    EditorToolbar::Init(window.GetNativeWindow(), world);
-
     // 2. Setup ECS
     World world;
     auto renderSystem = world.RegisterSystem<RenderSystem>();
@@ -32,6 +29,9 @@ int main()
         signature.set(GetComponentTypeID<TransformComponent>());
         world.SetSystemSignature<RenderSystem>(signature);
     }
+
+    Renderer2D::Init();
+    EditorToolbar::Init(window.GetNativeWindow(), world);
 
     // 3. Create Camera
     auto camera2D = std::make_shared<OrthographicCamera>(-1.6f, 1.6f, -0.9f, 0.9f);
