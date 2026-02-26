@@ -1,6 +1,9 @@
 #pragma once
 
+#include <string>
+
 namespace ge {
+    namespace ecs { class World; }
 namespace editor {
 
     /**
@@ -9,7 +12,7 @@ namespace editor {
     class EditorToolbar
     {
     public:
-        static void Init(void* windowHandle);
+        static void Init(void* windowHandle, ecs::World& world);
         static void Shutdown();
 
         static void OnImGuiRender();

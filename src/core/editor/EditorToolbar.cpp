@@ -1,6 +1,7 @@
 #include "EditorToolbar.h"
 #include "../platform/ImGuiLayer.h"
 #include "../renderer/Renderer2D.h"
+#include "../scene/SceneSerializer.h"
 #include "../debug/log.h"
 #include <imgui.h>
 
@@ -14,8 +15,11 @@
 namespace ge {
 namespace editor {
 
-    void EditorToolbar::Init(void* windowHandle)
+    static ecs::World* s_ActiveWorld = nullptr;
+
+    void EditorToolbar::Init(void* windowHandle, ecs::World& world)
     {
+        s_ActiveWorld = &world;
         ImGuiLayer::Init(windowHandle);
         InitNativeMenuBar(windowHandle);
     }
@@ -30,6 +34,24 @@ namespace editor {
         // 1. Main Menu Bar (ImGui)
         if (ImGui::BeginMainMenuBar())
         {
+            if (ImGui::BeginMenu("File"))
+            {
+                if (ImGui::MenuItem("New Scene")) { /* Clear logic */ }
+                if (ImGui::MenuItem("Open Scene...")) 
+                { 
+                    scene::SceneSerializer serializer(*s_ActiveWorld);
+                    serializer.Deserialize("scene.json");
+                }
+                if (ImGui::MenuItem("Save Scene")) 
+                { 
+                    scene::SceneSerializer serializer(*s_ActiveWorld);
+                    serializer.Serialize("scene.json");
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Exit")) { /* Exit logic */ }
+                ImGui::EndMenu();
+            }
+
             if (ImGui::BeginMenu("Tools"))
             {
                 if (ImGui::MenuItem("Toggle Stats")) { /* Toggle logic */ }
