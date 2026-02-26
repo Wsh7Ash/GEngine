@@ -13,8 +13,10 @@ namespace renderer {
     struct Vertex
     {
         float Position[3];
-        float Color[3];
+        float Color[4]; // Changed to 4 for Alpha support
         float TexCoord[2];
+        float TexIndex;
+        float TilingFactor;
     };
 
     /**
