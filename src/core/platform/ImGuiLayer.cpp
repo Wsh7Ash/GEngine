@@ -13,8 +13,12 @@ namespace ge {
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO(); (void)io;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+#ifdef IMGUI_HAS_DOCK
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+#endif
+#ifdef IMGUI_HAS_VIEWPORT
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+#endif
 
         // 2. Setup Style
         SetDarkTheme();
@@ -46,6 +50,7 @@ namespace ge {
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+#ifdef IMGUI_HAS_VIEWPORT
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
             GLFWwindow* backup_current_context = glfwGetCurrentContext();
@@ -53,6 +58,7 @@ namespace ge {
             ImGui::RenderPlatformWindowsDefault();
             glfwMakeContextCurrent(backup_current_context);
         }
+#endif
     }
 
     void ImGuiLayer::SetDarkTheme()
