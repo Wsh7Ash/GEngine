@@ -31,6 +31,7 @@
 #include "platform/Window.h"
 #include "platform/Input.h"
 #include "platform/GLFWInput.h"
+#include "platform/ImGuiLayer.h"
 
 // ECS
 #include "ecs/Entity.h"
@@ -55,3 +56,6 @@
 #include "renderer/Texture.h"
 #include "renderer/OrthographicCamera.h"
 #include "renderer/Renderer2D.h"
+
+// Editor
+#include "editor/EditorToolbar.h"
