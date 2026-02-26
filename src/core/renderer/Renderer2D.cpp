@@ -60,7 +60,7 @@ namespace renderer {
         // Actually, CreateDynamic just allocates. We'll use a specialized constructor or just SetData for indices too if needed.
         // But indices are static, so we can just create a Mesh with them.
         s_Data.QuadMesh = Mesh::CreateDynamic(s_Data.MaxVertices, s_Data.MaxIndices);
-        std::static_pointer_cast<OpenGLMesh>(s_Data.QuadMesh)->SetIndices(quadIndices, s_Data.MaxIndices);
+        s_Data.QuadMesh->SetIndices(quadIndices, s_Data.MaxIndices);
         
         delete[] quadIndices;
 
@@ -105,15 +105,11 @@ namespace renderer {
         uint32_t dataSize = (uint32_t)((uint8_t*)s_Data.QuadVertexBufferPtr - (uint8_t*)s_Data.QuadVertexBufferBase);
         s_Data.QuadMesh->SetData(s_Data.QuadVertexBufferBase, dataSize);
 
-        // Bind Textures
         for (uint32_t i = 0; i < s_Data.TextureSlotIndex; i++)
             s_Data.TextureSlots[i]->Bind(i);
 
-        // This is a hack because Mesh interface doesn't have SetIndexCount
-        // But we know it's OpenGLMesh
-        auto glMesh = std::static_pointer_cast<OpenGLMesh>(s_Data.QuadMesh);
-        glMesh->SetIndexCount(s_Data.QuadIndexCount);
-        glMesh->Draw();
+        s_Data.QuadMesh->SetIndexCount(s_Data.QuadIndexCount);
+        s_Data.QuadMesh->Draw();
 
         s_Data.Stats.DrawCalls++;
     }
