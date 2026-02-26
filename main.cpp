@@ -30,12 +30,36 @@ int main()
         world.SetSystemSignature<RenderSystem>(signature);
     }
 
+    auto scriptSystem = world.RegisterSystem<ScriptSystem>();
+    {
+        Signature signature;
+        signature.set(GetComponentTypeID<NativeScriptComponent>());
+        world.SetSystemSignature<ScriptSystem>(signature);
+    }
+
     Renderer2D::Init();
     EditorToolbar::Init(window.GetNativeWindow(), world);
 
     // 3. Create Camera
     auto camera2D = std::make_shared<OrthographicCamera>(-1.6f, 1.6f, -0.9f, 0.9f);
     renderSystem->Set2DCamera(camera2D);
+
+    // --- Native Script Example ---
+    class CameraController : public ScriptableEntity
+    {
+    public:
+        void OnUpdate(float ts) override
+        {
+            auto& pos = GetComponent<TransformComponent>().position;
+            float speed = 2.0f * ts;
+
+            if (Input::IsKeyPressed(Key::W)) pos.y += speed;
+            if (Input::IsKeyPressed(Key::S)) pos.y -= speed;
+            if (Input::IsKeyPressed(Key::A)) pos.x -= speed;
+            if (Input::IsKeyPressed(Key::D)) pos.x += speed;
+        }
+    };
+    // ----------------------------
 
     // 4. Create Assets
     auto basicShader = Shader::Create("../src/shaders/basic.vert", "../src/shaders/basic.frag");
@@ -68,23 +92,33 @@ int main()
         world.AddComponent(sprite, SpriteComponent{ checkerTexture, { r, g, b, 0.8f } });
     }
 
-    // 7. Main Loop
+    // 7. Attach Camera Controller
+    Entity cameraController = world.CreateEntity();
+    world.AddComponent(cameraController, TransformComponent{ {0.0f, 0.0f, 0.0f} });
+    world.AddComponent(cameraController, NativeScriptComponent{});
+    world.GetComponent<NativeScriptComponent>(cameraController).Bind<CameraController>();
+
+    // 8. Main Loop
     float rotation = 0.0f;
-    float cameraPos = 0.0f;
+    float lastTime = 0.0f;
 
     while (!window.ShouldClose())
     {
-        float dt = 1.0f / 60.0f;
+        float time = (float)glfwGetTime();
+        float dt = time - lastTime;
+        lastTime = time;
+
         window.OnUpdate();
+
+        // Update systems
+        scriptSystem->Update(world, dt);
 
         // Rotate Cube
         rotation += 50.0f * dt;
         world.GetComponent<TransformComponent>(cube).rotation = Math::Quatf::FromEuler(Math::Vec3f(rotation, rotation * 0.5f, 0.0f));
 
-        // Move Camera (2D)
-        if (Input::IsKeyPressed(GLFW_KEY_LEFT)) cameraPos -= 0.5f * dt;
-        if (Input::IsKeyPressed(GLFW_KEY_RIGHT)) cameraPos += 0.5f * dt;
-        camera2D->SetPosition({ cameraPos, 0.0f, 0.0f });
+        // Update camera position from controller
+        camera2D->SetPosition(world.GetComponent<TransformComponent>(cameraController).position);
 
         // Rendering
         glClearColor(0.1f, 0.1f, 0.11f, 1.0f);
