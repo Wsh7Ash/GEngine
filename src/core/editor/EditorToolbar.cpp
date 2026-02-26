@@ -16,10 +16,13 @@ namespace ge {
 namespace editor {
 
     static ecs::World* s_ActiveWorld = nullptr;
+    std::unique_ptr<SceneHierarchyPanel> EditorToolbar::s_HierarchyPanel = nullptr;
 
     void EditorToolbar::Init(void* windowHandle, ecs::World& world)
     {
         s_ActiveWorld = &world;
+        s_HierarchyPanel = std::make_unique<SceneHierarchyPanel>(world);
+        
         ImGuiLayer::Init(windowHandle);
         InitNativeMenuBar(windowHandle);
     }
@@ -79,6 +82,9 @@ namespace editor {
         ImGui::Text("Vertices: %d", stats.GetTotalVertexCount());
         ImGui::Text("Indices: %d", stats.GetTotalIndexCount());
         ImGui::End();
+
+        if (s_HierarchyPanel)
+            s_HierarchyPanel->OnImGuiRender();
     }
 
     void EditorToolbar::InitNativeMenuBar(void* windowHandle)

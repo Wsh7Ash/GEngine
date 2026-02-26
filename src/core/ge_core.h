@@ -59,6 +59,7 @@
 
 // Editor
 #include "editor/EditorToolbar.h"
+#include "editor/SceneHierarchyPanel.h"
 
 // Scene
 #include "scene/SceneSerializer.h"

@@ -1,6 +1,4 @@
-#pragma once
-
-#include <string>
+#include "SceneHierarchyPanel.h"
 
 namespace ge {
     namespace ecs { class World; }
@@ -19,6 +17,9 @@ namespace editor {
 
     private:
         static void InitNativeMenuBar(void* windowHandle);
+
+    private:
+        static std::unique_ptr<SceneHierarchyPanel> s_HierarchyPanel;
     };
 
 } // namespace editor
