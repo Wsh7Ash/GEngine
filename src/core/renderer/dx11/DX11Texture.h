@@ -22,6 +22,8 @@ namespace renderer {
         virtual uint32_t GetHeight() const override { return height_; }
         virtual uint32_t GetID() const override { return 0; }
 
+        virtual bool operator==(const Texture& other) const override { return false; }
+
     private:
         uint32_t width_, height_;
     };
