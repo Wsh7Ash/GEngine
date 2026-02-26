@@ -1,0 +1,10 @@
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\IMGUI-SUBBUILD\CMAKEFILES\F2F9E4FCFCB7CC80100B5442DF4901F2\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SF:/prjs/GameEngine/build_new/_deps/imgui-subbuild -BF:/prjs/GameEngine/build_new/_deps/imgui-subbuild --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/imgui-populate.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

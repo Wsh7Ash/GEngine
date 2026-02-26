@@ -1,0 +1,152 @@
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-MKDIR.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -Dcfgdir=/Debug -P F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/tmp/json-populate-mkdirs.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-mkdir
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-DOWNLOAD.RULE
+setlocal
+cd F:\prjs\GameEngine\build_new\_deps
+if %errorlevel% neq 0 goto :cmEnd
+F:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/download-json-populate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/verify-json-populate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/extract-json-populate.cmake
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-download
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-UPDATE.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-update
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-PATCH.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-patch
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-CONFIGURE.RULE
+setlocal
+cd F:\prjs\GameEngine\build_new\_deps\json-build
+if %errorlevel% neq 0 goto :cmEnd
+F:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-configure
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-BUILD.RULE
+setlocal
+cd F:\prjs\GameEngine\build_new\_deps\json-build
+if %errorlevel% neq 0 goto :cmEnd
+F:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-build
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-INSTALL.RULE
+setlocal
+cd F:\prjs\GameEngine\build_new\_deps\json-build
+if %errorlevel% neq 0 goto :cmEnd
+F:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-install
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\7A14CF198BBD5C1A8ABA9AC7EEBE4401\JSON-POPULATE-TEST.RULE
+setlocal
+cd F:\prjs\GameEngine\build_new\_deps\json-build
+if %errorlevel% neq 0 goto :cmEnd
+F:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E echo_append
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-test
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\F7490AFE26231CB0D859B9BBE862BA29\JSON-POPULATE-COMPLETE.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E make_directory F:/prjs/GameEngine/build_new/_deps/json-subbuild/CMakeFiles/Debug
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/CMakeFiles/Debug/json-populate-complete
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E touch F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/Debug/json-populate-done
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\1F2D989A840E6E6F531FB1C6F3A5614F\JSON-POPULATE.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SF:/prjs/GameEngine/build_new/_deps/json-subbuild -BF:/prjs/GameEngine/build_new/_deps/json-subbuild --check-stamp-file F:/prjs/GameEngine/build_new/_deps/json-subbuild/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

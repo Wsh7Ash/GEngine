@@ -46,7 +46,10 @@
 #include "ecs/components/TagComponent.h"
 #include "ecs/components/MeshComponent.h"
 #include "ecs/components/SpriteComponent.h"
+#include "ecs/components/NativeScriptComponent.h"
 #include "ecs/systems/RenderSystem.h"
+#include "ecs/systems/ScriptSystem.h"
+#include "ecs/ScriptableEntity.h"
 
 // Renderer
 #include "renderer/RendererAPI.h"

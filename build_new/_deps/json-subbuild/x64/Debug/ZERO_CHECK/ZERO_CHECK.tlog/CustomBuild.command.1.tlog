@@ -1,0 +1,10 @@
+^F:\PRJS\GAMEENGINE\BUILD_NEW\_DEPS\JSON-SUBBUILD\CMAKEFILES\1F2D989A840E6E6F531FB1C6F3A5614F\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SF:/prjs/GameEngine/build_new/_deps/json-subbuild -BF:/prjs/GameEngine/build_new/_deps/json-subbuild --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file F:/prjs/GameEngine/build_new/_deps/json-subbuild/json-populate.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

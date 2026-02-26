@@ -17,11 +17,13 @@ namespace editor {
 
     static ecs::World* s_ActiveWorld = nullptr;
     std::unique_ptr<SceneHierarchyPanel> EditorToolbar::s_HierarchyPanel = nullptr;
+    std::shared_ptr<ViewportPanel> EditorToolbar::s_ViewportPanel = nullptr;
 
     void EditorToolbar::Init(void* windowHandle, ecs::World& world)
     {
         s_ActiveWorld = &world;
         s_HierarchyPanel = std::make_unique<SceneHierarchyPanel>(world);
+        s_ViewportPanel = std::make_shared<ViewportPanel>();
         
         ImGuiLayer::Init(windowHandle);
         InitNativeMenuBar(windowHandle);
@@ -34,8 +36,41 @@ namespace editor {
 
     void EditorToolbar::OnImGuiRender()
     {
+        // 0. DockSpace logic
+        static bool dockspaceOpen = true;
+        static bool opt_fullscreen = true;
+        static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
+
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+        if (opt_fullscreen)
+        {
+            const ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(viewport->WorkPos);
+            ImGui::SetNextWindowSize(viewport->WorkSize);
+            ImGui::SetNextWindowViewport(viewport->ID);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+            window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+            window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+        }
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::Begin("DockSpace Demo", &dockspaceOpen, window_flags);
+        ImGui::PopStyleVar();
+
+        if (opt_fullscreen)
+            ImGui::PopStyleVar(2);
+
+        // Submit the DockSpace
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
+        {
+            ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+            ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+        }
+
         // 1. Main Menu Bar (ImGui)
-        if (ImGui::BeginMainMenuBar())
+        if (ImGui::BeginMenuBar())
         {
             if (ImGui::BeginMenu("File"))
             {
@@ -60,13 +95,11 @@ namespace editor {
                 if (ImGui::MenuItem("Toggle Stats")) { /* Toggle logic */ }
                 ImGui::EndMenu();
             }
-            ImGui::EndMainMenuBar();
+            ImGui::EndMenuBar();
         }
 
         // 2. Toolbar Window
-        ImGui::SetNextWindowPos({ 0, 20 });
-        ImGui::SetNextWindowSize({ 200, 100 });
-        ImGui::Begin("Main Tools", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+        ImGui::Begin("Main Tools");
         ImGui::Text("GEngine Toolkit");
         ImGui::Separator();
         if (ImGui::Button("Play")) { GE_LOG_INFO("Play started"); }
@@ -85,6 +118,11 @@ namespace editor {
 
         if (s_HierarchyPanel)
             s_HierarchyPanel->OnImGuiRender();
+
+        if (s_ViewportPanel)
+            s_ViewportPanel->OnImGuiRender();
+
+        ImGui::End(); // End DockSpace Window
     }
 
     void EditorToolbar::InitNativeMenuBar(void* windowHandle)

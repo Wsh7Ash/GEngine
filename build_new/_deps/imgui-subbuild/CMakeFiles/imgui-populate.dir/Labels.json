@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/imgui-populate"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/f2f9e4fcfcb7cc80100b5442df4901f2/imgui-populate.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/ffb01155ebd6f40a26b2b1faef1f166a/imgui-populate-complete.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-build.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-configure.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-download.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-install.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-mkdir.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-patch.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-test.rule"
+		},
+		{
+			"file" : "F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/CMakeFiles/0da453d68b295661d936327a2e367f23/imgui-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"imgui-populate"
+		],
+		"name" : "imgui-populate"
+	}
+}

@@ -11,13 +11,28 @@ using namespace ge::platform;
 using namespace ge::renderer;
 using namespace ge::editor;
 
+class CameraController : public ScriptableEntity
+{
+public:
+    void OnUpdate(float ts) override
+    {
+        auto& pos = GetComponent<TransformComponent>().position;
+        float speed = 2.0f * ts;
+
+        if (Input::IsKeyPressed(GLFW_KEY_W)) pos.y += speed;
+        if (Input::IsKeyPressed(GLFW_KEY_S)) pos.y -= speed;
+        if (Input::IsKeyPressed(GLFW_KEY_A)) pos.x -= speed;
+        if (Input::IsKeyPressed(GLFW_KEY_D)) pos.x += speed;
+    }
+};
+
 int main()
 {
     // select renderer
     RendererAPI::SetAPI(RenderAPI::OpenGL);
 
     // 1. Initialize Window & Renderer
-    WindowProps props("GEngine Phase 7 Refactor: Editor Module", 1280, 720);
+    WindowProps props("GEngine Phase 10: Scripting & Native Scripts", 1280, 720);
     Window window(props);
     ge::platform::InitializeInput(&window);
 
@@ -43,23 +58,6 @@ int main()
     // 3. Create Camera
     auto camera2D = std::make_shared<OrthographicCamera>(-1.6f, 1.6f, -0.9f, 0.9f);
     renderSystem->Set2DCamera(camera2D);
-
-    // --- Native Script Example ---
-    class CameraController : public ScriptableEntity
-    {
-    public:
-        void OnUpdate(float ts) override
-        {
-            auto& pos = GetComponent<TransformComponent>().position;
-            float speed = 2.0f * ts;
-
-            if (Input::IsKeyPressed(Key::W)) pos.y += speed;
-            if (Input::IsKeyPressed(Key::S)) pos.y -= speed;
-            if (Input::IsKeyPressed(Key::A)) pos.x -= speed;
-            if (Input::IsKeyPressed(Key::D)) pos.x += speed;
-        }
-    };
-    // ----------------------------
 
     // 4. Create Assets
     auto basicShader = Shader::Create("../src/shaders/basic.vert", "../src/shaders/basic.frag");
@@ -121,6 +119,10 @@ int main()
         camera2D->SetPosition(world.GetComponent<TransformComponent>(cameraController).position);
 
         // Rendering
+        auto viewportPanel = EditorToolbar::GetViewportPanel();
+        if (viewportPanel)
+            viewportPanel->GetFramebuffer()->Bind();
+
         glClearColor(0.1f, 0.1f, 0.11f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -130,6 +132,12 @@ int main()
         basicShader->SetMat4("u_ViewProjection", projection * Math::Mat4f::Identity());
         renderSystem->Render(world);
 
+        if (viewportPanel)
+            viewportPanel->GetFramebuffer()->Unbind();
+
+        // Clear main window
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
         // Render Editor UI
         ImGuiLayer::Begin();
         EditorToolbar::OnImGuiRender();

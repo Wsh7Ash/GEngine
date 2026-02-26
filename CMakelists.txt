@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.20)
 
+include(FetchContent)
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        docking
+)
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(imgui json)
+
 project(GameEngine
     VERSION     0.1.0
     LANGUAGES   CXX
@@ -58,6 +70,7 @@ set(GE_CORE_HEADERS
     src/core/platform/Window.h
     src/core/platform/Input.h
     src/core/platform/GLFWInput.h
+    src/core/platform/ImGuiLayer.h
     #ECS
     src/core/ecs/World.h
     src/core/ecs/System.h
@@ -71,10 +84,31 @@ set(GE_CORE_HEADERS
     src/core/ecs/components/VelocityComponent.h
     src/core/ecs/components/TagComponent.h
     src/core/ecs/components/MeshComponent.h
+    src/core/ecs/components/SpriteComponent.h
+    src/core/ecs/components/NativeScriptComponent.h
+    src/core/ecs/ScriptableEntity.h
     src/core/ecs/systems/RenderSystem.h
+    src/core/ecs/systems/ScriptSystem.h
     # Renderer
+    src/core/renderer/RendererAPI.h
+    src/core/renderer/GraphicsContext.h
     src/core/renderer/Shader.h
     src/core/renderer/Mesh.h
+    src/core/renderer/Texture.h
+    src/core/renderer/Framebuffer.h
+    src/core/renderer/OrthographicCamera.h
+    src/core/renderer/Renderer2D.h
+    src/core/renderer/opengl/OpenGLContext.h
+    src/core/renderer/opengl/OpenGLShader.h
+    src/core/renderer/opengl/OpenGLMesh.h
+    src/core/renderer/opengl/OpenGLTexture.h
+    src/core/renderer/opengl/OpenGLFramebuffer.h
+    src/core/renderer/dx11/DX11Context.h
+    src/core/renderer/dx11/DX11Texture.h
+    src/core/editor/EditorToolbar.h
+    src/core/editor/SceneHierarchyPanel.h
+    src/core/editor/ViewportPanel.h
+    src/core/scene/SceneSerializer.h
 )
 
 set(GE_CORE_SOURCES
@@ -83,10 +117,38 @@ set(GE_CORE_SOURCES
     src/core/platform/platform.cpp
     src/core/platform/Window.cpp
     src/core/platform/GLFWInput.cpp
+    src/core/platform/ImGuiLayer.cpp
+    src/core/editor/EditorToolbar.cpp
+    src/core/editor/SceneHierarchyPanel.cpp
+    src/core/editor/ViewportPanel.cpp
+    src/core/scene/SceneSerializer.cpp
+    src/core/renderer/RendererAPI.cpp
     src/core/renderer/Shader.cpp
     src/core/renderer/Mesh.cpp
+    src/core/renderer/Texture.cpp
+    src/core/renderer/Framebuffer.cpp
+    src/core/renderer/OrthographicCamera.cpp
+    src/core/renderer/Renderer2D.cpp
+    src/core/renderer/opengl/OpenGLContext.cpp
+    src/core/renderer/opengl/OpenGLShader.cpp
+    src/core/renderer/opengl/OpenGLMesh.cpp
+    src/core/renderer/opengl/OpenGLTexture.cpp
+    src/core/renderer/opengl/OpenGLFramebuffer.cpp
+    src/core/renderer/opengl/stb_image_impl.cpp
+    src/core/renderer/dx11/DX11Context.cpp
+    src/core/renderer/dx11/DX11Texture.cpp
     src/core/ecs/systems/RenderSystem.cpp
+    src/core/ecs/systems/ScriptSystem.cpp
     deps/glad/src/glad.c
+    
+    # ImGui
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
 add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
@@ -96,6 +158,10 @@ target_include_directories(ge_core
         ${CMAKE_SOURCE_DIR}/src/core
         ${CMAKE_SOURCE_DIR}/deps/glfw/include
         ${CMAKE_SOURCE_DIR}/deps/glad/include
+        ${CMAKE_SOURCE_DIR}/src/core/editor
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+        ${json_SOURCE_DIR}/include
 )
 
 # Platform-specific linking
@@ -113,7 +179,7 @@ endif()
 # ================================================================
 
 add_executable(GameEngine main.cpp)
-target_link_libraries(GameEngine PRIVATE ge_core glfw)
+target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json)
 
 
 # ================================================================
