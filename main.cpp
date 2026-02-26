@@ -10,6 +10,8 @@ using namespace ge::ecs;
 using namespace ge::platform;
 using namespace ge::renderer;
 
+int main()
+{
     // select renderer
     RendererAPI::SetAPI(RenderAPI::OpenGL);
 
