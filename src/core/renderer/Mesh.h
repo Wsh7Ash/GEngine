@@ -34,8 +34,10 @@ namespace renderer {
         virtual void Draw() const = 0;
 
         virtual uint32_t GetIndexCount() const = 0;
+        virtual void SetIndexCount(uint32_t count) = 0;
 
         virtual void SetData(const void* vertices, uint32_t size) = 0;
+        virtual void SetIndices(const uint32_t* indices, uint32_t count) = 0;
 
         /**
          * @brief Factory method to create a mesh of the current API type.
