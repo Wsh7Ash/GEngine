@@ -4,13 +4,12 @@
 #include <cstdio>
 #include <cmath>
 #include <memory>
-#include <imgui.h>
-#include "platform/ImGuiLayer.h"
 
 using namespace ge;
 using namespace ge::ecs;
 using namespace ge::platform;
 using namespace ge::renderer;
+using namespace ge::editor;
 
 int main()
 {
@@ -18,15 +17,12 @@ int main()
     RendererAPI::SetAPI(RenderAPI::OpenGL);
 
     // 1. Initialize Window & Renderer
-    WindowProps props("GEngine Phase 7: Hybrid UI Demo", 1280, 720);
+    WindowProps props("GEngine Phase 7 Refactor: Editor Module", 1280, 720);
     Window window(props);
     ge::platform::InitializeInput(&window);
 
-    // native Win32 Menu
-    window.InitNativeMenuBar();
-
     Renderer2D::Init();
-    ImGuiLayer::Init(window.GetNativeWindow());
+    EditorToolbar::Init(window.GetNativeWindow());
 
     // 2. Setup ECS
     World world;
@@ -58,8 +54,8 @@ int main()
     world.AddComponent(cube, TransformComponent{ Math::Vec3f(0.0f, 0.0f, -5.0f) });
     world.AddComponent(cube, MeshComponent{ cubeMesh, basicShader });
 
-    // 6. Create "Sprite Forest" (1000 sprites)
-    for (int i = 0; i < 1000; i++)
+    // 6. Create "Sprite Forest" (10 sprites)
+    for (int i = 0; i < 10; i++)
     {
         Entity sprite = world.CreateEntity();
         float x = (float)(rand() % 3200) / 1000.0f - 1.6f;
@@ -100,43 +96,13 @@ int main()
         basicShader->SetMat4("u_ViewProjection", projection * Math::Mat4f::Identity());
         renderSystem->Render(world);
 
-        // Render ImGui UI
+        // Render Editor UI
         ImGuiLayer::Begin();
-
-        if (ImGui::BeginMainMenuBar())
-        {
-            if (ImGui::BeginMenu("Tools"))
-            {
-                if (ImGui::MenuItem("Toggle Stats")) { /* Toggle logic */ }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMainMenuBar();
-        }
-
-        // Toolbar Window
-        ImGui::SetNextWindowPos({ 0, 20 });
-        ImGui::SetNextWindowSize({ 200, 100 });
-        ImGui::Begin("Main Tools", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
-        ImGui::Text("GEngine Toolkit");
-        ImGui::Separator();
-        if (ImGui::Button("Play")) { GE_LOG_INFO("Play started"); }
-        ImGui::SameLine();
-        if (ImGui::Button("Stop")) { GE_LOG_INFO("Play stopped"); }
-        ImGui::End();
-
-        // Stats Window
-        auto stats = Renderer2D::GetStats();
-        ImGui::Begin("Batch Renderer Stats");
-        ImGui::Text("Draw Calls: %d", stats.DrawCalls);
-        ImGui::Text("Quads: %d", stats.QuadCount);
-        ImGui::Text("Vertices: %d", stats.GetTotalVertexCount());
-        ImGui::Text("Indices: %d", stats.GetTotalIndexCount());
-        ImGui::End();
-
+        EditorToolbar::OnImGuiRender();
         ImGuiLayer::End();
     }
 
-    ImGuiLayer::Shutdown();
+    EditorToolbar::Shutdown();
     Renderer2D::Shutdown();
     return 0;
 }
