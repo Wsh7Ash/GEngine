@@ -22,6 +22,8 @@ namespace renderer {
         virtual uint32_t GetHeight() const = 0;
         virtual uint32_t GetID() const = 0;
 
+        virtual bool operator==(const Texture& other) const = 0;
+
         /**
          * @brief Factory method to create a texture from a file.
          */
