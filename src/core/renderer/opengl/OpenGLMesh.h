@@ -20,6 +20,7 @@ namespace renderer {
 
         virtual uint32_t GetIndexCount() const override { return indexCount_; }
         virtual void SetData(const void* vertices, uint32_t size) override;
+        void SetIndices(const uint32_t* indices, uint32_t count);
         void SetIndexCount(uint32_t count) { indexCount_ = count; }
 
     private:

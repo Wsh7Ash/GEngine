@@ -98,5 +98,12 @@ namespace renderer {
         glBufferSubData(GL_ARRAY_BUFFER, 0, size, vertices);
     }
 
+    void OpenGLMesh::SetIndices(const uint32_t* indices, uint32_t count)
+    {
+        indexCount_ = count;
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(uint32_t), indices, GL_STATIC_DRAW);
+    }
+
 } // namespace renderer
 } // namespace ge
