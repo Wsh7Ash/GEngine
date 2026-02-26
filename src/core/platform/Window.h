@@ -50,12 +50,9 @@ public:
     
     [[nodiscard]] void* GetNativeWindow() const { return window_; }
 
-    void InitNativeMenuBar();
-
 private:
     void Init(const WindowProps& props);
     void Shutdown();
-    void* GetHWND() const;
 
 private:
     GLFWwindow* window_;

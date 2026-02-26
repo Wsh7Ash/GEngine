@@ -127,39 +127,5 @@ bool Window::ShouldClose() const
     return glfwWindowShouldClose(window_);
 }
 
-void Window::InitNativeMenuBar()
-{
-#ifdef GE_PLATFORM_WINDOWS
-    HWND hwnd = (HWND)GetHWND();
-    HMENU hMenuBar = CreateMenu();
-    
-    // File Menu
-    HMENU hFileMenu = CreatePopupMenu();
-    AppendMenu(hFileMenu, MF_STRING, 1001, "New Scene");
-    AppendMenu(hFileMenu, MF_STRING, 1002, "Open Scene...");
-    AppendMenu(hFileMenu, MF_STRING, 1003, "Save Scene");
-    AppendMenu(hFileMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenu(hFileMenu, MF_STRING, 1004, "Exit");
-    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hFileMenu, "File");
-
-    // Edit Menu
-    HMENU hEditMenu = CreatePopupMenu();
-    AppendMenu(hEditMenu, MF_STRING, 2001, "Undo");
-    AppendMenu(hEditMenu, MF_STRING, 2002, "Redo");
-    AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hEditMenu, "Edit");
-
-    SetMenu(hwnd, hMenuBar);
-#endif
-}
-
-void* Window::GetHWND() const
-{
-#ifdef GE_PLATFORM_WINDOWS
-    return glfwGetWin32Window(window_);
-#else
-    return nullptr;
-#endif
-}
-
 } // namespace platform
 } // namespace ge
