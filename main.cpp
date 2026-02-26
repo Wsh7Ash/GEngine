@@ -17,6 +17,11 @@ int main()
 
     // Select Renderer API (OpenGL for now)
     RendererAPI::SetAPI(RenderAPI::OpenGL);
+    // RendererAPI::SetAPI(RenderAPI::Dx11);
+    // dx12
+    // Vulkan
+    // WinAPI
+
 
     // 1. Initialize Window & Renderer
     WindowProps props("GEngine Phase 4 Demo", 1280, 720);
@@ -34,7 +39,7 @@ int main()
     {
         Signature signature;
         signature.set(GetComponentTypeID<TransformComponent>());
-        signature.set(GetComponentTypeID<MeshComponent>());
+        // We'll let the system check for Mesh/Sprite internally
         world.SetSystemSignature<RenderSystem>(signature);
     }
 
@@ -42,57 +47,60 @@ int main()
     auto basicShader = Shader::Create("../src/shaders/basic.vert", "../src/shaders/basic.frag");
     auto cubeMesh = Mesh::CreateCube();
 
-    // 4. Create Entity
+    // Create a procedural 4x4 checkerboard texture
+    uint32_t pixels[4 * 4] = {
+        0xFFFFFFFF, 0xFF888888, 0xFFFFFFFF, 0xFF888888,
+        0xFF888888, 0xFFFFFFFF, 0xFF888888, 0xFFFFFFFF,
+        0xFFFFFFFF, 0xFF888888, 0xFFFFFFFF, 0xFF888888,
+        0xFF888888, 0xFFFFFFFF, 0xFF888888, 0xFFFFFFFF
+    };
+    auto checkerTexture = Texture::Create(4, 4, pixels, sizeof(pixels));
+
+    // 4. Create 3D Cube Entity
     Entity cube = world.CreateEntity();
     world.AddComponent(cube, TransformComponent{ Math::Vec3f(0.0f, 0.0f, -5.0f) });
     world.AddComponent(cube, MeshComponent{ cubeMesh, basicShader });
 
-    // 5. Main Loop
-    float rotation = 0.0f;
+    // 5. Create 2D Sprite Entity (UI / Logo)
+    Entity logo = world.CreateEntity();
+    // Position it in "screenspace" or just close to camera
+    // With perspective, we'll put it in front.
+    world.AddComponent(logo, TransformComponent{ Math::Vec3f(1.5f, 1.0f, -4.0f), Math::Quatf::Identity(), Math::Vec3f(0.5f, 0.5f, 0.5f) });
+    world.AddComponent(logo, SpriteComponent{ checkerTexture, { 1.0f, 1.0f, 1.0f, 1.0f } });
+    // Use the cube mesh as a placeholder for a 2D Quad for now
+    world.AddComponent(logo, MeshComponent{ cubeMesh, basicShader });
+
+    // 6. Main Loop
+    float rotation = 0.10f;
     while (!window.ShouldClose())
     {
-        // Delta time (hardcoded for now, normally from a clock)
         float dt = 1.0f / 60.0f;
-
-        // Input handling
-        if (Input::IsKeyPressed(GLFW_KEY_ESCAPE))
-            break;
+        if (Input::IsKeyPressed(GLFW_KEY_ESCAPE)) break;
 
         // Logic: Rotate the cube
         rotation += 50.0f * dt;
         auto& t = world.GetComponent<TransformComponent>(cube);
         t.rotation = Math::Quatf::FromEuler(Math::Vec3f(rotation, rotation * 0.5f, 0.0f));
 
-        // Interaction: Move cube with WASD
-        float speed = 5.0f * dt;
-        if (Input::IsKeyPressed(GLFW_KEY_W)) t.position.y += speed;
-        if (Input::IsKeyPressed(GLFW_KEY_S)) t.position.y -= speed;
-        if (Input::IsKeyPressed(GLFW_KEY_A)) t.position.x -= speed;
-        if (Input::IsKeyPressed(GLFW_KEY_D)) t.position.x += speed;
-
-        // Rendering
-        // (In a real engine, we'd have a Renderer::BeginFrame / EndFrame)
+        // Rendering setup
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
 
-        // Global Camera Uniforms
         basicShader->Bind();
         
-        Math::Mat4f view = Math::Mat4f::Identity(); // View matrix (cam at origin)
-        // Camera usually looks down -Z. Our cube is at -5.0 on Z.
-        
-        float fov = 60.0f * (3.14159265f / 180.0f);
+        // 1. Perspective view for the whole scene (Hybrid approach)
+        float fov = Math::ToRadians(60.0f);
         Math::Mat4f projection = Math::Mat4f::Perspective(fov, 1280.0f / 720.0f, 0.1f, 100.0f);
+        Math::Mat4f view = Math::Mat4f::Identity(); // Camera at origin
         
-        basicShader->SetMat4("u_View", view);
-        basicShader->SetMat4("u_Projection", projection);
+        basicShader->SetMat4("u_ViewProjection", projection * view);
 
+        // Render everything
         renderSystem->Render(world);
 
         window.OnUpdate();
     }
 
-    // No need to manual delete, shared_ptr handles it
     return 0;
 }
