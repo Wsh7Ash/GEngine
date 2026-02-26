@@ -53,3 +53,5 @@
 #include "renderer/Shader.h"
 #include "renderer/Mesh.h"
 #include "renderer/Texture.h"
+#include "renderer/OrthographicCamera.h"
+#include "renderer/Renderer2D.h"
