@@ -41,10 +41,11 @@ void RenderSystem::Render(World& world)
                 auto& transform = world.GetComponent<TransformComponent>(entity);
                 auto& spriteComp = world.GetComponent<SpriteComponent>(entity);
                 
-                if (spriteComp.TexturePtr)
-                    renderer::Renderer2D::DrawQuad(transform.position, { transform.scale.x, transform.scale.y }, spriteComp.TexturePtr, spriteComp.Color);
+                Math::Vec2f size = { transform.scale.x, transform.scale.y };
+                if (spriteComp.texture)
+                    renderer::Renderer2D::DrawQuad(transform.position, size, spriteComp.texture, spriteComp.color);
                 else
-                    renderer::Renderer2D::DrawQuad(transform.position, { transform.scale.x, transform.scale.y }, spriteComp.Color);
+                    renderer::Renderer2D::DrawQuad(transform.position, size, spriteComp.color);
             }
         }
         renderer::Renderer2D::EndScene();
