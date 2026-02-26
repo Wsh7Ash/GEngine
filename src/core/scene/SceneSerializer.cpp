@@ -22,15 +22,16 @@ namespace scene {
 
         // Iterate through all entities (rough implementation for now)
         // In a real ECS, we'd iterate through a specific view or registry
-        for (ecs::Entity entity = 0; entity < 10000; ++entity) // Using a safe upper bound for demo
+        for (uint32_t i = 0; i < 10000; ++i) 
         {
+            ecs::Entity entity(i); // Explicitly construct handle
+
             // Check if entity is "alive" using a simple heuristic (e.g., has Transform)
-            // Ideally World would provide an ActiveEntities list
             if (!world_.HasComponent<ecs::TransformComponent>(entity))
                 continue;
 
             json entityJson;
-            entityJson["ID"] = entity;
+            entityJson["ID"] = i;
 
             // Serialize Transform
             auto& tc = world_.GetComponent<ecs::TransformComponent>(entity);
@@ -45,8 +46,7 @@ namespace scene {
             {
                 auto& sc = world_.GetComponent<ecs::SpriteComponent>(entity);
                 entityJson["Sprite"] = {
-                    {"Color", {sc.color.r, sc.color.g, sc.color.b, sc.color.a}}
-                    // Texture serialization involves asset paths, to be added later
+                    {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}}
                 };
             }
 
@@ -54,8 +54,11 @@ namespace scene {
         }
 
         std::ofstream fout(filepath);
-        fout << root.dump(4);
-        GE_LOG_INFO("Scene serialized to %s", filepath.c_str());
+        if (fout.is_open())
+        {
+            fout << root.dump(4);
+            GE_LOG_INFO("Scene serialized to %s", filepath.c_str());
+        }
     }
 
     bool SceneSerializer::Deserialize(const std::string& filepath)
@@ -64,14 +67,19 @@ namespace scene {
         if (!fin.is_open()) return false;
 
         json data;
-        fin >> data;
+        try {
+            fin >> data;
+        } catch (json::parse_error& e) {
+            GE_LOG_ERROR("Failed to parse scene JSON: %s", e.what());
+            return false;
+        }
 
         if (!data.contains("Entities")) return false;
 
         for (auto& entityData : data["Entities"])
         {
-            uint32_t id = entityData["ID"];
-            ecs::Entity entity = world_.CreateEntity(); // Should probably reserve specific IDs
+            // uint32_t id = entityData["ID"]; // Original ID not strictly used for restoration yet
+            ecs::Entity entity = world_.CreateEntity(); 
 
             // Deserialize Transform
             if (entityData.contains("Transform"))
@@ -81,9 +89,9 @@ namespace scene {
                 auto& sData = entityData["Transform"]["Scale"];
 
                 ecs::TransformComponent tc;
-                tc.position = { tData[0], tData[1], tData[2] };
-                tc.rotation = { rData[0], rData[1], rData[2], rData[3] };
-                tc.scale = { sData[0], sData[1], sData[2] };
+                tc.position = { (float)tData[0], (float)tData[1], (float)tData[2] };
+                tc.rotation = { (float)rData[0], (float)rData[1], (float)rData[2], (float)rData[3] };
+                tc.scale = { (float)sData[0], (float)sData[1], (float)sData[2] };
                 world_.AddComponent(entity, tc);
             }
 
@@ -92,7 +100,7 @@ namespace scene {
             {
                 auto& cData = entityData["Sprite"]["Color"];
                 ecs::SpriteComponent sc;
-                sc.color = { cData[0], cData[1], cData[2], cData[3] };
+                sc.color = { (float)cData[0], (float)cData[1], (float)cData[2], (float)cData[3] };
                 world_.AddComponent(entity, sc);
             }
         }

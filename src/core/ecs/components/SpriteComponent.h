@@ -12,9 +12,9 @@ namespace ecs {
      */
     struct SpriteComponent
     {
-        std::shared_ptr<renderer::Texture> TexturePtr = nullptr;
-        Math::Vec4f Color = { 1.0f, 1.0f, 1.0f, 1.0f }; // Tint color
-        Math::Vec2f Tiling = { 1.0f, 1.0f };
+        std::shared_ptr<renderer::Texture> texture = nullptr;
+        Math::Vec4f color = { 1.0f, 1.0f, 1.0f, 1.0f }; // Tint color
+        Math::Vec2f tiling = { 1.0f, 1.0f };
     };
 
 } // namespace ecs
