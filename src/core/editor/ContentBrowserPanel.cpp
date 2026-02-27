@@ -30,6 +30,14 @@ namespace ge{
                     if(ImGui::Button(filenameString.c_str())){
                         // TODO: Open file
                     }
+
+                    if(ImGui::BeginDragDropSource()){
+                        const wchar_t* itemPath = path.c_str();
+                        ImGui::SetDrapDropPayload("CONTENT_BROWSER_ITEM", 
+                                                itemPath, (wcslen(itemPath) + 1) * sizeof(wchar_t));
+                        ImGui::TextUnformatted(filenameString.c_str());
+                        ImGui::EndDragDropSource();
+                    }
                 }
             }
 
