@@ -18,6 +18,7 @@ namespace editor {
     static ecs::World* s_ActiveWorld = nullptr;
     std::unique_ptr<SceneHierarchyPanel> EditorToolbar::s_HierarchyPanel = nullptr;
     std::shared_ptr<ViewportPanel> EditorToolbar::s_ViewportPanel = nullptr;
+    std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel = nullptr;
     SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
     void EditorToolbar::Init(void* windowHandle, ecs::World& world)

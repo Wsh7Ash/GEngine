@@ -107,6 +107,7 @@ set(GE_CORE_HEADERS
     src/core/renderer/dx11/DX11Texture.h
     src/core/editor/EditorToolbar.h
     src/core/editor/SceneHierarchyPanel.h
+    src/core/editor/ContentBrowserPanel.h
     src/core/editor/ViewportPanel.h
     src/core/scene/SceneSerializer.h
 )
@@ -120,6 +121,7 @@ set(GE_CORE_SOURCES
     src/core/platform/ImGuiLayer.cpp
     src/core/editor/EditorToolbar.cpp
     src/core/editor/SceneHierarchyPanel.cpp
+    src/core/editor/ContentBrowserPanel.cpp
     src/core/editor/ViewportPanel.cpp
     src/core/scene/SceneSerializer.cpp
     src/core/renderer/RendererAPI.cpp

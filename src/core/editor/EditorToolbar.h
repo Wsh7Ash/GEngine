@@ -1,4 +1,5 @@
 #include "SceneHierarchyPanel.h"
+#include "ContentBrowserPanel.h"
 #include "ViewportPanel.h"
 
 namespace ge {
@@ -23,6 +24,7 @@ namespace editor {
         static void OnImGuiRender();
 
         static std::shared_ptr<ViewportPanel> GetViewportPanel() { return s_ViewportPanel; }
+        static std::shared_ptr<ContentBrowserPanel> GetContentBrowserPanel() { return s_ContentBrowserPanel; }
         static SceneState GetState() { return s_SceneState; }
 
     private:
@@ -31,6 +33,7 @@ namespace editor {
     private:
         static std::unique_ptr<SceneHierarchyPanel> s_HierarchyPanel;
         static std::shared_ptr<ViewportPanel> s_ViewportPanel;
+        static std::shared_ptr<ContentBrowserPanel> s_ContentBrowserPanel;
         static SceneState s_SceneState;
     };
 
