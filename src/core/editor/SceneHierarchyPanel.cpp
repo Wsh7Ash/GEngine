@@ -138,7 +138,7 @@ namespace editor {
 
             ImGui::EndPopup();
         }
-
+        
         ImGui::PopItemWidth();
 
         ImGui::Separator();
@@ -185,6 +185,20 @@ namespace editor {
                 }
                 ImGui::TreePop();
             }
+        }
+
+        ImGui::Button("Texture");
+        ImVec2(100.0f, 0.0f);
+        if(ImGui::BeginDragDropTarget()){
+            if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")){
+                const wchar_t* path = (const wchar_t*)payload->data;
+                GE_LOG_INFO("Dropped file: %ls", path);
+                
+                //TODO: Actually load the texture into the component
+                // auto& sc = context_->GetComponent<ecs::SpriteComponent>(entity);
+                // sc.texture = Renderer2D::LoadTexture(path);
+            }
+            ImGui::EndDragpDropTarget();
         }
     }
 
