@@ -18,6 +18,7 @@ namespace editor {
     static ecs::World* s_ActiveWorld = nullptr;
     std::unique_ptr<SceneHierarchyPanel> EditorToolbar::s_HierarchyPanel = nullptr;
     std::shared_ptr<ViewportPanel> EditorToolbar::s_ViewportPanel = nullptr;
+    SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
     void EditorToolbar::Init(void* windowHandle, ecs::World& world)
     {
@@ -102,9 +103,16 @@ namespace editor {
         ImGui::Begin("Main Tools");
         ImGui::Text("GEngine Toolkit");
         ImGui::Separator();
-        if (ImGui::Button("Play")) { GE_LOG_INFO("Play started"); }
-        ImGui::SameLine();
-        if (ImGui::Button("Stop")) { GE_LOG_INFO("Play stopped"); }
+        
+        if (s_SceneState == SceneState::Edit)
+        {
+            if (ImGui::Button("Play")) { s_SceneState = SceneState::Play; GE_LOG_INFO("Play started"); }
+        }
+        else
+        {
+            if (ImGui::Button("Stop")) { s_SceneState = SceneState::Edit; GE_LOG_INFO("Play stopped"); }
+        }
+
         ImGui::End();
 
         // 3. Stats Window

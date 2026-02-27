@@ -18,11 +18,11 @@ public:
     {
         auto& pos = GetComponent<TransformComponent>().position;
         float speed = 2.0f * ts;
-
-        if (Input::IsKeyPressed(GLFW_KEY_W)) pos.y += speed;
-        if (Input::IsKeyPressed(GLFW_KEY_S)) pos.y -= speed;
-        if (Input::IsKeyPressed(GLFW_KEY_A)) pos.x -= speed;
-        if (Input::IsKeyPressed(GLFW_KEY_D)) pos.x += speed;
+        
+        if (Input::IsKeyPressed(GLFW_KEY_W) || Input::IsKeyPressed(GLFW_KEY_UP)) pos.y += speed;
+        if (Input::IsKeyPressed(GLFW_KEY_S) || Input::IsKeyPressed(GLFW_KEY_DOWN)) pos.y -= speed;
+        if (Input::IsKeyPressed(GLFW_KEY_A) || Input::IsKeyPressed(GLFW_KEY_RIGHT)) pos.x -= speed;
+        if (Input::IsKeyPressed(GLFW_KEY_D) || Input::IsKeyPressed(GLFW_KEY_LEFT)) pos.x += speed;
     }
 };
 
@@ -108,15 +108,18 @@ int main()
 
         window.OnUpdate();
 
-        // Update systems
-        scriptSystem->Update(world, dt);
+        // Update systems (only in Play Mode)
+        if (EditorToolbar::GetState() == SceneState::Play)
+        {
+            scriptSystem->Update(world, dt);
 
-        // Rotate Cube
-        rotation += 50.0f * dt;
-        world.GetComponent<TransformComponent>(cube).rotation = Math::Quatf::FromEuler(Math::Vec3f(rotation, rotation * 0.5f, 0.0f));
+            // Rotate Cube
+            rotation += 50.0f * dt;
+            world.GetComponent<TransformComponent>(cube).rotation = Math::Quatf::FromEuler(Math::Vec3f(rotation, rotation * 0.5f, 0.0f));
 
-        // Update camera position from controller
-        camera2D->SetPosition(world.GetComponent<TransformComponent>(cameraController).position);
+            // Update camera position from controller
+            camera2D->SetPosition(world.GetComponent<TransformComponent>(cameraController).position);
+        }
 
         // Rendering
         auto viewportPanel = EditorToolbar::GetViewportPanel();

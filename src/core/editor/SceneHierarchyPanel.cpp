@@ -3,6 +3,7 @@
 #include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/TagComponent.h"
+#include "../ecs/components/NativeScriptComponent.h"
 
 namespace ge {
 namespace editor {
@@ -25,15 +26,26 @@ namespace editor {
         // 1. Hierarchy Window
         ImGui::Begin("Scene Hierarchy");
 
-        // Iterate through all entities that have a Transform (as a proxy for "alive")
-        // In a real system, we'd have a list of active entities.
+        // Iterate through all entities (using a fixed limit for now, but checking IsAlive)
         for (uint32_t i = 0; i < 10000; ++i)
         {
             ecs::Entity entity(i);
-            if (context_->HasComponent<ecs::TransformComponent>(entity))
+            if (context_->IsAlive(entity))
             {
                 DrawEntityNode(entity);
             }
+        }
+
+        // Right-click on blank space
+        if (ImGui::BeginPopupContextWindow())
+        {
+            if (ImGui::MenuItem("Create Empty Entity"))
+            {
+                auto e = context_->CreateEntity();
+                context_->AddComponent(e, ecs::TransformComponent{});
+                context_->AddComponent(e, ecs::TagComponent{ "Entity" });
+            }
+            ImGui::EndPopup();
         }
 
         if (ImGui::IsMouseDown(0) && ImGui::IsWindowHovered())
@@ -65,10 +77,26 @@ namespace editor {
             selection_context_ = entity;
         }
 
+        bool entityDeleted = false;
+        if (ImGui::BeginPopupContextItem())
+        {
+            if (ImGui::MenuItem("Delete Entity"))
+                entityDeleted = true;
+
+            ImGui::EndPopup();
+        }
+
         if (opened)
         {
             // Placeholder for children
             ImGui::TreePop();
+        }
+
+        if (entityDeleted)
+        {
+            context_->DestroyEntity(entity);
+            if (selection_context_ == entity)
+                selection_context_ = ecs::Entity();
         }
     }
 
@@ -86,6 +114,33 @@ namespace editor {
             }
         }
 
+        ImGui::SameLine();
+        ImGui::PushItemWidth(-1);
+
+        if (ImGui::Button("Add Component"))
+            ImGui::OpenPopup("AddComponent");
+
+        if (ImGui::BeginPopup("AddComponent"))
+        {
+            if (ImGui::MenuItem("Sprite Component"))
+            {
+                if (!context_->HasComponent<ecs::SpriteComponent>(entity))
+                    context_->AddComponent(entity, ecs::SpriteComponent{});
+                ImGui::CloseCurrentPopup();
+            }
+
+            if (ImGui::MenuItem("Native Script Component"))
+            {
+                if (!context_->HasComponent<ecs::NativeScriptComponent>(entity))
+                    context_->AddComponent(entity, ecs::NativeScriptComponent{});
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::PopItemWidth();
+
         ImGui::Separator();
 
         if (context_->HasComponent<ecs::TransformComponent>(entity))
@@ -95,11 +150,11 @@ namespace editor {
                 auto& tc = context_->GetComponent<ecs::TransformComponent>(entity);
                 ImGui::DragFloat3("Position", &tc.position.x, 0.1f);
                 
-                // Rotation (simple euler approximation for now)
-                Math::Vec3f rotation = { 0, 0, 0 }; // We don't store eulers, but we could convert from quat
+                // Rotation (simple quat-to-euler representation for display)
+                static Math::Vec3f rotation = { 0, 0, 0 }; 
                 if (ImGui::DragFloat3("Rotation", &rotation.x, 0.1f))
                 {
-                    // Update quat from eulers
+                    tc.rotation = Math::Quatf::FromEuler(rotation);
                 }
 
                 ImGui::DragFloat3("Scale", &tc.scale.x, 0.1f);
@@ -113,6 +168,21 @@ namespace editor {
             {
                 auto& sc = context_->GetComponent<ecs::SpriteComponent>(entity);
                 ImGui::ColorEdit4("Color", &sc.color.x);
+                // Texture control (to be added)
+                ImGui::TreePop();
+            }
+        }
+
+        if (context_->HasComponent<ecs::NativeScriptComponent>(entity))
+        {
+            if (ImGui::TreeNodeEx((void*)typeid(ecs::NativeScriptComponent).hash_code(), ImGuiTreeNodeFlags_DefaultOpen, "Native Script"))
+            {
+                auto& nsc = context_->GetComponent<ecs::NativeScriptComponent>(entity);
+                ImGui::Text("Script Attached");
+                if (ImGui::Button("Remove Script"))
+                {
+                    context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
+                }
                 ImGui::TreePop();
             }
         }

@@ -57,6 +57,11 @@ public:
         systemManager_->EntityDestroyed(e);
     }
 
+    [[nodiscard]] bool IsAlive(Entity e) const noexcept
+    {
+        return entityManager_.IsAlive(e);
+    }
+
     // ── Component management ─────────────────────────────────────
 
     template <typename T>
