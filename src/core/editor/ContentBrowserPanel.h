@@ -6,7 +6,7 @@ namespace ge{
         class ContentBrowserPanel{
             public:
                 ContentBrowserPanel();
-                void onImGuiRender();
+                void OnImGuiRender();
 
             private:
                 std::filesystem::path cur_dir_;

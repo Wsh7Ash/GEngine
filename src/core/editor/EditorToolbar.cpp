@@ -25,6 +25,7 @@ namespace editor {
     {
         s_ActiveWorld = &world;
         s_HierarchyPanel = std::make_unique<SceneHierarchyPanel>(world);
+        s_ContentBrowserPanel = std::make_shared<ContentBrowserPanel>();
         s_ViewportPanel = std::make_shared<ViewportPanel>();
         
         ImGuiLayer::Init(windowHandle);
@@ -130,6 +131,9 @@ namespace editor {
 
         if (s_ViewportPanel)
             s_ViewportPanel->OnImGuiRender();
+
+        if(s_ContentBrowserPanel)
+            s_ContentBrowserPanel->OnImGuiRender();
 
         ImGui::End(); // End DockSpace Window
     }
