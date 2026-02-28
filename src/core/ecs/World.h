@@ -31,9 +31,19 @@ public:
 
   // ── Entity management ───────────────────────────────────────
 
-  [[nodiscard]] Entity CreateEntity() { return entityManager_.CreateEntity(); }
+  [[nodiscard]] Entity CreateEntity() {
+    Entity e = entityManager_.CreateEntity();
+    allEntities_.push_back(e);
+    return e;
+  }
 
   void DestroyEntity(Entity e) {
+    auto it = std::find(allEntities_.begin(), allEntities_.end(), e);
+    if (it != allEntities_.end()) {
+      *it = allEntities_.back();
+      allEntities_.pop_back();
+    }
+
     entityManager_.DestroyEntity(e);
 
     // Notify all component storages
@@ -49,18 +59,10 @@ public:
   }
 
   void Clear() {
-    // Collect alive entities first, then destroy them
-    // This avoids issues with destroying during iteration
-    std::vector<Entity> alive;
-    uint32_t cap = entityManager_.GetCapacity();
-    for (uint32_t i = 0; i < cap; ++i) {
-      Entity e(i);
-      if (entityManager_.IsAlive(e))
-        alive.push_back(e);
-    }
+    // Collect active entities directly from our tracked list
+    auto alive = allEntities_;
     for (auto &e : alive) {
-      if (entityManager_.IsAlive(e))
-        DestroyEntity(e);
+      DestroyEntity(e);
     }
   }
 
@@ -147,6 +149,9 @@ private:
 
   // Tracks which components each entity has (using its index).
   std::vector<Signature> entitySignatures_;
+
+  // Tracks all allocated entities to allow safe, exact cleanup
+  std::vector<Entity> allEntities_;
 };
 
 } // namespace ecs
