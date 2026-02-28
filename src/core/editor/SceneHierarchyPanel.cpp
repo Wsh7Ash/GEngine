@@ -1,4 +1,5 @@
 #include "SceneHierarchyPanel.h"
+#include "../renderer/Renderer2D.h"
 #include <imgui.h>
 #include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/SpriteComponent.h"
@@ -59,6 +60,8 @@ namespace editor {
         {
             DrawComponents(selection_context_);
         }
+
+
         ImGui::End();
     }
 
@@ -191,14 +194,23 @@ namespace editor {
         ImVec2(100.0f, 0.0f);
         if(ImGui::BeginDragDropTarget()){
             if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")){
-                const wchar_t* path = (const wchar_t*)payload->data;
+                const wchar_t* path = (const wchar_t*)payload->Data;
                 GE_LOG_INFO("Dropped file: %ls", path);
                 
                 //TODO: Actually load the texture into the component
                 // auto& sc = context_->GetComponent<ecs::SpriteComponent>(entity);
                 // sc.texture = Renderer2D::LoadTexture(path);
             }
-            ImGui::EndDragpDropTarget();
+            ImGui::EndDragDropTarget();
+        }
+
+        if(ImGui::beginTable("TransformTable", 2, ImGuiTableFlags_sizingFixedFit)){
+            ImGui::TableNext();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("Position");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
+            ImGui::EndTable();
         }
     }
 
