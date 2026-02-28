@@ -6,33 +6,34 @@
 namespace ge {
 namespace ecs {
 
-    /**
-     * @brief Base class for all native scripts.
-     * 
-     * Users should inherit from this class to define custom entity behavior.
-     */
-    class ScriptableEntity
-    {
-    public:
-        virtual ~ScriptableEntity() = default;
+/**
+ * @brief Base class for all native scripts.
+ *
+ * Users should inherit from this class to define custom entity behavior.
+ */
+class ScriptableEntity {
+public:
+  virtual ~ScriptableEntity() = default;
 
-        template<typename T>
-        T& GetComponent()
-        {
-            return world_->GetComponent<T>(entity_);
-        }
+  template <typename T> T &GetComponent() {
+    return world_->GetComponent<T>(entity_);
+  }
 
-    protected:
-        virtual void OnCreate() {}
-        virtual void OnUpdate(float ts) {}
-        virtual void OnDestroy() {}
+  // Serialization hooks
+  virtual void OnSerialize(void *jsonRoot) {}
+  virtual void OnDeserialize(void *jsonRoot) {}
 
-    private:
-        Entity entity_;
-        World* world_ = nullptr;
+protected:
+  virtual void OnCreate() {}
+  virtual void OnUpdate(float ts) {}
+  virtual void OnDestroy() {}
 
-        friend class ScriptSystem;
-    };
+private:
+  Entity entity_;
+  World *world_ = nullptr;
+
+  friend class ScriptSystem;
+};
 
 } // namespace ecs
 } // namespace ge
