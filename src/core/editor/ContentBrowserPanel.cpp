@@ -3,9 +3,9 @@
 
 namespace ge {
 namespace editor {
-static const std::filesystem::path s_AssetsDirectory = "../assets";
+// static const std::filesystem::path s_AssetsDirectory = "../assets";
 
-ContentBrowserPanel::ContentBrowserPanel() : cur_dir_(s_AssetsDirectory) {}
+ContentBrowserPanel::ContentBrowserPanel() { cur_dir_ = GetAssetPath(); }
 
 static std::filesystem::path GetAssetPath() {
   std::vector<std::string> paths = {"./", "../", "../../", "../../../"};
@@ -29,7 +29,8 @@ void ContentBrowserPanel::OnImGuiRender() {
   ImGui::Columns(columnCount, 0, false);
 
   ImGui::Begin("Content Browser");
-  if (cur_dir_ != std::filesystem::path(s_AssetsDirectory)) {
+  auto baseAsset = GetAssetPath();
+  if (cur_dir_ != baseAsset) {
     if (ImGui::Selectable("<-Back")) {
       cur_dir_ = cur_dir_.parent_path();
     }
@@ -44,7 +45,6 @@ void ContentBrowserPanel::OnImGuiRender() {
 
   for (auto &directoryEntity : std::filesystem::directory_iterator(cur_dir_)) {
     const auto &path = directoryEntity.path();
-    auto relativePath = std::filesystem::relative(path, s_AssetsDirectory);
     std::string filenameString = path.filename().string();
     if (directoryEntity.is_directory()) {
       if (ImGui::Selectable(filenameString.c_str())) {
