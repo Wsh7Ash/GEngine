@@ -37,10 +37,27 @@ void SceneHierarchyPanel::OnImGuiRender() {
 
   // Right-click on blank space
   if (ImGui::BeginPopupContextWindow()) {
-    if (ImGui::MenuItem("Create Empty Entity")) {
-      auto e = context_->CreateEntity();
-      context_->AddComponent(e, ecs::TransformComponent{});
-      context_->AddComponent(e, ecs::TagComponent{"Entity"});
+    if (ImGui::BeginMenu("Create")) {
+      if (ImGui::MenuItem("Empty Entity")) {
+        auto e = context_->CreateEntity();
+        context_->AddComponent(e, ecs::TransformComponent{});
+        context_->AddComponent(e, ecs::TagComponent{"Entity"});
+      }
+
+      if (ImGui::MenuItem("Sprite")) {
+        auto e = context_->CreateEntity();
+        context_->AddComponent(e, ecs::TransformComponent{});
+        context_->AddComponent(e, ecs::TagComponent{"Sprite"});
+        context_->AddComponent(e, ecs::SpriteComponent{});
+      }
+
+      if (ImGui::MenuItem("Spawn Point")) {
+        auto e = context_->CreateEntity();
+        context_->AddComponent(e, ecs::TransformComponent{});
+        context_->AddComponent(e, ecs::TagComponent{"SpawnPoint"});
+      }
+
+      ImGui::EndMenu();
     }
     ImGui::EndPopup();
   }
