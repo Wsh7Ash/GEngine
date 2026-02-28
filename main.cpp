@@ -92,36 +92,7 @@ int main() {
                             0xFF888888, 0xFFFFFFFF, 0xFF888888, 0xFFFFFFFF};
   auto checkerTexture = Texture::Create(4, 4, pixels, sizeof(pixels));
 
-  // 5. Create 3D Cube
-  Entity cube = world.CreateEntity();
-  world.AddComponent(cube, TransformComponent{Math::Vec3f(0.0f, 0.0f, -5.0f)});
-  world.AddComponent(cube, MeshComponent{cubeMesh, basicShader});
-
-  // 6. Create "Sprite Forest" (10 sprites)
-  for (int i = 0; i < 10; i++) {
-    Entity sprite = world.CreateEntity();
-    float x = (float)(rand() % 3200) / 1000.0f - 1.6f;
-    float y = (float)(rand() % 1800) / 1000.0f - 0.9f;
-    float r = (float)(rand() % 100) / 100.0f;
-    float g = (float)(rand() % 100) / 100.0f;
-    float b = (float)(rand() % 100) / 100.0f;
-
-    world.AddComponent(sprite, TransformComponent{{x, y, 0.0f},
-                                                  Math::Quatf::Identity(),
-                                                  {0.1f, 0.1f, 0.1f}});
-    world.AddComponent(sprite,
-                       SpriteComponent{checkerTexture, {r, g, b, 0.8f}});
-  }
-
-  // 7. Attach Camera Controller
-  Entity cameraController = world.CreateEntity();
-  world.AddComponent(cameraController, TransformComponent{{0.0f, 0.0f, 0.0f}});
-  world.AddComponent(cameraController, NativeScriptComponent{});
-  world.GetComponent<NativeScriptComponent>(cameraController)
-      .Bind<CameraController>();
-
-  // 8. Main Loop
-  float rotation = 0.0f;
+  // 5. Main Loop
   float lastTime = 0.0f;
 
   while (!window.ShouldClose()) {
@@ -134,15 +105,6 @@ int main() {
     // Update systems (only in Play Mode)
     if (EditorToolbar::GetState() == SceneState::Play) {
       scriptSystem->Update(world, dt);
-
-      // Rotate Cube
-      rotation += 50.0f * dt;
-      world.GetComponent<TransformComponent>(cube).rotation =
-          Math::Quatf::FromEuler(Math::Vec3f(rotation, rotation * 0.5f, 0.0f));
-
-      // Update camera position from controller
-      camera2D->SetPosition(
-          world.GetComponent<TransformComponent>(cameraController).position);
     }
 
     // Rendering
