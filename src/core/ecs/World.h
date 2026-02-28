@@ -17,7 +17,6 @@
 #include <tuple>
 #include <vector>
 
-
 namespace ge {
 namespace ecs {
 
@@ -50,9 +49,16 @@ public:
   }
 
   void Clear() {
-    // Destroy all entities
-    for (uint32_t i = 0; i < 10000; ++i) {
+    // Collect alive entities first, then destroy them
+    // This avoids issues with destroying during iteration
+    std::vector<Entity> alive;
+    uint32_t cap = entityManager_.GetCapacity();
+    for (uint32_t i = 0; i < cap; ++i) {
       Entity e(i);
+      if (entityManager_.IsAlive(e))
+        alive.push_back(e);
+    }
+    for (auto &e : alive) {
       if (entityManager_.IsAlive(e))
         DestroyEntity(e);
     }
