@@ -35,6 +35,13 @@ void ContentBrowserPanel::OnImGuiRender() {
     }
   }
 
+  if (cur_dir_.empty() || !std::filesystem::exists(cur_dir_)) {
+    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
+                       "Assets directory not found!");
+    ImGui::End();
+    return;
+  }
+
   for (auto &directoryEntity : std::filesystem::directory_iterator(cur_dir_)) {
     const auto &path = directoryEntity.path();
     auto relativePath = std::filesystem::relative(path, s_AssetsDirectory);
