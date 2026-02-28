@@ -1,21 +1,25 @@
 # GEngine
 
-A high-performance, high-aesthetic 3D game engine built with C++20, and OpenGL 4.5.
+A high-performance, high-aesthetic 2D/3D game engine built with C++20 and OpenGL 4.5.
 
-![GEngine Demo](https://via.placeholder.com/800x450.png?text=GEngine+Spinning+Cube+Demo)
+![GEngine Demo](GE.png)
 
 ## 🚀 Features
 
-- **ECS Architecture**: Packed component storage for maximum cache efficiency.
+- **ECS Architecture**: Custom Entity-Component-System with packed storage for maximum cache efficiency.
+- **Editor Module**: Integrated **Dear ImGui** with Docking and Multi-Viewport support for a professional IDE feel.
+- **Scene Hierarchy & Inspector**: Real-time entity management and property editing.
+- **High-Performance 2D Batching**: Optimized Renderer2D capable of drawing thousands of quads in a single draw call.
+- **Native Scripting**: C++ based scripting system via `ScriptableEntity` and `NativeScriptComponent`.
 - **Modern Math Library**: Zero-overhead, constexpr-first `Vec`, `Mat`, and `Quat` types.
-- **OpenGL 4.5 Renderer**: Shader-based rendering with VAO/VBO/EBO abstractions.
-- **Platform Abstraction**: Cross-platform windowing and input handling via GLFW.
-- **Logging & Debugging**: Integrated timestamped console/file logging and assertions.
+- **OpenGL 4.5 Renderer**: Shader-based abstraction (VAO/VBO/EBO) with Framebuffer support for Viewports.
+- **Logging & Debugging**: Integrated diagnostic logging and robust path-probing for assets.
 
 ## 🛠️ Tech Stack
 
 - **Language**: C++20
-- **Graphics**: OpenGL 4.5+
+- **Graphics**: OpenGL 4.5+ (Planned DX11 support)
+- **UI**: Dear ImGui (Docking branch)
 - **Windowing**: GLFW
 - **Loader**: GLAD
 - **Build System**: CMake
@@ -24,10 +28,11 @@ A high-performance, high-aesthetic 3D game engine built with C++20, and OpenGL 4
 
 ### Prerequisites
 
-- **Windows**: Visual Studio 2022 (with C++ CMake tools)
-- **CMake**: 3.20 or higher
+- **Windows**: Visual Studio 2022 or VS Code with Microsoft C++ Extension.
+- **CMake**: 3.20 or higher.
+- **Vulkan/SDK** (Optional): For future-proofing graphics backends.
 
-### Build Instructions
+### Build Instructions (VS Code)
 
 1. **Clone the repository**:
    ```powershell
@@ -35,31 +40,29 @@ A high-performance, high-aesthetic 3D game engine built with C++20, and OpenGL 4
    cd GEngine
    ```
 
-2. **Configure & Build**:
-   ```powershell
-   mkdir build
-   cd build
-   cmake ..
-   cmake --build . --config Debug
-   ```
-
-3. **Run the Demo**:
-   ```powershell
-   ./bin/Debug/GameEngine.exe
-   ```
+2. **Build & Run**:
+   - Open the project in VS Code.
+   - Press `F5` to trigger the **CMake Build** task and start the debugger.
+   - Or run via terminal:
+     ```powershell
+     cmake -B build
+     cmake --build build --config Debug
+     ./build/bin/Debug/GameEngine.exe
+     ```
 
 ## 🎮 Controls
 
-- **WASD**: Move the cube.
-- **ESC**: Exit the application.
+- **WASD / Arrows**: Move the camera (via `CameraController` script).
+- **Drag & Drop**: Drag assets from the Content Browser to the Inspector/Viewport.
+- **Right-Click**: Context menus in Hierarchy for entity creation/deletion.
 
 ## 📁 Project Structure
 
-- `src/core/`: Engine core systems (Math, ECS, Platform, Renderer).
-- `src/shaders/`: GLSL vertex and fragment shaders.
-- `deps/`: Third-party dependencies (GLFW, GLAD).
-- `tests/`: Unit tests and system benchmarks.
+- `src/core/`: Engine core systems (Math, ECS, Platform, Renderer, Editor).
+- `src/shaders/`: GLSL batch and basic shaders.
+- `assets/`: Textures and scene data.
+- `build/`: CMake build output.
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
