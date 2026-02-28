@@ -151,6 +151,15 @@ namespace editor {
             if (ImGui::TreeNodeEx((void*)typeid(ecs::TransformComponent).hash_code(), ImGuiTreeNodeFlags_DefaultOpen, "Transform"))
             {
                 auto& tc = context_->GetComponent<ecs::TransformComponent>(entity);
+                if(ImGui::BeginTable("TransformTable", 2, ImGuiTableFlags_sizingFixedFit)){
+                    ImGui::TableNextColumn();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("Position");
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
+                    ImGui::EndTable();
+                }
+                
                 ImGui::DragFloat3("Position", &tc.position.x, 0.1f);
                 
                 // Rotation (simple quat-to-euler representation for display)
@@ -162,6 +171,8 @@ namespace editor {
 
                 ImGui::DragFloat3("Scale", &tc.scale.x, 0.1f);
                 ImGui::TreePop();
+           
+                
             }
         }
 
@@ -202,15 +213,6 @@ namespace editor {
                 // sc.texture = Renderer2D::LoadTexture(path);
             }
             ImGui::EndDragDropTarget();
-        }
-
-        if(ImGui::beginTable("TransformTable", 2, ImGuiTableFlags_sizingFixedFit)){
-            ImGui::TableNext();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("Position");
-            ImGui::TableSetColumnIndex(1);
-            ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
-            ImGui::EndTable();
         }
     }
 
