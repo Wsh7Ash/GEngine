@@ -4,9 +4,7 @@
 namespace ge {
 namespace editor {
 // static const std::filesystem::path s_AssetsDirectory = "../assets";
-
-ContentBrowserPanel::ContentBrowserPanel() { cur_dir_ = GetAssetPath(); }
-
+// must be define first!
 static std::filesystem::path GetAssetPath() {
   std::vector<std::string> paths = {"./", "../", "../../", "../../../"};
   for (auto p : paths) {
@@ -16,6 +14,8 @@ static std::filesystem::path GetAssetPath() {
   }
   return "";
 }
+
+ContentBrowserPanel::ContentBrowserPanel() { cur_dir_ = GetAssetPath(); }
 
 // TODO: Add file selection
 void ContentBrowserPanel::OnImGuiRender() {
