@@ -11,6 +11,7 @@ namespace renderer {
     OpenGLTexture::OpenGLTexture(const std::string& path)
         : path_(path), width_(0), height_(0), rendererID_(0)
     {
+        GE_LOG_INFO("Loading texture: %s", path.c_str());
         int width, height, channels;
         stbi_set_flip_vertically_on_load(1);
         stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
@@ -35,7 +36,11 @@ namespace renderer {
             internalFormat_ = internalFormat;
             dataFormat_ = dataFormat;
 
-            GE_ASSERT(internalFormat & dataFormat, "Format not supported!");
+            if (!(internalFormat && dataFormat))
+            {
+                GE_LOG_CRITICAL("CRITICAL: Texture format not supported for %s", path.c_str());
+                std::abort();
+            }
 
             glCreateTextures(GL_TEXTURE_2D, 1, &rendererID_);
             glTextureStorage2D(rendererID_, 1, internalFormat, width_, height_);
@@ -52,7 +57,8 @@ namespace renderer {
         }
         else
         {
-            GE_LOG_ERROR("Failed to load texture at path: %s", path.c_str());
+            GE_LOG_CRITICAL("CRITICAL: Failed to load texture at path: %s", path.c_str());
+            std::abort();
         }
     }
 

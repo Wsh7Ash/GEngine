@@ -14,14 +14,25 @@ namespace renderer {
 
     void OpenGLContext::Init()
     {
+        GE_LOG_INFO("Initializing OpenGL context...");
         glfwMakeContextCurrent(windowHandle_);
         int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-        GE_ASSERT(status, "Failed to initialize Glad!");
+        if (!status)
+        {
+            GE_LOG_CRITICAL("CRITICAL: Failed to initialize Glad!");
+            std::abort();
+        }
 
         GE_LOG_INFO("OpenGL Info:");
-        GE_LOG_INFO("  Vendor:   %s", glGetString(GL_VENDOR));
-        GE_LOG_INFO("  Renderer: %s", glGetString(GL_RENDERER));
-        GE_LOG_INFO("  Version:  %s", glGetString(GL_VERSION));
+        const char* vendor = (const char*)glGetString(GL_VENDOR);
+        const char* renderer = (const char*)glGetString(GL_RENDERER);
+        const char* version = (const char*)glGetString(GL_VERSION);
+
+        if (vendor) GE_LOG_INFO("  Vendor:   %s", vendor);
+        else GE_LOG_ERROR("  Vendor:   NULL (Context failed?)");
+
+        if (renderer) GE_LOG_INFO("  Renderer: %s", renderer);
+        if (version) GE_LOG_INFO("  Version:  %s", version);
     }
 
     void OpenGLContext::SwapBuffers()

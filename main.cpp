@@ -1,9 +1,12 @@
 #include "ge_core.h"
+#include "src/core/debug/log.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cmath>
 #include <memory>
+#include <filesystem>
+#include <vector>
 
 using namespace ge;
 using namespace ge::ecs;
@@ -28,6 +31,7 @@ public:
 
 int main()
 {
+    ge::debug::log::Initialize();
     // select renderer
     RendererAPI::SetAPI(RenderAPI::OpenGL);
 
@@ -60,7 +64,22 @@ int main()
     renderSystem->Set2DCamera(camera2D);
 
     // 4. Create Assets
-    auto basicShader = Shader::Create("../src/shaders/basic.vert", "../src/shaders/basic.frag");
+    std::string shaderRoot = "";
+    std::vector<std::string> searchPaths = { "./", "../", "../../", "../../../" };
+
+    for (const auto& p : searchPaths) {
+        if (std::filesystem::exists(p + "src/shaders/basic.vert")) {
+            shaderRoot = p + "src/shaders/";
+            break;
+        }
+    }
+
+    if (shaderRoot.empty()) {
+        GE_LOG_CRITICAL("CRITICAL: Could not find shaders directory!");
+        std::abort();
+    }
+
+    auto basicShader = Shader::Create(shaderRoot + "basic.vert", shaderRoot + "basic.frag");
     auto cubeMesh = Mesh::CreateCube();
 
     uint32_t pixels[4 * 4] = {

@@ -98,6 +98,7 @@ namespace renderer {
 
     std::string OpenGLShader::ReadFile(const std::string& filepath)
     {
+        GE_LOG_INFO("Loading shader: %s", filepath.c_str());
         std::string result;
         std::ifstream in(filepath, std::ios::in | std::ios::binary);
         if (in)
@@ -110,7 +111,8 @@ namespace renderer {
         }
         else
         {
-            GE_LOG_ERROR("Could not open file '%s'", filepath.c_str());
+            GE_LOG_CRITICAL("CRITICAL: Could not open shader file '%s'!", filepath.c_str());
+            std::abort();
         }
         return result;
     }

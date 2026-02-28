@@ -1,8 +1,10 @@
 #include "Renderer2D.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "../debug/log.h"
 #include <vector>
 #include <array>
+#include <filesystem>
 
 namespace ge {
 namespace renderer {
@@ -34,8 +36,22 @@ namespace renderer {
 
     void Renderer2D::Init()
     {
-        s_Data.TextureShader = Shader::Create("../src/shaders/sprite_batch.vert", "../src/shaders/sprite_batch.frag");
+        std::string shaderRoot = "";
+        std::vector<std::string> searchPaths = { "./", "../", "../../", "../../../" };
 
+        for (const auto& p : searchPaths) {
+            if (std::filesystem::exists(p + "src/shaders/sprite_batch.vert")) {
+                shaderRoot = p + "src/shaders/";
+                break;
+            }
+        }
+
+        if (shaderRoot.empty()) {
+            GE_LOG_CRITICAL("CRITICAL: Could not find Renderer2D shaders!");
+            std::abort();
+        }
+
+        s_Data.TextureShader = Shader::Create(shaderRoot + "sprite_batch.vert", shaderRoot + "sprite_batch.frag");
         uint32_t whiteTextureData = 0xffffffff;
         s_Data.WhiteTexture = Texture::Create(1, 1, &whiteTextureData, sizeof(uint32_t));
 

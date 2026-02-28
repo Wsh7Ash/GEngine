@@ -151,7 +151,7 @@ namespace editor {
             if (ImGui::TreeNodeEx((void*)typeid(ecs::TransformComponent).hash_code(), ImGuiTreeNodeFlags_DefaultOpen, "Transform"))
             {
                 auto& tc = context_->GetComponent<ecs::TransformComponent>(entity);
-                if(ImGui::BeginTable("TransformTable", 2, ImGuiTableFlags_sizingFixedFit)){
+                if(ImGui::BeginTable("TransformTable", 2, ImGuiTableFlags_SizingFixedFit)){
                     ImGui::TableNextColumn();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::Text("Position");
@@ -159,7 +159,7 @@ namespace editor {
                     ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
                     ImGui::EndTable();
                 }
-                
+
                 ImGui::DragFloat3("Position", &tc.position.x, 0.1f);
                 
                 // Rotation (simple quat-to-euler representation for display)
