@@ -57,6 +57,7 @@ namespace ge {
 
     void ImGuiLayer::SetDarkTheme()
     {
+        ImGuiLayer::Begin();
         auto& colors = ImGui::GetStyle().Colors;
         colors[ImGuiCol_WindowBg] = ImVec4{ 0.1f, 0.105f, 0.11f, 1.0f };
 
@@ -86,6 +87,8 @@ namespace ge {
         colors[ImGuiCol_TitleBg] = ImVec4{ 0.15f, 0.1505f, 0.151f, 1.0f };
         colors[ImGuiCol_TitleBgActive] = ImVec4{ 0.15f, 0.1505f, 0.151f, 1.0f };
         colors[ImGuiCol_TitleBgCollapsed] = ImVec4{ 0.15f, 0.1505f, 0.151f, 1.0f };
+
+        ImGuiLayer::End();  
     }
 
 } // namespace ge
