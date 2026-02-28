@@ -29,7 +29,7 @@ private:
 
 private:
   ecs::World *context_ = nullptr;
-  ecs::World world;
+  //   ecs::World world; // oh h
   ecs::Entity selection_context_; // Default constructed handle (Null)
 };
 

@@ -97,9 +97,9 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
 
 void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
-  if (world.HasComponent<ecs::TransformComponent>(entity)) {
+  if (context_->HasComponent<ecs::TransformComponent>(entity)) {
     if (ImGui::Collapsingheader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
-      auto &tc = world.GetComponent<ecs::TransformComponent>(entity);
+      auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
       if (ImGui::BeginTable("TransformTable", 2,
                             ImGuiTableFlags_SizingFixedFit)) {
         ImGui::TableNextColumn();
@@ -110,8 +110,8 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::EndTable();
       }
     }
-    if (world.HasComponent<ecs::SpriteComponent>(entity)) {
-      auto &sc = world.GetComponent<ecs::SpriteComponent>(entity);
+    if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
+      auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
       if (ImGui::Collapsingheader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::BeginTable("SpriteTable", 2,
                               ImGuiTableFlags_SizingFixedFit)) {
