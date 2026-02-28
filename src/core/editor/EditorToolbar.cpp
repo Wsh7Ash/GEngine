@@ -96,43 +96,59 @@ void EditorToolbar::OnImGuiRender() {
     ImGui::EndMenuBar();
   }
 
-  // 2. Toolbar Window
   ImGui::Begin("Main Tools");
-  ImGui::Text("GEngine Toolkit");
-  ImGui::Separator();
 
+  // Styled title
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.00f, 0.71f, 0.85f, 1.00f));
+  ImGui::Text("GEngine Toolkit");
+  ImGui::PopStyleColor();
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  // Play / Stop with color coding
   if (s_SceneState == SceneState::Edit) {
-    if (ImGui::Button("Play")) {
-      // Capture scene state
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.25f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          ImVec4(0.20f, 0.70f, 0.30f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(0.10f, 0.45f, 0.20f, 1.00f));
+    if (ImGui::Button("  Play  ", ImVec2(-1, 30))) {
       scene::SceneSerializer serializer(*s_ActiveWorld);
       serializer.Serialize("play_temp.json");
-
       s_SceneState = SceneState::Play;
       GE_LOG_INFO("Play started - Scene state captured");
     }
+    ImGui::PopStyleColor(3);
   } else {
-    if (ImGui::Button("Stop")) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.70f, 0.18f, 0.18f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          ImVec4(0.85f, 0.25f, 0.25f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(0.55f, 0.12f, 0.12f, 1.00f));
+    if (ImGui::Button("  Stop  ", ImVec2(-1, 30))) {
       s_SceneState = SceneState::Edit;
-
-      // Restore scene state
-      s_ActiveWorld->Clear(); // Clear current volatile playback state
+      s_ActiveWorld->Clear();
       scene::SceneSerializer serializer(*s_ActiveWorld);
-      // Note: We might want to clear the world first or handle entity mapping
-      // For now, let's assume a simple restore works or we'll refine it
       serializer.Deserialize("play_temp.json");
-
       GE_LOG_INFO("Play stopped - Scene state restored");
     }
+    ImGui::PopStyleColor(3);
   }
   ImGui::End();
 
   // 3. Stats Window
   auto stats = renderer::Renderer2D::GetStats();
   ImGui::Begin("Batch Renderer Stats");
-  ImGui::Text("Draw Calls: %d", stats.DrawCalls);
-  ImGui::Text("Quads: %d", stats.QuadCount);
-  ImGui::Text("Vertices: %d", stats.GetTotalVertexCount());
-  ImGui::Text("Indices: %d", stats.GetTotalIndexCount());
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.00f, 0.71f, 0.85f, 1.00f));
+  ImGui::Text("Renderer Stats");
+  ImGui::PopStyleColor();
+  ImGui::Separator();
+  ImGui::Spacing();
+  ImGui::Text("Draw Calls:  %d", stats.DrawCalls);
+  ImGui::Text("Quads:       %d", stats.QuadCount);
+  ImGui::Text("Vertices:    %d", stats.GetTotalVertexCount());
+  ImGui::Text("Indices:     %d", stats.GetTotalIndexCount());
   ImGui::End();
 
   if (s_HierarchyPanel)
