@@ -1,3 +1,4 @@
+#define GLFW_INCLUDE_NONE
 #include "ge_core.h"
 #include "src/core/debug/log.h"
 #include <GLFW/glfw3.h>

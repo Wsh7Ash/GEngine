@@ -98,7 +98,7 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
 void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
-    if (ImGui::Collapsingheader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
       if (ImGui::BeginTable("TransformTable", 2,
                             ImGuiTableFlags_SizingFixedFit)) {
@@ -110,18 +110,17 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::EndTable();
       }
     }
-    if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
-      auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
-      if (ImGui::Collapsingheader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("SpriteTable", 2,
-                              ImGuiTableFlags_SizingFixedFit)) {
-          ImGui::TableNextColumn();
-          ImGui::TableSetColumnIndex(0);
-          ImGui::Text("Color");
-          ImGui::TableSetColumnIndex(1);
-          ImGui::ColorEdit4("##color", &sc.color.x);
-          ImGui::EndTable();
-        }
+  }
+  if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
+    auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
+    if (ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
+      if (ImGui::BeginTable("SpriteTable", 2, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableNextColumn();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("Color");
+        ImGui::TableSetColumnIndex(1);
+        ImGui::ColorEdit4("##color", &sc.color.x);
+        ImGui::EndTable();
       }
     }
   }

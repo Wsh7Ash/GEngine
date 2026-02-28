@@ -26,41 +26,32 @@ void ContentBrowserPanel::OnImGuiRender() {
   int columnCount = (int)(panelWidth / cellSize);
 
   columnCount = std::max(1, columnCount);
-  ImGui::Columns(columnCount, 0, false);
 
   ImGui::Begin("Content Browser");
+  ImGui::Columns(columnCount, 0, false);
+
   auto baseAsset = GetAssetPath();
   if (cur_dir_ != baseAsset) {
     if (ImGui::Selectable("<-Back")) {
       cur_dir_ = cur_dir_.parent_path();
     }
+    ImGui::NextColumn();
   }
 
   if (cur_dir_.empty() || !std::filesystem::exists(cur_dir_)) {
     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                        "Assets directory not found!");
+    ImGui::Columns(1);
     ImGui::End();
     return;
-  }
-
-  for (auto &directoryEntity : std::filesystem::directory_iterator(cur_dir_)) {
-    const auto &path = directoryEntity.path();
-    std::string filenameString = path.filename().string();
-    if (directoryEntity.is_directory()) {
-      if (ImGui::Selectable(filenameString.c_str())) {
-        cur_dir_ /= path.filename();
-      }
-    } else {
-      if (ImGui::Selectable(filenameString.c_str())) {
-        // TODO: Open file
-      }
-    }
   }
 
   for (auto &directoryEntry : std::filesystem::directory_iterator(cur_dir_)) {
     const auto &path = directoryEntry.path();
     std::string filenameString = path.filename().string();
     ImGui::PushID(filenameString.c_str());
+
+    // Use a button for the "icon"
     ImGui::Button(filenameString.c_str(), ImVec2(thumbnailSize, thumbnailSize));
 
     // Drag and drop
@@ -74,17 +65,17 @@ void ContentBrowserPanel::OnImGuiRender() {
 
     // Directory navigation (double click)
     if (directoryEntry.is_directory()) {
-      if (ImGui::IsItemHovered && ImGui::IsMouseDoubleClicked(0)) {
+      if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
         cur_dir_ /= path.filename();
       }
     }
+
     ImGui::TextWrapped(filenameString.c_str());
     ImGui::NextColumn();
     ImGui::PopID();
   }
 
   ImGui::Columns(1);
-
   ImGui::End();
 }
 } // namespace editor
