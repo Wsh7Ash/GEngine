@@ -7,10 +7,15 @@ FetchContent_Declare(
     GIT_TAG        docking
 )
 FetchContent_Declare(
+    imguizmo
+    GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
+    GIT_TAG        master
+)
+FetchContent_Declare(
     json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
 )
-FetchContent_MakeAvailable(imgui json)
+FetchContent_MakeAvailable(imgui json imguizmo)
 
 project(GameEngine
     VERSION     0.1.0
@@ -151,6 +156,9 @@ set(GE_CORE_SOURCES
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+    
+    # ImGuizmo
+    ${imguizmo_SOURCE_DIR}/ImGuizmo.cpp
 )
 
 add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
@@ -163,6 +171,7 @@ target_include_directories(ge_core
         ${CMAKE_SOURCE_DIR}/src/core/editor
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
+        ${imguizmo_SOURCE_DIR}
         ${json_SOURCE_DIR}/include
 )
 
