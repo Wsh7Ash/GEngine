@@ -1,4 +1,5 @@
 #include "ScriptSystem.h"
+#include "../../debug/log.h"
 #include "../World.h"
 #include "../components/NativeScriptComponent.h"
 
@@ -8,6 +9,13 @@ namespace ecs {
 
 void ScriptSystem::Update(World &world, float ts) {
   for (auto const &entity : entities) {
+    if (!world.HasComponent<NativeScriptComponent>(entity)) {
+      GE_LOG_CRITICAL("FATAL: Entity [idx=%u, ver=%u] is in ScriptSystem but "
+                      "has no NativeScriptComponent! Skipping!",
+                      entity.GetIndex(), entity.GetVersion());
+      continue;
+    }
+
     auto &nsc = world.GetComponent<NativeScriptComponent>(entity);
 
     // 1. Instantiate if needed
