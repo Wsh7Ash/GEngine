@@ -150,26 +150,38 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
       if (ImGui::BeginTable("TransformTable", 2,
-                            ImGuiTableFlags_SizingFixedFit)) {
+                            ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_BordersInnerV)) {
+        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed,
+                                80.0f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+        ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::Text("Position");
         ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
         ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
+        ImGui::PopItemWidth();
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::Text("Rotation");
         ImGui::TableNextColumn();
         static Math::Vec3f rotation = {0, 0, 0};
+        ImGui::PushItemWidth(-1);
         if (ImGui::DragFloat3("##rot", &rotation.x, 0.1f)) {
           tc.rotation = Math::Quatf::FromEuler(rotation);
         }
+        ImGui::PopItemWidth();
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::Text("Scale");
         ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
         ImGui::DragFloat3("##scale", &tc.scale.x, 0.1f);
+        ImGui::PopItemWidth();
 
         ImGui::EndTable();
       }
@@ -179,17 +191,28 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
     auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
     if (ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
-      if (ImGui::BeginTable("SpriteTable", 2, ImGuiTableFlags_SizingFixedFit)) {
+      if (ImGui::BeginTable("SpriteTable", 2,
+                            ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_BordersInnerV)) {
+        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed,
+                                80.0f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+        ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::Text("Color");
         ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
         ImGui::ColorEdit4("##color", &sc.color.x);
+        ImGui::PopItemWidth();
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::Text("Texture");
         ImGui::TableNextColumn();
-        ImGui::Button("Texture Slot", ImVec2(100.0f, 0.0f));
+        ImGui::PushItemWidth(-1);
+        ImGui::Button("Texture Slot", ImVec2(-1, 0));
+        ImGui::PopItemWidth();
         if (ImGui::BeginDragDropTarget()) {
           if (const ImGuiPayload *payload =
                   ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
