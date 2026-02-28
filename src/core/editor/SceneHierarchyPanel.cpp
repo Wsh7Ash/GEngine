@@ -106,11 +106,19 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
     }
   }
 
+  ImGui::Spacing();
   ImGui::SameLine();
   ImGui::PushItemWidth(-1);
 
-  if (ImGui::Button("Add Component"))
+  // Accent-styled Add Component button
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.00f, 0.45f, 0.55f, 0.80f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                        ImVec4(0.00f, 0.60f, 0.72f, 1.00f));
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                        ImVec4(0.00f, 0.35f, 0.45f, 1.00f));
+  if (ImGui::Button("+ Add Component", ImVec2(-1, 0)))
     ImGui::OpenPopup("AddComponent");
+  ImGui::PopStyleColor(3);
 
   if (ImGui::BeginPopup("AddComponent")) {
     if (ImGui::MenuItem("Sprite Component")) {
@@ -134,6 +142,9 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
     ImGui::EndPopup();
   }
   ImGui::PopItemWidth();
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
 
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
     if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
