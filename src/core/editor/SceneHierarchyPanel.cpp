@@ -96,34 +96,6 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
 }
 
 void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
-
-  if (context_->HasComponent<ecs::TransformComponent>(entity)) {
-    if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
-      auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
-      if (ImGui::BeginTable("TransformTable", 2,
-                            ImGuiTableFlags_SizingFixedFit)) {
-        ImGui::TableNextColumn();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::Text("Position");
-        ImGui::TableSetColumnIndex(1);
-        ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
-        ImGui::EndTable();
-      }
-    }
-  }
-  if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
-    auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
-    if (ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
-      if (ImGui::BeginTable("SpriteTable", 2, ImGuiTableFlags_SizingFixedFit)) {
-        ImGui::TableNextColumn();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::Text("Color");
-        ImGui::TableSetColumnIndex(1);
-        ImGui::ColorEdit4("##color", &sc.color.x);
-        ImGui::EndTable();
-      }
-    }
-  }
   if (context_->HasComponent<ecs::TagComponent>(entity)) {
     auto &tag = context_->GetComponent<ecs::TagComponent>(entity).tag;
     char buffer[256];
@@ -153,66 +125,83 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
       ImGui::CloseCurrentPopup();
     }
 
+    if (ImGui::MenuItem("Tag Component")) {
+      if (!context_->HasComponent<ecs::TagComponent>(entity))
+        context_->AddComponent(entity, ecs::TagComponent{"New Entity"});
+      ImGui::CloseCurrentPopup();
+    }
+
     ImGui::EndPopup();
   }
-
   ImGui::PopItemWidth();
 
-  ImGui::Separator();
-
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
-    if (ImGui::TreeNodeEx((void *)typeid(ecs::TransformComponent).hash_code(),
-                          ImGuiTreeNodeFlags_DefaultOpen, "Transform")) {
+    if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
-      ImGui::DragFloat3("Position", &tc.position.x, 0.1f);
+      if (ImGui::BeginTable("TransformTable", 2,
+                            ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableNextColumn();
+        ImGui::Text("Position");
+        ImGui::TableNextColumn();
+        ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
 
-      // Rotation (simple quat-to-euler representation for display)
-      static Math::Vec3f rotation = {0, 0, 0};
-      if (ImGui::DragFloat3("Rotation", &rotation.x, 0.1f)) {
-        tc.rotation = Math::Quatf::FromEuler(rotation);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Rotation");
+        ImGui::TableNextColumn();
+        static Math::Vec3f rotation = {0, 0, 0};
+        if (ImGui::DragFloat3("##rot", &rotation.x, 0.1f)) {
+          tc.rotation = Math::Quatf::FromEuler(rotation);
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Scale");
+        ImGui::TableNextColumn();
+        ImGui::DragFloat3("##scale", &tc.scale.x, 0.1f);
+
+        ImGui::EndTable();
       }
-
-      ImGui::DragFloat3("Scale", &tc.scale.x, 0.1f);
-      ImGui::TreePop();
     }
   }
 
   if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
-    if (ImGui::TreeNodeEx((void *)typeid(ecs::SpriteComponent).hash_code(),
-                          ImGuiTreeNodeFlags_DefaultOpen, "Sprite")) {
-      auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
-      ImGui::ColorEdit4("Color", &sc.color.x);
-      // Texture control (to be added)
-      ImGui::TreePop();
+    auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
+    if (ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
+      if (ImGui::BeginTable("SpriteTable", 2, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableNextColumn();
+        ImGui::Text("Color");
+        ImGui::TableNextColumn();
+        ImGui::ColorEdit4("##color", &sc.color.x);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Texture");
+        ImGui::TableNextColumn();
+        ImGui::Button("Texture Slot", ImVec2(100.0f, 0.0f));
+        if (ImGui::BeginDragDropTarget()) {
+          if (const ImGuiPayload *payload =
+                  ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
+            // Path-probing and loading logic would go here
+            GE_LOG_INFO("Texture drag-and-drop received.");
+          }
+          ImGui::EndDragDropTarget();
+        }
+
+        ImGui::EndTable();
+      }
     }
   }
 
   if (context_->HasComponent<ecs::NativeScriptComponent>(entity)) {
-    if (ImGui::TreeNodeEx(
-            (void *)typeid(ecs::NativeScriptComponent).hash_code(),
-            ImGuiTreeNodeFlags_DefaultOpen, "Native Script")) {
+    if (ImGui::CollapsingHeader("Native Script",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
       auto &nsc = context_->GetComponent<ecs::NativeScriptComponent>(entity);
-      ImGui::Text("Script Attached");
+      ImGui::Text("Instance: %s", nsc.instance ? "Active" : "None");
       if (ImGui::Button("Remove Script")) {
         context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
       }
-      ImGui::TreePop();
     }
-  }
-
-  ImGui::Button("Texture");
-  ImVec2(100.0f, 0.0f);
-  if (ImGui::BeginDragDropTarget()) {
-    if (const ImGuiPayload *payload =
-            ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
-      const wchar_t *path = (const wchar_t *)payload->Data;
-      GE_LOG_INFO("Dropped file: %ls", path);
-
-      // TODO: Actually load the texture into the component
-      //  auto& sc = context_->GetComponent<ecs::SpriteComponent>(entity);
-      //  sc.texture = Renderer2D::LoadTexture(path);
-    }
-    ImGui::EndDragDropTarget();
   }
 }
 

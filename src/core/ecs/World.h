@@ -6,157 +6,142 @@
 //  Coordinates entities, components, and systems.
 // ================================================================
 
-#include "EntityManager.h"
-#include "ComponentRegistry.h"
-#include "ComponentArray.h"
-#include "SystemManager.h"
 #include "../memory/allocator.h"
+#include "ComponentArray.h"
+#include "ComponentRegistry.h"
+#include "EntityManager.h"
 #include "Query.h"
-#include <memory>
+#include "SystemManager.h"
 #include <array>
-#include <vector>
+#include <memory>
 #include <tuple>
+#include <vector>
+
 
 namespace ge {
-namespace ecs
-{
+namespace ecs {
 
-class World
-{
+class World {
 public:
-    explicit World(memory::IAllocator* allocator = nullptr)
-        : allocator_(allocator ? allocator : memory::GetDefaultAllocator()),
-          entityManager_(10000), // Default capacity
-          systemManager_(std::make_unique<SystemManager>())
-    {
-        entitySignatures_.resize(10000);
+  explicit World(memory::IAllocator *allocator = nullptr)
+      : allocator_(allocator ? allocator : memory::GetDefaultAllocator()),
+        entityManager_(10000), // Default capacity
+        systemManager_(std::make_unique<SystemManager>()) {
+    entitySignatures_.resize(10000);
+  }
+
+  // ── Entity management ───────────────────────────────────────
+
+  [[nodiscard]] Entity CreateEntity() { return entityManager_.CreateEntity(); }
+
+  void DestroyEntity(Entity e) {
+    entityManager_.DestroyEntity(e);
+
+    // Notify all component storages
+    for (auto &storage : componentArrays_) {
+      if (storage) {
+        storage->EntityDestroyed(e);
+      }
     }
 
-    // ── Entity management ───────────────────────────────────────
+    // Reset signature and notify systems
+    entitySignatures_[e.GetIndex()].reset();
+    systemManager_->EntityDestroyed(e);
+  }
 
-    [[nodiscard]] Entity CreateEntity()
-    {
-        return entityManager_.CreateEntity();
+  void Clear() {
+    // Destroy all entities
+    for (uint32_t i = 0; i < 10000; ++i) {
+      Entity e(i);
+      if (entityManager_.IsAlive(e))
+        DestroyEntity(e);
     }
+  }
 
-    void DestroyEntity(Entity e)
-    {
-        entityManager_.DestroyEntity(e);
+  [[nodiscard]] bool IsAlive(Entity e) const noexcept {
+    return entityManager_.IsAlive(e);
+  }
 
-        // Notify all component storages
-        for (auto& storage : componentArrays_)
-        {
-            if (storage)
-            {
-                storage->EntityDestroyed(e);
-            }
-        }
+  // ── Component management ─────────────────────────────────────
 
-        // Reset signature and notify systems
-        entitySignatures_[e.GetIndex()].reset();
-        systemManager_->EntityDestroyed(e);
-    }
+  template <typename T> void AddComponent(Entity e, T component) {
+    GetComponentArray<T>()->InsertData(e, std::move(component));
 
-    [[nodiscard]] bool IsAlive(Entity e) const noexcept
-    {
-        return entityManager_.IsAlive(e);
-    }
+    // Update signature
+    auto signature = entitySignatures_[e.GetIndex()];
+    signature.set(GetComponentTypeID<T>(), true);
+    entitySignatures_[e.GetIndex()] = signature;
 
-    // ── Component management ─────────────────────────────────────
+    systemManager_->EntitySignatureChanged(e, signature);
+  }
 
-    template <typename T>
-    void AddComponent(Entity e, T component)
-    {
-        GetComponentArray<T>()->InsertData(e, std::move(component));
+  template <typename T> void RemoveComponent(Entity e) {
+    GetComponentArray<T>()->RemoveData(e);
 
-        // Update signature
-        auto signature = entitySignatures_[e.GetIndex()];
-        signature.set(GetComponentTypeID<T>(), true);
-        entitySignatures_[e.GetIndex()] = signature;
+    // Update signature
+    auto signature = entitySignatures_[e.GetIndex()];
+    signature.set(GetComponentTypeID<T>(), false);
+    entitySignatures_[e.GetIndex()] = signature;
 
-        systemManager_->EntitySignatureChanged(e, signature);
-    }
+    systemManager_->EntitySignatureChanged(e, signature);
+  }
 
-    template <typename T>
-    void RemoveComponent(Entity e)
-    {
-        GetComponentArray<T>()->RemoveData(e);
+  template <typename T> [[nodiscard]] T &GetComponent(Entity e) {
+    return GetComponentArray<T>()->GetData(e);
+  }
 
-        // Update signature
-        auto signature = entitySignatures_[e.GetIndex()];
-        signature.set(GetComponentTypeID<T>(), false);
-        entitySignatures_[e.GetIndex()] = signature;
+  template <typename T> [[nodiscard]] bool HasComponent(Entity e) const {
+    const auto id = GetComponentTypeID<T>();
+    if (id >= componentArrays_.size() || !componentArrays_[id])
+      return false;
 
-        systemManager_->EntitySignatureChanged(e, signature);
-    }
+    return static_cast<ComponentArray<T> *>(componentArrays_[id].get())
+        ->HasData(e);
+  }
 
-    template <typename T>
-    [[nodiscard]] T& GetComponent(Entity e)
-    {
-        return GetComponentArray<T>()->GetData(e);
-    }
+  // ── System management ───────────────────────────────────────
 
-    template <typename T>
-    [[nodiscard]] bool HasComponent(Entity e) const
-    {
-        const auto id = GetComponentTypeID<T>();
-        if (id >= componentArrays_.size() || !componentArrays_[id])
-            return false;
-        
-        return static_cast<ComponentArray<T>*>(componentArrays_[id].get())->HasData(e);
-    }
+  template <typename T> std::shared_ptr<T> RegisterSystem() {
+    return systemManager_->RegisterSystem<T>();
+  }
 
-    // ── System management ───────────────────────────────────────
+  template <typename T> void SetSystemSignature(Signature signature) {
+    systemManager_->SetSignature<T>(signature);
+  }
 
-    template<typename T>
-    std::shared_ptr<T> RegisterSystem()
-    {
-        return systemManager_->RegisterSystem<T>();
-    }
+  // ── Queries ──────────────────────────────────────────────────
 
-    template<typename T>
-    void SetSystemSignature(Signature signature)
-    {
-        systemManager_->SetSignature<T>(signature);
-    }
-
-    // ── Queries ──────────────────────────────────────────────────
-
-    template <typename... Components>
-    [[nodiscard]] EntityQuery<Components...> Query()
-    {
-        return ecs::EntityQuery<Components...>(this);
-    }
+  template <typename... Components>
+  [[nodiscard]] EntityQuery<Components...> Query() {
+    return ecs::EntityQuery<Components...>(this);
+  }
 
 private:
-    /**
-     * @brief Lazy-initializes and returns the storage for type T.
-     */
-    template <typename T>
-    ComponentArray<T>* GetComponentArray()
-    {
-        const ComponentTypeID id = GetComponentTypeID<T>();
-        GE_ASSERT(id < MAX_COMPONENTS, "Exceeded maximum component types!");
+  /**
+   * @brief Lazy-initializes and returns the storage for type T.
+   */
+  template <typename T> ComponentArray<T> *GetComponentArray() {
+    const ComponentTypeID id = GetComponentTypeID<T>();
+    GE_ASSERT(id < MAX_COMPONENTS, "Exceeded maximum component types!");
 
-        if (!componentArrays_[id])
-        {
-            componentArrays_[id] = std::make_unique<ComponentArray<T>>(allocator_);
-        }
-
-        return static_cast<ComponentArray<T>*>(componentArrays_[id].get());
+    if (!componentArrays_[id]) {
+      componentArrays_[id] = std::make_unique<ComponentArray<T>>(allocator_);
     }
 
-    memory::IAllocator* allocator_;
-    EntityManager       entityManager_;
-    std::unique_ptr<SystemManager> systemManager_;
-    
-    // One storage array per unique component type ID.
-    std::array<std::unique_ptr<IComponentArray>, MAX_COMPONENTS> componentArrays_{};
+    return static_cast<ComponentArray<T> *>(componentArrays_[id].get());
+  }
 
-    // Tracks which components each entity has (using its index).
-    std::vector<Signature> entitySignatures_;
+  memory::IAllocator *allocator_;
+  EntityManager entityManager_;
+  std::unique_ptr<SystemManager> systemManager_;
+
+  // One storage array per unique component type ID.
+  std::array<std::unique_ptr<IComponentArray>, MAX_COMPONENTS>
+      componentArrays_{};
+
+  // Tracks which components each entity has (using its index).
+  std::vector<Signature> entitySignatures_;
 };
-
 
 } // namespace ecs
 } // namespace ge
@@ -166,50 +151,48 @@ private:
 // ================================================================
 
 namespace ge {
-namespace ecs
-{
+namespace ecs {
 
 template <typename... Components>
-void EntityQuery<Components...>::Iterator::FindNext()
-{
-    // The query iterates over the components of the FIRST type in the list.
-    // Optimization: In a more advanced ECS, we'd pick the SMALLEST array.
-    using FirstType = typename std::tuple_element<0, std::tuple<Components...>>::type;
-    auto* storage = world_->template GetComponentArray<FirstType>();
-    const auto& entities = storage->GetEntities();
+void EntityQuery<Components...>::Iterator::FindNext() {
+  // The query iterates over the components of the FIRST type in the list.
+  // Optimization: In a more advanced ECS, we'd pick the SMALLEST array.
+  using FirstType =
+      typename std::tuple_element<0, std::tuple<Components...>>::type;
+  auto *storage = world_->template GetComponentArray<FirstType>();
+  const auto &entities = storage->GetEntities();
 
-    while (index_ < entities.Size())
-    {
-        Entity e = entities[index_];
-        // Check if entity has all OTHER components in the list
-        if ((world_->template HasComponent<Components>(e) && ...))
-        {
-            return;
-        }
-        ++index_;
+  while (index_ < entities.Size()) {
+    Entity e = entities[index_];
+    // Check if entity has all OTHER components in the list
+    if ((world_->template HasComponent<Components>(e) && ...)) {
+      return;
     }
+    ++index_;
+  }
 }
 
 template <typename... Components>
-Entity EntityQuery<Components...>::Iterator::operator*() const
-{
-    using FirstType = typename std::tuple_element<0, std::tuple<Components...>>::type;
-    auto* storage = world_->template GetComponentArray<FirstType>();
-    return storage->GetEntities()[index_];
+Entity EntityQuery<Components...>::Iterator::operator*() const {
+  using FirstType =
+      typename std::tuple_element<0, std::tuple<Components...>>::type;
+  auto *storage = world_->template GetComponentArray<FirstType>();
+  return storage->GetEntities()[index_];
 }
 
 template <typename... Components>
-typename EntityQuery<Components...>::Iterator EntityQuery<Components...>::begin()
-{
-    return Iterator(world_, 0);
+typename EntityQuery<Components...>::Iterator
+EntityQuery<Components...>::begin() {
+  return Iterator(world_, 0);
 }
 
 template <typename... Components>
-typename EntityQuery<Components...>::Iterator EntityQuery<Components...>::end()
-{
-    using FirstType = typename std::tuple_element<0, std::tuple<Components...>>::type;
-    auto* storage = world_->template GetComponentArray<FirstType>();
-    return Iterator(world_, storage->Size());
+typename EntityQuery<Components...>::Iterator
+EntityQuery<Components...>::end() {
+  using FirstType =
+      typename std::tuple_element<0, std::tuple<Components...>>::type;
+  auto *storage = world_->template GetComponentArray<FirstType>();
+  return Iterator(world_, storage->Size());
 }
 
 } // namespace ecs
