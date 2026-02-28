@@ -4,6 +4,7 @@
 #include "../renderer/Renderer2D.h"
 #include "../scene/SceneSerializer.h"
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #ifdef GE_PLATFORM_WINDOWS
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -67,6 +68,45 @@ void EditorToolbar::OnImGuiRender() {
   if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+
+    static bool first_time = true;
+    if (first_time) {
+      first_time = false;
+
+      // Use ImGui internal DockBuilder API to set up the default layout
+      ImGui::DockBuilderRemoveNode(dockspace_id);
+      ImGui::DockBuilderAddNode(dockspace_id,
+                                dockspace_flags | ImGuiDockNodeFlags_DockSpace);
+      ImGui::DockBuilderSetNodeSize(dockspace_id,
+                                    ImGui::GetMainViewport()->Size);
+
+      auto dock_id_main = dockspace_id;
+
+      // Split Left (Hierarchy)
+      auto dock_id_left = ImGui::DockBuilderSplitNode(
+          dock_id_main, ImGuiDir_Left, 0.20f, nullptr, &dock_id_main);
+
+      // Split Right (Inspector)
+      auto dock_id_right = ImGui::DockBuilderSplitNode(
+          dock_id_main, ImGuiDir_Right, 0.25f, nullptr, &dock_id_main);
+
+      // Split Bottom (Content Browser)
+      auto dock_id_bottom = ImGui::DockBuilderSplitNode(
+          dock_id_main, ImGuiDir_Down, 0.25f, nullptr, &dock_id_main);
+
+      // Split Top (Main Tools)
+      auto dock_id_top = ImGui::DockBuilderSplitNode(
+          dock_id_main, ImGuiDir_Up, 0.08f, nullptr, &dock_id_main);
+
+      // Dock the windows into their calculated nodes
+      ImGui::DockBuilderDockWindow("Viewport", dock_id_main);
+      ImGui::DockBuilderDockWindow("Scene Hierarchy", dock_id_left);
+      ImGui::DockBuilderDockWindow("Inspector", dock_id_right);
+      ImGui::DockBuilderDockWindow("Content Browser", dock_id_bottom);
+      ImGui::DockBuilderDockWindow("Main Tools", dock_id_top);
+
+      ImGui::DockBuilderFinish(dockspace_id);
+    }
   }
 
   // 1. Main Menu Bar (ImGui)
