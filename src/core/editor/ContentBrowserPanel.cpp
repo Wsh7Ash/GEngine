@@ -1,10 +1,14 @@
 #include "ContentBrowserPanel.h"
+#include <algorithm>
+#include <filesystem>
 #include <imgui.h>
+#include <string>
+#include <vector>
+
 
 namespace ge {
 namespace editor {
-// static const std::filesystem::path s_AssetsDirectory = "../assets";
-// must be define first!
+
 static std::filesystem::path GetAssetPath() {
   std::vector<std::string> paths = {"./", "../", "../../", "../../../"};
   for (auto p : paths) {
