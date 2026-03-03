@@ -164,7 +164,11 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   ImGui::Spacing();
 
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
-    if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
+    bool open =
+        ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen);
+    ImGui::PopStyleVar();
+    if (open) {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
       if (ImGui::BeginTable("TransformTable", 2,
                             ImGuiTableFlags_Resizable |
@@ -203,11 +207,16 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::EndTable();
       }
     }
+    ImGui::Spacing();
   }
 
   if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
-    auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
-    if (ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
+    bool open =
+        ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen);
+    ImGui::PopStyleVar();
+    if (open) {
+      auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
       if (ImGui::BeginTable("SpriteTable", 2,
                             ImGuiTableFlags_Resizable |
                                 ImGuiTableFlags_BordersInnerV)) {
@@ -242,17 +251,22 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::EndTable();
       }
     }
+    ImGui::Spacing();
   }
 
   if (context_->HasComponent<ecs::NativeScriptComponent>(entity)) {
-    if (ImGui::CollapsingHeader("Native Script",
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
+    bool open = ImGui::CollapsingHeader("Native Script",
+                                        ImGuiTreeNodeFlags_DefaultOpen);
+    ImGui::PopStyleVar();
+    if (open) {
       auto &nsc = context_->GetComponent<ecs::NativeScriptComponent>(entity);
       ImGui::Text("Instance: %s", nsc.instance ? "Active" : "None");
       if (ImGui::Button("Remove Script")) {
         context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
       }
     }
+    ImGui::Spacing();
   }
 }
 
