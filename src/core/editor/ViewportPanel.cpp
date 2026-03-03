@@ -6,7 +6,6 @@
 #include "EditorToolbar.h"
 #include <ImGuizmo.h>
 
-
 namespace ge {
 namespace editor {
 
@@ -31,6 +30,9 @@ void ViewportPanel::OnImGuiRender() {
 
   isFocused_ = ImGui::IsWindowFocused();
   isHovered_ = ImGui::IsWindowHovered();
+
+  if (isHovered_)
+    ImGui::SetWindowFocus();
 
   ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
   if (viewportSize_.x != viewportPanelSize.x ||
