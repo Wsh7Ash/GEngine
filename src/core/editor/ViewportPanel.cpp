@@ -35,8 +35,9 @@ void ViewportPanel::OnImGuiRender() {
     ImGui::SetWindowFocus();
 
   ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
-  if (viewportSize_.x != viewportPanelSize.x ||
-      viewportSize_.y != viewportPanelSize.y) {
+  if ((std::abs(viewportSize_.x - viewportPanelSize.x) > 1.0f ||
+       std::abs(viewportSize_.y - viewportPanelSize.y) > 1.0f) &&
+      viewportPanelSize.x > 0 && viewportPanelSize.y > 0) {
     viewportSize_ = Math::Vec2f(viewportPanelSize.x, viewportPanelSize.y);
     framebuffer_->Resize((uint32_t)viewportSize_.x, (uint32_t)viewportSize_.y);
   }
