@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-
 namespace ge {
 namespace editor {
 
@@ -107,12 +106,20 @@ void ContentBrowserPanel::OnImGuiRender() {
       }
     }
 
-    // Label with color coding
+    // Label with color coding and icons
+    std::string icon = isDirectory ? "[D] " : "[F] ";
+    if (!isDirectory) {
+      if (path.extension() == ".png" || path.extension() == ".jpg")
+        icon = "[I] ";
+      else if (path.extension() == ".json")
+        icon = "[S] ";
+    }
+
     if (isDirectory) {
-      ImGui::TextColored(ImVec4(0.00f, 0.71f, 0.85f, 1.00f), "%s",
-                         filenameString.c_str());
+      ImGui::TextColored(ImVec4(0.00f, 0.71f, 0.85f, 1.00f), "%s%s",
+                         icon.c_str(), filenameString.c_str());
     } else {
-      ImGui::TextWrapped("%s", filenameString.c_str());
+      ImGui::TextWrapped("%s%s", icon.c_str(), filenameString.c_str());
     }
 
     ImGui::NextColumn();
