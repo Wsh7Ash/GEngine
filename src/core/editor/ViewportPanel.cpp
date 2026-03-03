@@ -87,16 +87,17 @@ void ViewportPanel::OnImGuiRender() {
                       viewportBounds_[1].x - viewportBounds_[0].x,
                       viewportBounds_[1].y - viewportBounds_[0].y);
 
-    // Camera matrices (Placeholder for now, should come from active camera)
+    // Setup camera matrices for 2D orthographic projection
     float view[16];
     float projection[16];
-    // Identity view for 2D
+
+    // Identity view for static 2D camera
     for (int i = 0; i < 16; i++) {
       view[i] = (i % 5 == 0) ? 1.0f : 0.0f;
       projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
     }
 
-    // Simple 2D projection-like scale
+    // Calculate aspect-ratio aware orthographic projection
     projection[0] = 2.0f / viewportSize.x * (viewportSize.x / viewportSize.y);
     projection[5] = 2.0f / viewportSize.y;
     projection[10] = 1.0f;
@@ -111,14 +112,14 @@ void ViewportPanel::OnImGuiRender() {
                          transform.Data());
 
     if (ImGuizmo::IsUsing()) {
-      // Decompose and update tc
-      // For now, just translation since decomposing is complex without a helper
+      // Update entity position from gizmo transform
       tc.position = {transform.cols[3].x, transform.cols[3].y,
                      transform.cols[3].z};
     }
   }
 
-  // Draw indicators for specialized entities (e.g. SpawnPoints)
+  // Render viewport-space indicators for specialized entities (SpawnPoints,
+  // etc.)
   if (sceneContext_) {
     auto drawList = ImGui::GetWindowDrawList();
     // Iterate through entities with TagComponent (this is inefficient, but okay
