@@ -23,6 +23,11 @@ public:
   virtual void OnSerialize(void *jsonRoot) {}
   virtual void OnDeserialize(void *jsonRoot) {}
 
+  // Utility helpers
+  void LogInfo(const char *msg);
+  void LogWarning(const char *msg);
+  void LogError(const char *msg);
+
 protected:
   virtual void OnCreate() {}
   virtual void OnUpdate(float ts) {}
