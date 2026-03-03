@@ -154,7 +154,7 @@ void EditorToolbar::OnImGuiRender() {
                           ImVec4(0.20f, 0.70f, 0.30f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(0.10f, 0.45f, 0.20f, 1.00f));
-    if (ImGui::Button("  Play  ", ImVec2(-1, 30))) {
+    if (ImGui::Button("  ▶  ", ImVec2(-1, 30))) {
       scene::SceneSerializer serializer(*s_ActiveWorld);
       serializer.Serialize("play_temp.json");
       s_SceneState = SceneState::Play;
@@ -167,7 +167,7 @@ void EditorToolbar::OnImGuiRender() {
                           ImVec4(0.85f, 0.25f, 0.25f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(0.55f, 0.12f, 0.12f, 1.00f));
-    if (ImGui::Button("  Stop  ", ImVec2(-1, 30))) {
+    if (ImGui::Button("  ■  ", ImVec2(-1, 30))) {
       s_SceneState = SceneState::Edit;
       s_ActiveWorld->Clear();
       scene::SceneSerializer serializer(*s_ActiveWorld);
