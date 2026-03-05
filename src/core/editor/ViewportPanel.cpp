@@ -54,6 +54,30 @@ void ViewportPanel::OnImGuiRender() {
                ImVec2{viewportSize_.x, viewportSize_.y}, ImVec2{0, 1},
                ImVec2{1, 0});
 
+  // Grid UI Toggle Overlay
+  ImGui::SetCursorPos(ImVec2(10, 30));
+  ImGui::Checkbox("Show Grid", &showGrid_);
+
+  if (showGrid_) {
+    renderer::Renderer2D::BeginScene(
+        OrthographicCamera(-viewportSize.x / viewportSize.y,
+                           viewportSize.x / viewportSize.y, -1.0f,
+                           1.0f)); // Simple camera for grid
+
+    float gridSpacing = 1.0f;
+    Math::Vec4f gridColor = {0.3f, 0.3f, 0.3f, 1.0f};
+
+    for (float x = -10.0f; x <= 10.0f; x += gridSpacing) {
+      renderer::Renderer2D::DrawQuad({x, 0.0f, -0.1f}, {0.02f, 20.0f},
+                                     gridColor);
+    }
+    for (float y = -10.0f; y <= 10.0f; y += gridSpacing) {
+      renderer::Renderer2D::DrawQuad({0.0f, y, -0.1f}, {20.0f, 0.02f},
+                                     gridColor);
+    }
+    renderer::Renderer2D::EndScene();
+  }
+
   // Mouse Picking
   auto [mx, my] = ImGui::GetMousePos();
   mx -= viewportBounds_[0].x;
