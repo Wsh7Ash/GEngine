@@ -27,6 +27,10 @@ private:
   void DrawEntityNode(ecs::Entity entity);
   void DrawComponents(ecs::Entity entity);
 
+  template <typename T, typename UIFunction>
+  void DrawComponentControl(const std::string &name, ecs::Entity entity,
+                            UIFunction uiFunction);
+
 private:
   ecs::World *context_ = nullptr;
   ecs::Entity selection_context_; // Default constructed handle (Null)

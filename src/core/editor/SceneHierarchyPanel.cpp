@@ -164,11 +164,7 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   ImGui::Spacing();
 
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
-    bool open =
-        ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen);
-    ImGui::PopStyleVar();
-    if (open) {
+    DrawComponentControl<ecs::TransformComponent>("Transform", entity, [&]() {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
       if (ImGui::BeginTable("TransformTable", 2,
                             ImGuiTableFlags_Resizable |
@@ -206,16 +202,11 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
         ImGui::EndTable();
       }
-    }
-    ImGui::Spacing();
+    });
   }
 
   if (context_->HasComponent<ecs::SpriteComponent>(entity)) {
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
-    bool open =
-        ImGui::CollapsingHeader("Sprite", ImGuiTreeNodeFlags_DefaultOpen);
-    ImGui::PopStyleVar();
-    if (open) {
+    DrawComponentControl<ecs::SpriteComponent>("Sprite", entity, [&]() {
       auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
       if (ImGui::BeginTable("SpriteTable", 2,
                             ImGuiTableFlags_Resizable |
@@ -242,7 +233,6 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         if (ImGui::BeginDragDropTarget()) {
           if (const ImGuiPayload *payload =
                   ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
-            // Path-probing and loading logic would go here
             GE_LOG_INFO("Texture drag-and-drop received.");
           }
           ImGui::EndDragDropTarget();
@@ -250,24 +240,36 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
         ImGui::EndTable();
       }
-    }
-    ImGui::Spacing();
+    });
   }
 
   if (context_->HasComponent<ecs::NativeScriptComponent>(entity)) {
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
-    bool open = ImGui::CollapsingHeader("Native Script",
-                                        ImGuiTreeNodeFlags_DefaultOpen);
-    ImGui::PopStyleVar();
-    if (open) {
-      auto &nsc = context_->GetComponent<ecs::NativeScriptComponent>(entity);
-      ImGui::Text("Instance: %s", nsc.instance ? "Active" : "None");
-      if (ImGui::Button("Remove Script")) {
-        context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
-      }
-    }
+    DrawComponentControl<ecs::NativeScriptComponent>(
+        "Native Script", entity, [&]() {
+          auto &nsc =
+              context_->GetComponent<ecs::NativeScriptComponent>(entity);
+          ImGui::Text("Instance: %s", nsc.instance ? "Active" : "None");
+          if (ImGui::Button("Remove Script")) {
+            context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
+          }
+        });
+  }
+}
+
+template <typename T, typename UIFunction>
+void SceneHierarchyPanel::DrawComponentControl(const std::string &name,
+                                               ecs::Entity entity,
+                                               UIFunction uiFunction) {
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
+  bool open =
+      ImGui::CollapsingHeader(name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+  ImGui::PopStyleVar();
+
+  if (open) {
+    uiFunction();
     ImGui::Spacing();
   }
+}
 }
 
 } // namespace editor
