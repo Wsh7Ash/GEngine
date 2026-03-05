@@ -5,7 +5,6 @@
 #include "../../renderer/Shader.h"
 #include "../../renderer/Texture.h"
 
-
 namespace ge {
 namespace ecs {
 
@@ -38,9 +37,9 @@ void RenderSystem::Render(World &world) {
 
         Math::Vec2f size = {transform.scale.x, transform.scale.y};
         if (spriteComp.texture)
-          renderer::Renderer2D::DrawQuad(transform.position, size,
-                                         spriteComp.texture, spriteComp.color,
-                                         (int)entity.GetIndex());
+          renderer::Renderer2D::DrawQuad(
+              transform.position, size, spriteComp.texture, spriteComp.color,
+              (int)entity.GetIndex(), spriteComp.FlipX, spriteComp.FlipY);
         else
           renderer::Renderer2D::DrawQuad(transform.position, size,
                                          spriteComp.color,

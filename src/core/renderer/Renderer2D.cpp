@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <vector>
 
-
 namespace ge {
 namespace renderer {
 
@@ -168,13 +167,16 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
 
 void Renderer2D::DrawQuad(const Math::Vec2f &position, const Math::Vec2f &size,
                           const std::shared_ptr<Texture> &texture,
-                          const Math::Vec4f &tint, int entityID) {
-  DrawQuad({position.x, position.y, 0.0f}, size, texture, tint, entityID);
+                          const Math::Vec4f &tint, int entityID, bool flipX,
+                          bool flipY) {
+  DrawQuad({position.x, position.y, 0.0f}, size, texture, tint, entityID, flipX,
+           flipY);
 }
 
 void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
                           const std::shared_ptr<Texture> &texture,
-                          const Math::Vec4f &tint, int entityID) {
+                          const Math::Vec4f &tint, int entityID, bool flipX,
+                          bool flipY) {
   if (s_Data.QuadIndexCount >= s_Data.MaxIndices)
     NextBatch();
 
@@ -207,8 +209,19 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
     s_Data.QuadVertexBufferPtr->Color[2] = tint.z;
     s_Data.QuadVertexBufferPtr->Color[3] = tint.w;
 
-    s_Data.QuadVertexBufferPtr->TexCoord[0] = (i == 1 || i == 2) ? 1.0f : 0.0f;
-    s_Data.QuadVertexBufferPtr->TexCoord[1] = (i == 2 || i == 3) ? 1.0f : 0.0f;
+    Math::Vec2f texCoords[4] = {
+        {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+    if (flipX) {
+      std::swap(texCoords[0].x, texCoords[1].x);
+      std::swap(texCoords[3].x, texCoords[2].x);
+    }
+    if (flipY) {
+      std::swap(texCoords[0].y, texCoords[3].y);
+      std::swap(texCoords[1].y, texCoords[2].y);
+    }
+
+    s_Data.QuadVertexBufferPtr->TexCoord[0] = texCoords[i].x;
+    s_Data.QuadVertexBufferPtr->TexCoord[1] = texCoords[i].y;
 
     s_Data.QuadVertexBufferPtr->TexIndex = textureIndex;
     s_Data.QuadVertexBufferPtr->TilingFactor = 1.0f;

@@ -6,7 +6,6 @@
 #include "Texture.h"
 #include <memory>
 
-
 namespace ge {
 namespace renderer {
 
@@ -35,11 +34,13 @@ public:
   static void DrawQuad(const Math::Vec2f &position, const Math::Vec2f &size,
                        const std::shared_ptr<Texture> &texture,
                        const Math::Vec4f &tint = {1.0f, 1.0f, 1.0f, 1.0f},
-                       int entityID = -1);
+                       int entityID = -1, bool flipX = false,
+                       bool flipY = false);
   static void DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
                        const std::shared_ptr<Texture> &texture,
                        const Math::Vec4f &tint = {1.0f, 1.0f, 1.0f, 1.0f},
-                       int entityID = -1);
+                       int entityID = -1, bool flipX = false,
+                       bool flipY = false);
 
   // Stats
   static void ResetStats();
