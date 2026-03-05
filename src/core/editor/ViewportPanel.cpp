@@ -57,6 +57,13 @@ void ViewportPanel::OnImGuiRender() {
   // Grid UI Toggle Overlay
   ImGui::SetCursorPos(ImVec2(10, 30));
   ImGui::Checkbox("Show Grid", &showGrid_);
+  ImGui::SameLine();
+  ImGui::Checkbox("Snap", &snap_);
+  if (snap_) {
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(50);
+    ImGui::DragFloat("##SnapValue", &snapValue_, 0.05f, 0.05f, 5.0f, "%.2f");
+  }
 
   if (showGrid_) {
     renderer::Renderer2D::BeginScene(
@@ -82,14 +89,14 @@ void ViewportPanel::OnImGuiRender() {
   auto [mx, my] = ImGui::GetMousePos();
   mx -= viewportBounds_[0].x;
   my -= viewportBounds_[0].y;
-  Math::Vec2f viewportSize = viewportBounds_[1] - viewportBounds_[0];
-  my = viewportSize.y - my; // Invert Y for OpenGL
+  Math::Vec2f viewportSizeNorm = viewportBounds_[1] - viewportBounds_[0];
+  my = viewportSizeNorm.y - my; // Invert Y for OpenGL
 
   int mouseX = (int)mx;
   int mouseY = (int)my;
 
-  if (mouseX >= 0 && mouseY >= 0 && mouseX < (int)viewportSize.x &&
-      mouseY < (int)viewportSize.y) {
+  if (mouseX >= 0 && mouseY >= 0 && mouseX < (int)viewportSizeNorm.x &&
+      mouseY < (int)viewportSizeNorm.y) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver()) {
       int pixelData = framebuffer_->ReadPixel(1, mouseX, mouseY);
       if (pixelData == -1) {
@@ -131,8 +138,9 @@ void ViewportPanel::OnImGuiRender() {
     view[13] = -cameraPosition_.y;
 
     // Calculate aspect-ratio aware orthographic projection
-    projection[0] = 2.0f / viewportSize.x * (viewportSize.x / viewportSize.y);
-    projection[5] = 2.0f / viewportSize.y;
+    projection[0] =
+        2.0f / viewportSizeNorm.x * (viewportSizeNorm.x / viewportSizeNorm.y);
+    projection[5] = 2.0f / viewportSizeNorm.y;
     projection[10] = 1.0f;
 
     auto &tc =
@@ -141,8 +149,10 @@ void ViewportPanel::OnImGuiRender() {
                             tc.rotation.ToMat4x4() *
                             Math::Mat4f::Scale(tc.scale);
 
+    float snapValues[3] = {snapValue_, snapValue_, snapValue_};
     ImGuizmo::Manipulate(view, projection, ImGuizmo::TRANSLATE, ImGuizmo::LOCAL,
-                         transform.Data());
+                         transform.Data(), nullptr,
+                         snap_ ? snapValues : nullptr);
 
     if (ImGuizmo::IsUsing()) {
       // Update entity position from gizmo transform

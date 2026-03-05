@@ -37,6 +37,8 @@ private:
   Math::Vec2f viewportBounds_[2];
   Math::Vec2f cameraPosition_ = {0, 0};
   bool showGrid_ = true;
+  bool snap_ = false;
+  float snapValue_ = 0.5f;
 };
 
 } // namespace editor
