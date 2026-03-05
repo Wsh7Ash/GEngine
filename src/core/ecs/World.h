@@ -27,6 +27,7 @@ public:
         entityManager_(10000), // Default capacity
         systemManager_(std::make_unique<SystemManager>()) {
     entitySignatures_.resize(10000);
+    isDirty_ = true; // Initial structural change
   }
 
   // ── Entity management ───────────────────────────────────────
@@ -34,6 +35,7 @@ public:
   [[nodiscard]] Entity CreateEntity() {
     Entity e = entityManager_.CreateEntity();
     allEntities_.push_back(e);
+    isDirty_ = true;
     return e;
   }
 
@@ -55,6 +57,7 @@ public:
 
     // Reset signature and notify systems
     entitySignatures_[e.GetIndex()].reset();
+    isDirty_ = true;
     systemManager_->EntityDestroyed(e);
   }
 
@@ -80,6 +83,7 @@ public:
     signature.set(GetComponentTypeID<T>(), true);
     entitySignatures_[e.GetIndex()] = signature;
 
+    isDirty_ = true;
     systemManager_->EntitySignatureChanged(e, signature);
   }
 
@@ -91,6 +95,7 @@ public:
     signature.set(GetComponentTypeID<T>(), false);
     entitySignatures_[e.GetIndex()] = signature;
 
+    isDirty_ = true;
     systemManager_->EntitySignatureChanged(e, signature);
   }
 
@@ -124,6 +129,10 @@ public:
     return ecs::EntityQuery<Components...>(this);
   }
 
+  [[nodiscard]] bool IsDirty() const noexcept { return isDirty_; }
+  void ClearDirty() noexcept { isDirty_ = false; }
+  void MarkDirty() noexcept { isDirty_ = true; }
+
 private:
   /**
    * @brief Lazy-initializes and returns the storage for type T.
@@ -152,6 +161,8 @@ private:
 
   // Tracks all allocated entities to allow safe, exact cleanup
   std::vector<Entity> allEntities_;
+
+  bool isDirty_ = false;
 };
 
 } // namespace ecs
