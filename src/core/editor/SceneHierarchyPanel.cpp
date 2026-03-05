@@ -5,6 +5,9 @@
 #include "../ecs/components/TransformComponent.h"
 #include "../renderer/Renderer2D.h"
 #include <imgui.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 namespace ge {
 namespace editor {
@@ -282,13 +285,95 @@ void SceneHierarchyPanel::DrawComponentControl(const std::string &name,
                                                ecs::Entity entity,
                                                UIFunction uiFunction) {
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
-  bool open =
-      ImGui::CollapsingHeader(name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+  float lineHeight =
+      ImGui::GetFont()->FontSize + ImGui::GetStyle().FramePadding.y * 2.0f;
+  ImGui::Separator();
+  bool open = ImGui::CollapsingHeader(name.c_str(),
+                                      ImGuiTreeNodeFlags_DefaultOpen |
+                                          ImGuiTreeNodeFlags_AllowItemOverlap);
   ImGui::PopStyleVar();
+
+  ImGui::SameLine(ImGui::GetWindowWidth() - 25.0f);
+  if (ImGui::Button("...", ImVec2(20.0f, lineHeight))) {
+    ImGui::OpenPopup("ComponentSettings");
+  }
+
+  bool removeComponent = false;
+  if (ImGui::BeginPopup("ComponentSettings")) {
+    if (ImGui::MenuItem("Copy Component")) {
+      json j;
+      if (std::is_same<T, ecs::TransformComponent>::value) {
+        auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
+        j["Translation"] = {tc.position.x, tc.position.y, tc.position.z};
+        j["Rotation"] = {tc.rotation.w, tc.rotation.x, tc.rotation.y,
+                         tc.rotation.z};
+        j["Scale"] = {tc.scale.x, tc.scale.y, tc.scale.z};
+      } else if (std::is_same<T, ecs::SpriteComponent>::value) {
+        auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
+        j["Color"] = {sc.color.x, sc.color.y, sc.color.z, sc.color.w};
+        j["FlipX"] = sc.FlipX;
+        j["FlipY"] = sc.FlipY;
+        j["isAnimated"] = sc.isAnimated;
+        j["framesX"] = sc.framesX;
+        j["framesY"] = sc.framesY;
+        j["frameTime"] = sc.frameTime;
+      }
+      component_clipboard_ = j.dump();
+    }
+
+    if (ImGui::MenuItem("Paste Component", nullptr, false,
+                        !component_clipboard_.empty())) {
+      try {
+        json j = json::parse(component_clipboard_);
+        if (std::is_same<T, ecs::TransformComponent>::value) {
+          auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
+          if (j.contains("Translation"))
+            tc.position = {(float)j["Translation"][0],
+                           (float)j["Translation"][1],
+                           (float)j["Translation"][2]};
+          if (j.contains("Rotation"))
+            tc.rotation = {(float)j["Rotation"][0], (float)j["Rotation"][1],
+                           (float)j["Rotation"][2], (float)j["Rotation"][3]};
+          if (j.contains("Scale"))
+            tc.scale = {(float)j["Scale"][0], (float)j["Scale"][1],
+                        (float)j["Scale"][2]};
+        } else if (std::is_same<T, ecs::SpriteComponent>::value) {
+          auto &sc = context_->GetComponent<ecs::SpriteComponent>(entity);
+          if (j.contains("Color"))
+            sc.color = {(float)j["Color"][0], (float)j["Color"][1],
+                        (float)j["Color"][2], (float)j["Color"][3]};
+          if (j.contains("FlipX"))
+            sc.FlipX = j["FlipX"];
+          if (j.contains("FlipY"))
+            sc.FlipY = j["FlipY"];
+          if (j.contains("isAnimated"))
+            sc.isAnimated = j["isAnimated"];
+          if (j.contains("framesX"))
+            sc.framesX = j["framesX"];
+          if (j.contains("framesY"))
+            sc.framesY = j["framesY"];
+          if (j.contains("frameTime"))
+            sc.frameTime = j["frameTime"];
+        }
+      } catch (...) {
+        GE_LOG_ERROR("Failed to paste component: Invalid clipboard data.");
+      }
+    }
+
+    if (ImGui::MenuItem("Remove Component")) {
+      removeComponent = true;
+    }
+
+    ImGui::EndPopup();
+  }
 
   if (open) {
     uiFunction();
     ImGui::Spacing();
+  }
+
+  if (removeComponent) {
+    context_->RemoveComponent<T>(entity);
   }
 }
 }
