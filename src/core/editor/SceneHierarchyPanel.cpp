@@ -138,21 +138,23 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   ImGui::PopStyleColor(3);
 
   if (ImGui::BeginPopup("AddComponent")) {
-    if (ImGui::MenuItem("Sprite Component")) {
-      if (!context_->HasComponent<ecs::SpriteComponent>(entity))
-        context_->AddComponent(entity, ecs::SpriteComponent{});
+    if (ImGui::MenuItem(
+            "Sprite Component", nullptr, false,
+            !context_->HasComponent<ecs::SpriteComponent>(entity))) {
+      context_->AddComponent(entity, ecs::SpriteComponent{});
       ImGui::CloseCurrentPopup();
     }
 
-    if (ImGui::MenuItem("Native Script Component")) {
-      if (!context_->HasComponent<ecs::NativeScriptComponent>(entity))
-        context_->AddComponent(entity, ecs::NativeScriptComponent{});
+    if (ImGui::MenuItem(
+            "Native Script Component", nullptr, false,
+            !context_->HasComponent<ecs::NativeScriptComponent>(entity))) {
+      context_->AddComponent(entity, ecs::NativeScriptComponent{});
       ImGui::CloseCurrentPopup();
     }
 
-    if (ImGui::MenuItem("Tag Component")) {
-      if (!context_->HasComponent<ecs::TagComponent>(entity))
-        context_->AddComponent(entity, ecs::TagComponent{"New Entity"});
+    if (ImGui::MenuItem("Tag Component", nullptr, false,
+                        !context_->HasComponent<ecs::TagComponent>(entity))) {
+      context_->AddComponent(entity, ecs::TagComponent{"New Entity"});
       ImGui::CloseCurrentPopup();
     }
 
