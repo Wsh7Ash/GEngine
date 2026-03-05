@@ -26,11 +26,30 @@ void SceneHierarchyPanel::OnImGuiRender() {
   // 1. Hierarchy Window
   ImGui::Begin("Scene Hierarchy");
 
+  ImGui::InputText("##Search", search_filter_, sizeof(search_filter_));
+  ImGui::SameLine();
+  if (ImGui::Button("Clear")) {
+    search_filter_[0] = '\0';
+  }
+  ImGui::Separator();
+
   // Iterate through all entities (using a fixed limit for now, but checking
   // IsAlive)
+  std::string filter(search_filter_);
+  std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
+
   for (uint32_t i = 0; i < 10000; ++i) {
     ecs::Entity entity(i);
     if (context_->IsAlive(entity)) {
+      if (!filter.empty()) {
+        std::string tag =
+            context_->HasComponent<ecs::TagComponent>(entity)
+                ? context_->GetComponent<ecs::TagComponent>(entity).tag
+                : "Entity " + std::to_string(entity.GetIndex());
+        std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+        if (tag.find(filter) == std::string::npos)
+          continue;
+      }
       DrawEntityNode(entity);
     }
   }

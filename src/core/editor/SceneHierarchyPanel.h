@@ -34,6 +34,7 @@ private:
 private:
   ecs::World *context_ = nullptr;
   ecs::Entity selection_context_; // Default constructed handle (Null)
+  char search_filter_[256] = "";
 };
 
 } // namespace editor
