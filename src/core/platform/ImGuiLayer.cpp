@@ -4,7 +4,6 @@
 #include <backends/imgui_impl_opengl3.h>
 #include <imgui.h>
 
-
 namespace ge {
 
 void ImGuiLayer::Init(void *windowHandle) {
@@ -15,8 +14,8 @@ void ImGuiLayer::Init(void *windowHandle) {
   (void)io;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;   // Enable Docking
-  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport /
-                                                      // Platform Windows
+  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
+  io.IniFilename = "imgui.ini";                       // Explicitly set ini file
 
   // 2. Setup Style
   SetDarkTheme();
