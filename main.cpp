@@ -10,7 +10,6 @@
 #include <memory>
 #include <vector>
 
-
 using namespace ge;
 using namespace ge::ecs;
 using namespace ge::platform;
@@ -129,6 +128,12 @@ int main() {
     basicShader->SetMat4("u_ViewProjection",
                          projection * Math::Mat4f::Identity());
     renderSystem->Render(world, dt);
+
+    // Measurement end
+    float logicEndTime = (float)glfwGetTime();
+    renderer::Renderer2D::SetUptime(time);
+    renderer::Renderer2D::SetLogicTime((logicEndTime - logicStartTime) *
+                                       1000.0f); // ms
 
     if (viewportPanel)
       viewportPanel->GetFramebuffer()->Unbind();

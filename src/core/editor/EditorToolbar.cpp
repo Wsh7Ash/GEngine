@@ -189,6 +189,8 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::Spacing();
   ImGui::Text("FPS:          %.1f", io.Framerate);
   ImGui::Text("Frame Time:   %.3f ms", 1000.0f / io.Framerate);
+  ImGui::Text("Uptime:       %.1f s", stats.Uptime);
+  ImGui::Text("Logic Time:    %.3f ms", stats.LogicTime);
   ImGui::Spacing();
   ImGui::Text("Draw Calls:  %d", stats.DrawCalls);
   ImGui::Text("Quads:       %d", stats.QuadCount);

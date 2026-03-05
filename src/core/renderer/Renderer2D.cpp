@@ -240,10 +240,16 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
 // (Omitted other overloads for brevity in this step)
 
 void Renderer2D::ResetStats() {
-  memset(&s_Data.Stats, 0, sizeof(Renderer2DStatistics));
+  s_Data.Stats.DrawCalls = 0;
+  s_Data.Stats.QuadCount = 0;
 }
 
 Renderer2DStatistics Renderer2D::GetStats() { return s_Data.Stats; }
+
+void Renderer2D::SetUptime(float uptime) { s_Data.Stats.Uptime = uptime; }
+void Renderer2D::SetLogicTime(float logicTime) {
+  s_Data.Stats.LogicTime = logicTime;
+}
 
 } // namespace renderer
 } // namespace ge
