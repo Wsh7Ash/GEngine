@@ -42,6 +42,13 @@ void ViewportPanel::OnImGuiRender() {
     framebuffer_->Resize((uint32_t)viewportSize_.x, (uint32_t)viewportSize_.y);
   }
 
+  // Viewport Panning
+  if (isHovered_ && ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
+    ImVec2 delta = ImGui::GetIO().MouseDelta;
+    cameraPosition_.x -= delta.x * (2.0f / viewportSize_.x);
+    cameraPosition_.y += delta.y * (2.0f / viewportSize_.y);
+  }
+
   uint32_t textureID = framebuffer_->GetColorAttachmentRendererID();
   ImGui::Image((void *)(uintptr_t)textureID,
                ImVec2{viewportSize_.x, viewportSize_.y}, ImVec2{0, 1},
@@ -91,11 +98,13 @@ void ViewportPanel::OnImGuiRender() {
     float view[16];
     float projection[16];
 
-    // Identity view for static 2D camera
+    // View matrix with camera offset
     for (int i = 0; i < 16; i++) {
       view[i] = (i % 5 == 0) ? 1.0f : 0.0f;
       projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
     }
+    view[12] = -cameraPosition_.x;
+    view[13] = -cameraPosition_.y;
 
     // Calculate aspect-ratio aware orthographic projection
     projection[0] = 2.0f / viewportSize.x * (viewportSize.x / viewportSize.y);

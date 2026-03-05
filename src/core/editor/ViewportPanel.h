@@ -5,7 +5,6 @@
 #include <imgui.h>
 #include <memory>
 
-
 namespace ge {
 namespace ecs {
 class World;
@@ -36,6 +35,7 @@ private:
   bool isHovered_ = false;
   Math::Vec2f viewportSize_ = {0, 0};
   Math::Vec2f viewportBounds_[2];
+  Math::Vec2f cameraPosition_ = {0, 0};
 };
 
 } // namespace editor
