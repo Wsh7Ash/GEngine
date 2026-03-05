@@ -186,6 +186,9 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::PopStyleColor();
   ImGui::Separator();
   ImGui::Spacing();
+  ImGui::Text("FPS:          %.1f", io.Framerate);
+  ImGui::Text("Frame Time:   %.3f ms", 1000.0f / io.Framerate);
+  ImGui::Spacing();
   ImGui::Text("Draw Calls:  %d", stats.DrawCalls);
   ImGui::Text("Quads:       %d", stats.QuadCount);
   ImGui::Text("Vertices:    %d", stats.GetTotalVertexCount());
