@@ -114,6 +114,8 @@ int main() {
 
     glClearColor(0.1f, 0.1f, 0.11f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (viewportPanel)
+      viewportPanel->GetFramebuffer()->ClearAttachment(1, -1);
 
     // Render ECS World
     basicShader->Bind();

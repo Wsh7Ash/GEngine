@@ -23,6 +23,7 @@ public:
   virtual uint32_t GetEntityAttachmentRendererID() const override {
     return entityAttachment_;
   }
+  virtual void ClearAttachment(uint32_t attachmentIndex, int value) override;
   virtual int ReadPixel(uint32_t attachmentIndex, int x, int y) override;
   virtual const FramebufferSpecification &GetSpecification() const override {
     return spec_;

@@ -69,6 +69,11 @@ void OpenGLFramebuffer::Invalidate() {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void OpenGLFramebuffer::ClearAttachment(uint32_t attachmentIndex, int value) {
+  GE_ASSERT(attachmentIndex < 2, "Invalid attachment index!");
+  glClearBufferiv(GL_COLOR, attachmentIndex, &value);
+}
+
 int OpenGLFramebuffer::ReadPixel(uint32_t attachmentIndex, int x, int y) {
   GE_ASSERT(attachmentIndex < 2, "Invalid attachment index!");
   glReadBuffer(GL_COLOR_ATTACHMENT0 + attachmentIndex);
