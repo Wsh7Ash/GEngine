@@ -35,12 +35,16 @@ public:
                        const std::shared_ptr<Texture> &texture,
                        const Math::Vec4f &tint = {1.0f, 1.0f, 1.0f, 1.0f},
                        int entityID = -1, bool flipX = false,
-                       bool flipY = false);
+                       bool flipY = false,
+                       const Math::Vec2f &uvTiling = {1.0f, 1.0f},
+                       const Math::Vec2f &uvOffset = {0.0f, 0.0f});
   static void DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
                        const std::shared_ptr<Texture> &texture,
                        const Math::Vec4f &tint = {1.0f, 1.0f, 1.0f, 1.0f},
                        int entityID = -1, bool flipX = false,
-                       bool flipY = false);
+                       bool flipY = false,
+                       const Math::Vec2f &uvTiling = {1.0f, 1.0f},
+                       const Math::Vec2f &uvOffset = {0.0f, 0.0f});
 
   // Stats
   static void ResetStats();

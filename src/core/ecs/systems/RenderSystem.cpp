@@ -8,7 +8,7 @@
 namespace ge {
 namespace ecs {
 
-void RenderSystem::Render(World &world) {
+void RenderSystem::Render(World &world, float dt) {
   // 1. 3D Pass (MeshComponents)
   for (auto const &entity : entities) {
     if (world.HasComponent<MeshComponent>(entity) &&
@@ -35,11 +35,37 @@ void RenderSystem::Render(World &world) {
         auto &transform = world.GetComponent<TransformComponent>(entity);
         auto &spriteComp = world.GetComponent<SpriteComponent>(entity);
 
+        // Animation Update
+        Math::Vec2f uvTiling = spriteComp.tiling;
+        Math::Vec2f uvOffset = {0.0f, 0.0f};
+
+        if (spriteComp.isAnimated && spriteComp.framesX > 0 &&
+            spriteComp.framesY > 0) {
+          spriteComp.elapsedTime += dt;
+          if (spriteComp.elapsedTime >= spriteComp.frameTime) {
+            spriteComp.elapsedTime = 0.0f;
+            spriteComp.currentFrame = (spriteComp.currentFrame + 1) %
+                                      (spriteComp.framesX * spriteComp.framesY);
+          }
+
+          float frameWidth = 1.0f / (float)spriteComp.framesX;
+          float frameHeight = 1.0f / (float)spriteComp.framesY;
+          uvTiling = {frameWidth, frameHeight};
+
+          int column = spriteComp.currentFrame % spriteComp.framesX;
+          int row = spriteComp.currentFrame / spriteComp.framesX;
+
+          // Standard spritesheet (0,0 top-left)
+          uvOffset = {(float)column * frameWidth,
+                      (float)(spriteComp.framesY - 1 - row) * frameHeight};
+        }
+
         Math::Vec2f size = {transform.scale.x, transform.scale.y};
         if (spriteComp.texture)
           renderer::Renderer2D::DrawQuad(
               transform.position, size, spriteComp.texture, spriteComp.color,
-              (int)entity.GetIndex(), spriteComp.FlipX, spriteComp.FlipY);
+              (int)entity.GetIndex(), spriteComp.FlipX, spriteComp.FlipY,
+              uvTiling, uvOffset);
         else
           renderer::Renderer2D::DrawQuad(transform.position, size,
                                          spriteComp.color,

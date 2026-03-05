@@ -123,7 +123,7 @@ int main() {
         Math::DegreesToRadians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
     basicShader->SetMat4("u_ViewProjection",
                          projection * Math::Mat4f::Identity());
-    renderSystem->Render(world);
+    renderSystem->Render(world, dt);
 
     if (viewportPanel)
       viewportPanel->GetFramebuffer()->Unbind();

@@ -168,15 +168,17 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
 void Renderer2D::DrawQuad(const Math::Vec2f &position, const Math::Vec2f &size,
                           const std::shared_ptr<Texture> &texture,
                           const Math::Vec4f &tint, int entityID, bool flipX,
-                          bool flipY) {
+                          bool flipY, const Math::Vec2f &uvTiling,
+                          const Math::Vec2f &uvOffset) {
   DrawQuad({position.x, position.y, 0.0f}, size, texture, tint, entityID, flipX,
-           flipY);
+           flipY, uvTiling, uvOffset);
 }
 
 void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
                           const std::shared_ptr<Texture> &texture,
                           const Math::Vec4f &tint, int entityID, bool flipX,
-                          bool flipY) {
+                          bool flipY, const Math::Vec2f &uvTiling,
+                          const Math::Vec2f &uvOffset) {
   if (s_Data.QuadIndexCount >= s_Data.MaxIndices)
     NextBatch();
 
@@ -220,8 +222,10 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
       std::swap(texCoords[1].y, texCoords[2].y);
     }
 
-    s_Data.QuadVertexBufferPtr->TexCoord[0] = texCoords[i].x;
-    s_Data.QuadVertexBufferPtr->TexCoord[1] = texCoords[i].y;
+    s_Data.QuadVertexBufferPtr->TexCoord[0] =
+        texCoords[i].x * uvTiling.x + uvOffset.x;
+    s_Data.QuadVertexBufferPtr->TexCoord[1] =
+        texCoords[i].y * uvTiling.y + uvOffset.y;
 
     s_Data.QuadVertexBufferPtr->TexIndex = textureIndex;
     s_Data.QuadVertexBufferPtr->TilingFactor = 1.0f;
