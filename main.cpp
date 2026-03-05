@@ -1,6 +1,7 @@
 #define GLFW_INCLUDE_NONE
 #include "ge_core.h"
 #include "src/core/debug/log.h"
+#include "src/core/scene/SceneSerializer.h"
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <cstdio>
@@ -8,6 +9,7 @@
 #include <glad/glad.h>
 #include <memory>
 #include <vector>
+
 
 using namespace ge;
 using namespace ge::ecs;
@@ -94,6 +96,8 @@ int main() {
 
   // 5. Main Loop
   float lastTime = 0.0f;
+  float autoSaveTimer = 0.0f;
+  const float autoSaveInterval = 60.0f;
 
   while (!window.ShouldClose()) {
     float time = (float)glfwGetTime();
@@ -136,6 +140,14 @@ int main() {
     ImGuiLayer::Begin();
     EditorToolbar::OnImGuiRender();
     ImGuiLayer::End();
+
+    // Auto-Save Logic
+    autoSaveTimer += dt;
+    if (autoSaveTimer >= autoSaveInterval) {
+      scene::SceneSerializer serializer(world);
+      serializer.Serialize("autosave.json");
+      autoSaveTimer = 0.0f;
+    }
   }
 
   EditorToolbar::Shutdown();
