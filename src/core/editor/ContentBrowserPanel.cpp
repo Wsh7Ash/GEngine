@@ -1,11 +1,11 @@
 #include "ContentBrowserPanel.h"
+#include "../scene/SceneSerializer.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <imgui.h>
 #include <string>
 #include <vector>
-
 
 namespace ge {
 namespace editor {
@@ -102,7 +102,13 @@ void ContentBrowserPanel::OnImGuiRender() {
     }
 
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
-      cur_dir_ /= path.filename();
+      if (isDirectory) {
+        cur_dir_ /= path.filename();
+      } else if (path.extension() == ".json" && context_) {
+        scene::SceneSerializer serializer(*context_);
+        serializer.Deserialize(path.string());
+        GE_LOG_INFO("Scene loaded from {0}", path.filename().string());
+      }
     }
   }
 

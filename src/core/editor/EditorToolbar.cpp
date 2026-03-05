@@ -27,6 +27,7 @@ void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
   s_ActiveWorld = &world;
   s_HierarchyPanel = std::make_unique<SceneHierarchyPanel>(world);
   s_ContentBrowserPanel = std::make_shared<ContentBrowserPanel>();
+  s_ContentBrowserPanel->SetContext(world);
   s_ViewportPanel = std::make_shared<ViewportPanel>();
   s_ViewportPanel->SetContext(world);
 
