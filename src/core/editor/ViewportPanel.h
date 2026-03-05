@@ -26,6 +26,7 @@ public:
   std::shared_ptr<renderer::Framebuffer> GetFramebuffer() {
     return framebuffer_;
   }
+  Math::Vec4f GetClearColor() const { return clearColor_; }
 
 private:
   std::shared_ptr<renderer::Framebuffer> framebuffer_;
@@ -39,6 +40,7 @@ private:
   bool showGrid_ = true;
   bool snap_ = false;
   float snapValue_ = 0.5f;
+  Math::Vec4f clearColor_ = {0.1f, 0.1f, 0.11f, 1.0f};
 };
 
 } // namespace editor

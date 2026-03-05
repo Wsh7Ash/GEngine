@@ -64,6 +64,14 @@ void ViewportPanel::OnImGuiRender() {
     ImGui::SetNextItemWidth(50);
     ImGui::DragFloat("##SnapValue", &snapValue_, 0.05f, 0.05f, 5.0f, "%.2f");
   }
+  ImGui::SameLine(ImGui::GetWindowWidth() - 120.0f);
+  ImGui::SetNextItemWidth(100);
+  ImGui::ColorEdit4("Clear", &clearColor_.x,
+                    ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+  ImGui::SameLine();
+  ImGui::SetNextItemWidth(100);
+  ImGui::ColorEdit4("Clear", &clearColor_.x,
+                    ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
 
   if (showGrid_) {
     renderer::Renderer2D::BeginScene(
