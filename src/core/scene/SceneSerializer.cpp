@@ -74,8 +74,12 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
   json data;
   try {
     fin >> data;
-  } catch (json::parse_error &e) {
-    GE_LOG_ERROR("Failed to parse scene JSON: %s", e.what());
+  } catch (const nlohmann::json::exception &e) {
+    GE_LOG_ERROR("Scene deserialization failed: %s", e.what());
+    return false;
+  } catch (const std::exception &e) {
+    GE_LOG_ERROR("An unexpected error occurred during deserialization: %s",
+                 e.what());
     return false;
   }
 
