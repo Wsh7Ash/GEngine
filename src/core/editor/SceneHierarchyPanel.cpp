@@ -286,11 +286,11 @@ void SceneHierarchyPanel::DrawComponentControl(const std::string &name,
                                                UIFunction uiFunction) {
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 4));
   float lineHeight =
-      ImGui::GetFont()->FontSize + ImGui::GetStyle().FramePadding.y * 2.0f;
+      ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0f;
   ImGui::Separator();
   bool open = ImGui::CollapsingHeader(name.c_str(),
                                       ImGuiTreeNodeFlags_DefaultOpen |
-                                          ImGuiTreeNodeFlags_AllowItemOverlap);
+                                          ImGuiTreeNodeFlags_AllowOverlap);
   ImGui::PopStyleVar();
 
   ImGui::SameLine(ImGui::GetWindowWidth() - 25.0f);
@@ -376,7 +376,5 @@ void SceneHierarchyPanel::DrawComponentControl(const std::string &name,
     context_->RemoveComponent<T>(entity);
   }
 }
-}
-
 } // namespace editor
 } // namespace ge
