@@ -75,9 +75,9 @@ void ViewportPanel::OnImGuiRender() {
 
   if (showGrid_) {
     renderer::Renderer2D::BeginScene(
-        OrthographicCamera(-viewportSize.x / viewportSize.y,
-                           viewportSize.x / viewportSize.y, -1.0f,
-                           1.0f)); // Simple camera for grid
+        renderer::OrthographicCamera(-viewportSize_.x / viewportSize_.y,
+                                     viewportSize_.x / viewportSize_.y, -1.0f,
+                                     1.0f)); // Simple camera for grid
 
     float gridSpacing = 1.0f;
     Math::Vec4f gridColor = {0.3f, 0.3f, 0.3f, 1.0f};
@@ -186,10 +186,10 @@ void ViewportPanel::OnImGuiRender() {
           // Project 3D/2D world pos to screen pos
           // For now, assuming world == screen with offset
           ImVec2 pos = {viewportBounds_[0].x +
-                            (tc.position.x + 1.0f) * 0.5f * viewportSize.x,
+                            (tc.position.x + 1.0f) * 0.5f * viewportSize_.x,
                         viewportBounds_[0].y +
                             (1.0f - (tc.position.y + 1.0f) * 0.5f) *
-                                viewportSize.y};
+                                viewportSize_.y};
 
           drawList->AddCircleFilled(pos, 10.0f, IM_COL32(0, 255, 0, 200));
           drawList->AddText(ImVec2(pos.x + 12, pos.y - 6),
