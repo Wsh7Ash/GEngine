@@ -102,6 +102,7 @@ int main() {
     float time = (float)glfwGetTime();
     float dt = time - lastTime;
     lastTime = time;
+    float logicStartTime = (float)glfwGetTime();
 
     window.OnUpdate();
 
@@ -115,7 +116,8 @@ int main() {
     if (viewportPanel)
       viewportPanel->GetFramebuffer()->Bind();
 
-    auto &clearColor = viewportPanel->GetClearColor();
+    auto clearColor = viewportPanel ? viewportPanel->GetClearColor()
+                                    : Math::Vec4f{0.1f, 0.1f, 0.11f, 1.0f};
     glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (viewportPanel)
