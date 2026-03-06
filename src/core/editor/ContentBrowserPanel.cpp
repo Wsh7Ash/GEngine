@@ -110,44 +110,43 @@ void ContentBrowserPanel::OnImGuiRender() {
         GE_LOG_INFO("Scene loaded from {0}", path.filename().string());
       }
     }
-  }
-
-  // Context Menu
-  if (ImGui::BeginPopupContextItem()) {
-    if (ImGui::MenuItem("Open in Explorer")) {
-      std::string command = "explorer /select,\"" +
-                            std::filesystem::absolute(path).string() + "\"";
-      std::replace(command.begin(), command.end(), '/', '\\');
-      std::system(command.c_str());
+    // Context Menu
+    if (ImGui::BeginPopupContextItem()) {
+      if (ImGui::MenuItem("Open in Explorer")) {
+        std::string command = "explorer /select,\"" +
+                              std::filesystem::absolute(path).string() + "\"";
+        std::replace(command.begin(), command.end(), '/', '\\');
+        std::system(command.c_str());
+      }
+      if (ImGui::MenuItem("Copy Path")) {
+        ImGui::SetClipboardText(
+            std::filesystem::absolute(path).string().c_str());
+      }
+      ImGui::EndPopup();
     }
-    if (ImGui::MenuItem("Copy Path")) {
-      ImGui::SetClipboardText(std::filesystem::absolute(path).string().c_str());
+
+    // Label with color coding and icons
+    std::string icon = isDirectory ? "[D] " : "[F] ";
+    if (!isDirectory) {
+      if (path.extension() == ".png" || path.extension() == ".jpg")
+        icon = "[I] ";
+      else if (path.extension() == ".json")
+        icon = "[S] ";
     }
-    ImGui::EndPopup();
+
+    if (isDirectory) {
+      ImGui::TextColored(ImVec4(0.00f, 0.71f, 0.85f, 1.00f), "%s%s",
+                         icon.c_str(), filenameString.c_str());
+    } else {
+      ImGui::TextWrapped("%s%s", icon.c_str(), filenameString.c_str());
+    }
+
+    ImGui::NextColumn();
+    ImGui::PopID();
   }
 
-  // Label with color coding and icons
-  std::string icon = isDirectory ? "[D] " : "[F] ";
-  if (!isDirectory) {
-    if (path.extension() == ".png" || path.extension() == ".jpg")
-      icon = "[I] ";
-    else if (path.extension() == ".json")
-      icon = "[S] ";
-  }
-
-  if (isDirectory) {
-    ImGui::TextColored(ImVec4(0.00f, 0.71f, 0.85f, 1.00f), "%s%s", icon.c_str(),
-                       filenameString.c_str());
-  } else {
-    ImGui::TextWrapped("%s%s", icon.c_str(), filenameString.c_str());
-  }
-
-  ImGui::NextColumn();
-  ImGui::PopID();
-}
-
-ImGui::Columns(1);
-ImGui::End();
+  ImGui::Columns(1);
+  ImGui::End();
 }
 } // namespace editor
 } // namespace ge
