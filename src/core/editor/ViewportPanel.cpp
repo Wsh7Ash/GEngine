@@ -73,11 +73,10 @@ void ViewportPanel::OnImGuiRender() {
   ImGui::ColorEdit4("Clear", &clearColor_.x,
                     ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
 
-  if (showGrid_) {
+  if (showGrid_ && viewportSize_.x > 0 && viewportSize_.y > 0) {
+    float aspectRatio = viewportSize_.x / viewportSize_.y;
     renderer::Renderer2D::BeginScene(
-        renderer::OrthographicCamera(-viewportSize_.x / viewportSize_.y,
-                                     viewportSize_.x / viewportSize_.y, -1.0f,
-                                     1.0f)); // Simple camera for grid
+        renderer::OrthographicCamera(-aspectRatio, aspectRatio, -1.0f, 1.0f));
 
     float gridSpacing = 1.0f;
     Math::Vec4f gridColor = {0.3f, 0.3f, 0.3f, 1.0f};
