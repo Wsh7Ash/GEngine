@@ -107,7 +107,7 @@ void ContentBrowserPanel::OnImGuiRender() {
       } else if (path.extension() == ".json" && context_) {
         scene::SceneSerializer serializer(*context_);
         serializer.Deserialize(path.string());
-        GE_LOG_INFO("Scene loaded from {0}", path.filename().string());
+        GE_LOG_INFO("Scene loaded from {0}", path.filename().string().c_str());
       }
     }
     // Context Menu
