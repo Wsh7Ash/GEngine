@@ -19,44 +19,47 @@ void SceneSerializer::Serialize(const std::string &filepath) {
   root["Scene"] = "Untitled";
   root["Entities"] = json::array();
 
-  // Iterate through all entities (rough implementation for now)
-  // In a real ECS, we'd iterate through a specific view or registry
-  for (uint32_t i = 0; i < 10000; ++i) {
-    ecs::Entity entity(i); // Explicitly construct handle
+  try {
+    // Iterate through all entities (rough implementation for now)
+    for (uint32_t i = 0; i < 10000; ++i) {
+      ecs::Entity entity(i);
 
-    // Check if entity is "alive" using a simple heuristic (e.g., has Transform)
-    if (!world_.HasComponent<ecs::TransformComponent>(entity))
-      continue;
+      if (!world_.HasComponent<ecs::TransformComponent>(entity))
+        continue;
 
-    json entityJson;
-    entityJson["ID"] = i;
+      json entityJson;
+      entityJson["ID"] = i;
 
-    // Serialize Transform
-    auto &tc = world_.GetComponent<ecs::TransformComponent>(entity);
-    entityJson["Transform"] = {
-        {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
-        {"Rotation",
-         {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
-        {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}};
+      auto &tc = world_.GetComponent<ecs::TransformComponent>(entity);
+      entityJson["Transform"] = {
+          {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
+          {"Rotation",
+           {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
+          {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}};
 
-    // Serialize Sprite (if present)
-    if (world_.HasComponent<ecs::SpriteComponent>(entity)) {
-      auto &sc = world_.GetComponent<ecs::SpriteComponent>(entity);
-      entityJson["Sprite"] = {
-          {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}}};
-    }
-
-    // Serialize NativeScript (if present)
-    if (world_.HasComponent<ecs::NativeScriptComponent>(entity)) {
-      auto &nsc = world_.GetComponent<ecs::NativeScriptComponent>(entity);
-      json scriptJson;
-      if (nsc.instance) {
-        nsc.instance->OnSerialize(&scriptJson);
+      if (world_.HasComponent<ecs::SpriteComponent>(entity)) {
+        auto &sc = world_.GetComponent<ecs::SpriteComponent>(entity);
+        entityJson["Sprite"] = {
+            {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}}};
       }
-      entityJson["NativeScript"] = scriptJson;
-    }
 
-    root["Entities"].push_back(entityJson);
+      if (world_.HasComponent<ecs::NativeScriptComponent>(entity)) {
+        auto &nsc = world_.GetComponent<ecs::NativeScriptComponent>(entity);
+        json scriptJson;
+        if (nsc.instance) {
+          nsc.instance->OnSerialize(&scriptJson);
+        }
+        entityJson["NativeScript"] = scriptJson;
+      }
+
+      root["Entities"].push_back(entityJson);
+    }
+  } catch (const nlohmann::json::exception &e) {
+    GE_LOG_ERROR("JSON error during scene serialization: %s", e.what());
+    return;
+  } catch (const std::exception &e) {
+    GE_LOG_ERROR("Unexpected error during scene serialization: %s", e.what());
+    return;
   }
 
   std::ofstream fout(filepath);
