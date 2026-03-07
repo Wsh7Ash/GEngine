@@ -7,14 +7,14 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-using json = nlohmann::json;
-
 namespace ge {
 namespace scene {
 
+using json = nlohmann::json;
+
 SceneSerializer::SceneSerializer(ecs::World &world) : world_(world) {}
 
-void SceneSerializer::Serialize(const std::string &filepath) {
+bool SceneSerializer::Serialize(const std::string &filepath) {
   json root;
   root["Scene"] = "Untitled";
   root["Entities"] = json::array();
@@ -54,18 +54,25 @@ void SceneSerializer::Serialize(const std::string &filepath) {
 
       root["Entities"].push_back(entityJson);
     }
-  } catch (const nlohmann::json::exception &e) {
-    GE_LOG_ERROR("JSON error during scene serialization: %s", e.what());
-    return;
-  } catch (const std::exception &e) {
-    GE_LOG_ERROR("Unexpected error during scene serialization: %s", e.what());
-    return;
-  }
 
-  std::ofstream fout(filepath);
-  if (fout.is_open()) {
+    std::ofstream fout(filepath);
+    if (!fout.is_open()) {
+      GE_LOG_ERROR("Could not open file for scene serialization: %s",
+                   filepath.c_str());
+      return false;
+    }
+
     fout << root.dump(4);
     GE_LOG_INFO("Scene serialized to %s", filepath.c_str());
+    return true;
+  } catch (const nlohmann::json::exception &e) {
+    GE_LOG_ERROR("Scene serialization failed (JSON error): %s. Check for "
+                 "NaN/Inf values in components.",
+                 e.what());
+    return false;
+  } catch (const std::exception &e) {
+    GE_LOG_ERROR("Scene serialization failed: %s", e.what());
+    return false;
   }
 }
 
