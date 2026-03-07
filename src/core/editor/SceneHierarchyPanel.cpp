@@ -39,7 +39,8 @@ void SceneHierarchyPanel::OnImGuiRender() {
   // Iterate through all entities (using a fixed limit for now, but checking
   // IsAlive)
   std::string filter(search_filter_);
-  std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
+  std::transform(filter.begin(), filter.end(), filter.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
 
   for (uint32_t i = 0; i < 10000; ++i) {
     ecs::Entity entity(i);
@@ -49,7 +50,8 @@ void SceneHierarchyPanel::OnImGuiRender() {
             context_->HasComponent<ecs::TagComponent>(entity)
                 ? context_->GetComponent<ecs::TagComponent>(entity).tag
                 : "Entity " + std::to_string(entity.GetIndex());
-        std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+        std::transform(tag.begin(), tag.end(), tag.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
         if (tag.find(filter) == std::string::npos)
           continue;
       }
