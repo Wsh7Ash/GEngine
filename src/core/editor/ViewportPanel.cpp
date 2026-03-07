@@ -45,8 +45,10 @@ void ViewportPanel::OnImGuiRender() {
   // Viewport Panning
   if (isHovered_ && ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
     ImVec2 delta = ImGui::GetIO().MouseDelta;
-    cameraPosition_.x -= delta.x * (2.0f / viewportSize_.x);
-    cameraPosition_.y += delta.y * (2.0f / viewportSize_.y);
+    if (viewportSize_.x > 0)
+      cameraPosition_.x -= delta.x * (2.0f / viewportSize_.x);
+    if (viewportSize_.y > 0)
+      cameraPosition_.y += delta.y * (2.0f / viewportSize_.y);
   }
 
   uint32_t textureID = framebuffer_->GetColorAttachmentRendererID();
@@ -145,9 +147,11 @@ void ViewportPanel::OnImGuiRender() {
     view[13] = -cameraPosition_.y;
 
     // Calculate aspect-ratio aware orthographic projection
-    projection[0] =
-        2.0f / viewportSizeNorm.x * (viewportSizeNorm.x / viewportSizeNorm.y);
-    projection[5] = 2.0f / viewportSizeNorm.y;
+    if (viewportSizeNorm.y > 0) {
+      projection[0] =
+          2.0f / viewportSizeNorm.x * (viewportSizeNorm.x / viewportSizeNorm.y);
+      projection[5] = 2.0f / viewportSizeNorm.y;
+    }
     projection[10] = 1.0f;
 
     auto &tc =
