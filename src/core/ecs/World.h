@@ -21,6 +21,8 @@ namespace ge {
 namespace ecs {
 
 class World {
+  template <typename... Comps> friend class EntityQuery;
+
 public:
   explicit World(memory::IAllocator *allocator = nullptr)
       : allocator_(allocator ? allocator : memory::GetDefaultAllocator()),
