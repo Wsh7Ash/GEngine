@@ -17,6 +17,9 @@ struct MeshComponent
 {
     std::shared_ptr<renderer::Mesh>   MeshPtr   = nullptr;
     std::shared_ptr<renderer::Shader> ShaderPtr = nullptr;
+
+    std::string MeshPath = "";
+    std::string ShaderPath = "";
 };
 
 } // namespace ecs
