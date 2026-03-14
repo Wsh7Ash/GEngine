@@ -1,11 +1,6 @@
 #define GLFW_INCLUDE_NONE
-#include "ge_core.h"
-#include "src/core/debug/log.h"
-#include "src/core/scene/SceneSerializer.h"
+#include "src/core/ge_core.h"
 #include <GLFW/glfw3.h>
-#include <cmath>
-#include <cstdio>
-#include <filesystem>
 #include <glad/glad.h>
 #include <memory>
 #include <vector>
@@ -19,7 +14,14 @@ using namespace ge::editor;
 class CameraController : public ScriptableEntity {
 public:
   void OnUpdate(float ts) override {
+    GE_LOG_INFO("CameraController::OnUpdate started");
+    fflush(stdout);
+    
     auto &pos = GetComponent<TransformComponent>().position;
+    
+    GE_LOG_INFO("CameraController::OnUpdate got position");
+    fflush(stdout);
+
     float speed = 2.0f * ts;
 
     if (Input::IsKeyPressed(GLFW_KEY_W) || Input::IsKeyPressed(GLFW_KEY_UP))
@@ -57,6 +59,19 @@ int main() {
     Signature signature;
     signature.set(GetComponentTypeID<NativeScriptComponent>());
     world.SetSystemSignature<ScriptSystem>(signature);
+  }
+
+  // Register scripts
+  NativeScriptComponent::Register<CameraController>("CameraController");
+
+  // 3. Create initial entities (if no scene loaded)
+  auto cameraEntity = world.CreateEntity();
+  world.AddComponent(cameraEntity, TagComponent{"Main Camera"});
+  world.AddComponent(cameraEntity, TransformComponent{});
+  {
+    NativeScriptComponent nsc;
+    NativeScriptComponent::BindByName(&nsc, "CameraController");
+    world.AddComponent(cameraEntity, std::move(nsc));
   }
 
   Renderer2D::Init();
@@ -104,7 +119,11 @@ int main() {
     lastTime = time;
     float logicStartTime = (float)glfwGetTime();
 
+    GE_LOG_INFO("Main loop: Pre-Window update");
+    fflush(stdout);
     window.OnUpdate();
+    GE_LOG_INFO("Main loop: Post-Window update");
+    fflush(stdout);
 
     // Update systems (only in Play Mode)
     if (EditorToolbar::GetState() == SceneState::Play) {
@@ -112,24 +131,32 @@ int main() {
     }
 
     // Rendering
-    auto viewportPanel = EditorToolbar::GetViewportPanel();
-    if (viewportPanel)
-      viewportPanel->GetFramebuffer()->Bind();
+    for (auto& viewportPanel : EditorToolbar::GetViewports()) {
+        if (!viewportPanel || !viewportPanel->IsVisible()) continue;
+        
+        viewportPanel->GetFramebuffer()->Bind();
 
-    auto clearColor = viewportPanel ? viewportPanel->GetClearColor()
-                                    : Math::Vec4f{0.1f, 0.1f, 0.11f, 1.0f};
-    glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if (viewportPanel)
-      viewportPanel->GetFramebuffer()->ClearAttachment(1, -1);
+        auto clearColor = viewportPanel->GetClearColor();
+        glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        viewportPanel->GetFramebuffer()->ClearAttachment(1, -1);
 
-    // Render ECS World
-    basicShader->Bind();
-    Math::Mat4f projection = Math::Mat4f::Perspective(
-        Math::DegreesToRadians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
-    basicShader->SetMat4("u_ViewProjection",
-                         projection * Math::Mat4f::Identity());
-    renderSystem->Render(world, dt);
+        // Render ECS World
+        basicShader->Bind();
+        
+        float aspect = 1280.0f / 720.0f;
+        auto size = viewportPanel->GetSize();
+        if (size.y > 0)
+          aspect = size.x / size.y;
+          
+        Math::Mat4f projection = Math::Mat4f::Perspective(
+            Math::DegreesToRadians(45.0f), aspect, 0.1f, 100.0f);
+        basicShader->SetMat4("u_ViewProjection",
+                             projection * Math::Mat4f::Identity());
+        renderSystem->Render(world, dt);
+
+        viewportPanel->GetFramebuffer()->Unbind();
+    }
 
     // Measurement end
     float logicEndTime = (float)glfwGetTime();
@@ -137,15 +164,18 @@ int main() {
     renderer::Renderer2D::SetLogicTime((logicEndTime - logicStartTime) *
                                        1000.0f); // ms
 
-    if (viewportPanel)
-      viewportPanel->GetFramebuffer()->Unbind();
+
 
     // Clear main window
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     // Render Editor UI
     ImGuiLayer::Begin();
+    GE_LOG_INFO("Main loop: Rendering EditorToolbar");
+    fflush(stdout);
     EditorToolbar::OnImGuiRender();
+    GE_LOG_INFO("Main loop: Ending ImGuiLayer");
+    fflush(stdout);
     ImGuiLayer::End();
 
     // Auto-Save Logic

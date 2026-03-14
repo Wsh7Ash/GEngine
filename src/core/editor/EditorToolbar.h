@@ -1,3 +1,4 @@
+#include "ConsolePanel.h"
 #include "ContentBrowserPanel.h"
 #include "SceneHierarchyPanel.h"
 #include "ViewportPanel.h"
@@ -22,8 +23,8 @@ public:
 
   static void OnImGuiRender();
 
-  static std::shared_ptr<ViewportPanel> GetViewportPanel() {
-    return s_ViewportPanel;
+  static std::vector<std::shared_ptr<ViewportPanel>> GetViewports() {
+    return {s_SceneViewportPanel, s_GameViewportPanel};
   }
   static SceneHierarchyPanel *GetHierarchyPanel() {
     return s_HierarchyPanel.get();
@@ -38,8 +39,10 @@ private:
 
 private:
   static std::unique_ptr<SceneHierarchyPanel> s_HierarchyPanel;
-  static std::shared_ptr<ViewportPanel> s_ViewportPanel;
+  static std::shared_ptr<ViewportPanel> s_SceneViewportPanel;
+  static std::shared_ptr<ViewportPanel> s_GameViewportPanel;
   static std::shared_ptr<ContentBrowserPanel> s_ContentBrowserPanel;
+  static std::shared_ptr<ConsolePanel> s_ConsolePanel;
   static SceneState s_SceneState;
 };
 

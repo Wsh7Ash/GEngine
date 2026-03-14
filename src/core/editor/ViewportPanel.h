@@ -17,7 +17,7 @@ namespace editor {
  */
 class ViewportPanel {
 public:
-  ViewportPanel();
+  ViewportPanel(const std::string& name, bool isGameView);
   ~ViewportPanel() = default;
 
   void OnImGuiRender();
@@ -27,8 +27,14 @@ public:
     return framebuffer_;
   }
   Math::Vec4f GetClearColor() const { return clearColor_; }
+  bool IsVisible() const { return isVisible_; }
+  Math::Vec2f GetSize() const { return viewportSize_; }
 
 private:
+  std::string name_;
+  bool isGameView_;
+  bool isVisible_ = true;
+
   std::shared_ptr<renderer::Framebuffer> framebuffer_;
   ecs::World *sceneContext_ = nullptr;
 

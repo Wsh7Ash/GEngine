@@ -1,9 +1,11 @@
-#include "SceneSerializer.h"
-#include "../debug/log.h"
+#include "../ecs/components/TagComponent.h"
+#include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/MeshComponent.h"
 #include "../ecs/components/NativeScriptComponent.h"
 #include "../ecs/components/SpriteComponent.h"
-#include "../ecs/components/TransformComponent.h"
+#include "SceneSerializer.h"
+#include "../debug/log.h"
+#include "../ecs/ScriptableEntity.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -20,36 +22,55 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
   root["Entities"] = json::array();
 
   try {
-    // Iterate through all entities (rough implementation for now)
-    for (uint32_t i = 0; i < 10000; ++i) {
-      ecs::Entity entity(i);
-
-      if (!world_.HasComponent<ecs::TransformComponent>(entity))
-        continue;
-
+    // Collect all unique entities from the world
+    for (auto const &entity : world_.Query<::ge::ecs::TagComponent>()) {
       json entityJson;
-      entityJson["ID"] = i;
+      entityJson["ID"] = entity.GetIndex();
 
-      auto &tc = world_.GetComponent<ecs::TransformComponent>(entity);
-      entityJson["Transform"] = {
-          {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
-          {"Rotation",
-           {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
-          {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}};
+      // Serialize Tag
+      if (world_.HasComponent<::ge::ecs::TagComponent>(entity)) {
+        entityJson["Tag"] = world_.GetComponent<::ge::ecs::TagComponent>(entity).tag;
+      }
 
+      // Serialize Transform
+      if (world_.HasComponent<ecs::TransformComponent>(entity)) {
+        auto &tc = world_.GetComponent<ecs::TransformComponent>(entity);
+        entityJson["Transform"] = {
+            {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
+            {"Rotation",
+             {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
+            {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}};
+      }
+
+      // Serialize Mesh
+      if (world_.HasComponent<ecs::MeshComponent>(entity)) {
+        auto &mc = world_.GetComponent<ecs::MeshComponent>(entity);
+        entityJson["Mesh"] = {{"MeshPath", mc.MeshPath},
+                              {"ShaderPath", mc.ShaderPath}};
+      }
+
+      // Serialize Sprite
       if (world_.HasComponent<ecs::SpriteComponent>(entity)) {
         auto &sc = world_.GetComponent<ecs::SpriteComponent>(entity);
         entityJson["Sprite"] = {
-            {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}}};
+            {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}},
+            {"FlipX", sc.FlipX},
+            {"FlipY", sc.FlipY},
+            {"isAnimated", sc.isAnimated},
+            {"framesX", sc.framesX},
+            {"framesY", sc.framesY},
+            {"frameTime", sc.frameTime}};
       }
 
+      // Serialize NativeScript
       if (world_.HasComponent<ecs::NativeScriptComponent>(entity)) {
         auto &nsc = world_.GetComponent<ecs::NativeScriptComponent>(entity);
-        json scriptJson;
+        entityJson["NativeScript"] = {{"Name", nsc.ScriptName}};
         if (nsc.instance) {
-          nsc.instance->OnSerialize(&scriptJson);
+          json scriptData;
+          nsc.instance->OnSerialize(&scriptData);
+          entityJson["NativeScript"]["Data"] = scriptData;
         }
-        entityJson["NativeScript"] = scriptJson;
       }
 
       root["Entities"].push_back(entityJson);
@@ -97,9 +118,12 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
     return false;
 
   for (auto &entityData : data["Entities"]) {
-    // uint32_t id = entityData["ID"]; // Original ID not strictly used for
-    // restoration yet
     ecs::Entity entity = world_.CreateEntity();
+
+    // Deserialize Tag
+    if (entityData.contains("Tag")) {
+      world_.AddComponent(entity, ::ge::ecs::TagComponent{entityData["Tag"]});
+    }
 
     // Deserialize Transform
     if (entityData.contains("Transform")) {
@@ -115,22 +139,48 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
       world_.AddComponent(entity, tc);
     }
 
+    // Deserialize Mesh
+    if (entityData.contains("Mesh")) {
+      ecs::MeshComponent mc;
+      mc.MeshPath = entityData["Mesh"]["MeshPath"];
+      mc.ShaderPath = entityData["Mesh"]["ShaderPath"];
+      // Note: Actual asset loading from paths would happen here if implemented
+      world_.AddComponent(entity, mc);
+    }
+
     // Deserialize Sprite
     if (entityData.contains("Sprite")) {
       auto &cData = entityData["Sprite"]["Color"];
       ecs::SpriteComponent sc;
       sc.color = {(float)cData[0], (float)cData[1], (float)cData[2],
                   (float)cData[3]};
+      if (entityData["Sprite"].contains("FlipX"))
+        sc.FlipX = entityData["Sprite"]["FlipX"];
+      if (entityData["Sprite"].contains("FlipY"))
+        sc.FlipY = entityData["Sprite"]["FlipY"];
+      if (entityData["Sprite"].contains("isAnimated"))
+        sc.isAnimated = entityData["Sprite"]["isAnimated"];
+      if (entityData["Sprite"].contains("framesX"))
+        sc.framesX = entityData["Sprite"]["framesX"];
+      if (entityData["Sprite"].contains("framesY"))
+        sc.framesY = entityData["Sprite"]["framesY"];
+      if (entityData["Sprite"].contains("frameTime"))
+        sc.frameTime = entityData["Sprite"]["frameTime"];
+
       world_.AddComponent(entity, sc);
     }
 
     // Deserialize NativeScript
     if (entityData.contains("NativeScript")) {
-      // Note: We can only deserialize if the script is already bound
-      if (world_.HasComponent<ecs::NativeScriptComponent>(entity)) {
-        auto &nsc = world_.GetComponent<ecs::NativeScriptComponent>(entity);
-        if (nsc.instance) {
-          nsc.instance->OnDeserialize(&entityData["NativeScript"]);
+      std::string scriptName = entityData["NativeScript"]["Name"];
+      ecs::NativeScriptComponent nsc;
+      ecs::NativeScriptComponent::BindByName(&nsc, scriptName);
+      world_.AddComponent(entity, std::move(nsc));
+
+      if (entityData["NativeScript"].contains("Data")) {
+        auto &targetNsc = world_.GetComponent<ecs::NativeScriptComponent>(entity);
+        if (targetNsc.instance) {
+          targetNsc.instance->OnDeserialize(&entityData["NativeScript"]["Data"]);
         }
       }
     }

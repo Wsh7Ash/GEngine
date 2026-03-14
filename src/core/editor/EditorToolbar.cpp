@@ -3,6 +3,9 @@
 #include "../platform/ImGuiLayer.h"
 #include "../renderer/Renderer2D.h"
 #include "../scene/SceneSerializer.h"
+#include "../ecs/components/TagComponent.h"
+#include "../ecs/components/TransformComponent.h"
+#include "../ecs/components/SpriteComponent.h"
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -18,9 +21,11 @@ namespace editor {
 
 static ecs::World *s_ActiveWorld = nullptr;
 std::unique_ptr<SceneHierarchyPanel> EditorToolbar::s_HierarchyPanel = nullptr;
-std::shared_ptr<ViewportPanel> EditorToolbar::s_ViewportPanel = nullptr;
+std::shared_ptr<ViewportPanel> EditorToolbar::s_SceneViewportPanel = nullptr;
+std::shared_ptr<ViewportPanel> EditorToolbar::s_GameViewportPanel = nullptr;
 std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel =
     nullptr;
+std::shared_ptr<ConsolePanel> EditorToolbar::s_ConsolePanel = nullptr;
 SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
 void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
@@ -28,14 +33,24 @@ void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
   s_HierarchyPanel = std::make_unique<SceneHierarchyPanel>(world);
   s_ContentBrowserPanel = std::make_shared<ContentBrowserPanel>();
   s_ContentBrowserPanel->SetContext(world);
-  s_ViewportPanel = std::make_shared<ViewportPanel>();
-  s_ViewportPanel->SetContext(world);
+  s_ConsolePanel = std::make_shared<ConsolePanel>();
+  s_SceneViewportPanel = std::make_shared<ViewportPanel>("Scene", false);
+  s_SceneViewportPanel->SetContext(world);
+  s_GameViewportPanel = std::make_shared<ViewportPanel>("Game", true);
+  s_GameViewportPanel->SetContext(world);
 
   ImGuiLayer::Init(windowHandle);
   InitNativeMenuBar(windowHandle);
 }
 
-void EditorToolbar::Shutdown() { ImGuiLayer::Shutdown(); }
+void EditorToolbar::Shutdown() {
+  s_GameViewportPanel = nullptr;
+  s_SceneViewportPanel = nullptr;
+  s_HierarchyPanel = nullptr;
+  s_ContentBrowserPanel = nullptr;
+  s_ConsolePanel = nullptr;
+  ImGuiLayer::Shutdown();
+}
 
 void EditorToolbar::OnImGuiRender() {
   // 0. DockSpace logic
@@ -59,7 +74,7 @@ void EditorToolbar::OnImGuiRender() {
   }
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-  ImGui::Begin("DockSpace Demo", &dockspaceOpen, window_flags);
+  ImGui::Begin("GEngine Editor", &dockspaceOpen, window_flags);
   ImGui::PopStyleVar();
 
   if (opt_fullscreen)
@@ -92,19 +107,23 @@ void EditorToolbar::OnImGuiRender() {
       auto dock_id_right = ImGui::DockBuilderSplitNode(
           dock_id_main, ImGuiDir_Right, 0.25f, nullptr, &dock_id_main);
 
-      // Split Bottom (Content Browser)
+      // Split Bottom (Content Browser & Console)
       auto dock_id_bottom = ImGui::DockBuilderSplitNode(
           dock_id_main, ImGuiDir_Down, 0.25f, nullptr, &dock_id_main);
+      auto dock_id_console = ImGui::DockBuilderSplitNode(
+          dock_id_bottom, ImGuiDir_Right, 0.50f, nullptr, &dock_id_bottom);
 
       // Split Top (Main Tools)
       auto dock_id_top = ImGui::DockBuilderSplitNode(
-          dock_id_main, ImGuiDir_Up, 0.08f, nullptr, &dock_id_main);
+          dock_id_main, ImGuiDir_Up, 0.05f, nullptr, &dock_id_main);
 
       // Dock the windows into their calculated nodes
-      ImGui::DockBuilderDockWindow("Viewport", dock_id_main);
+      ImGui::DockBuilderDockWindow("Scene", dock_id_main);
+      ImGui::DockBuilderDockWindow("Game", dock_id_main);
       ImGui::DockBuilderDockWindow("Scene Hierarchy", dock_id_left);
       ImGui::DockBuilderDockWindow("Inspector", dock_id_right);
       ImGui::DockBuilderDockWindow("Content Browser", dock_id_bottom);
+      ImGui::DockBuilderDockWindow("Console", dock_id_console);
       ImGui::DockBuilderDockWindow("Main Tools", dock_id_top);
 
       ImGui::DockBuilderFinish(dockspace_id);
@@ -130,6 +149,30 @@ void EditorToolbar::OnImGuiRender() {
       ImGui::EndMenu();
     }
 
+    if (ImGui::BeginMenu("Edit")) {
+      if (ImGui::MenuItem("Undo")) {}
+      if (ImGui::MenuItem("Redo")) {}
+      ImGui::Separator();
+      if (ImGui::MenuItem("Copy Component(s)")) {}
+      if (ImGui::MenuItem("Paste Component(s)")) {}
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Entity")) {
+      if (ImGui::MenuItem("Create Empty")) {
+         auto entity = s_ActiveWorld->CreateEntity();
+         s_ActiveWorld->AddComponent(entity, ecs::TransformComponent{});
+         s_ActiveWorld->AddComponent(entity, ecs::TagComponent{"Empty Entity"});
+      }
+      if (ImGui::MenuItem("Create Sprite")) {
+         auto entity = s_ActiveWorld->CreateEntity();
+         s_ActiveWorld->AddComponent(entity, ecs::TransformComponent{});
+         s_ActiveWorld->AddComponent(entity, ecs::TagComponent{"Sprite"});
+         s_ActiveWorld->AddComponent(entity, ecs::SpriteComponent{});
+      }
+      ImGui::EndMenu();
+    }
+
     if (ImGui::BeginMenu("Tools")) {
       if (ImGui::MenuItem("Toggle Stats")) { /* Toggle logic */
       }
@@ -138,15 +181,13 @@ void EditorToolbar::OnImGuiRender() {
     ImGui::EndMenuBar();
   }
 
-  ImGui::Begin("Main Tools");
+  ImGui::Begin("Main Tools", nullptr,
+               ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar |
+                   ImGuiWindowFlags_NoScrollWithMouse);
 
-  // Styled title
-  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.00f, 0.71f, 0.85f, 1.00f));
-  ImGui::Text("GEngine Toolkit");
-  ImGui::PopStyleColor();
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
+  float buttonSize = ImGui::GetWindowHeight() * 0.7f;
+  ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonSize) * 0.5f);
+  ImGui::SetCursorPosY((ImGui::GetWindowHeight() - buttonSize) * 0.5f);
 
   // Play / Stop with color coding
   if (s_SceneState == SceneState::Edit) {
@@ -155,10 +196,11 @@ void EditorToolbar::OnImGuiRender() {
                           ImVec4(0.20f, 0.70f, 0.30f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(0.10f, 0.45f, 0.20f, 1.00f));
-    if (ImGui::Button("  ▶  ", ImVec2(-1, 30))) {
+    if (ImGui::Button("Play", ImVec2(buttonSize * 2.0f, buttonSize))) {
       scene::SceneSerializer serializer(*s_ActiveWorld);
       serializer.Serialize("play_temp.json");
       s_SceneState = SceneState::Play;
+      ImGui::SetWindowFocus("Game");
       GE_LOG_INFO("Play started - Scene state captured");
     }
     ImGui::PopStyleColor(3);
@@ -168,11 +210,13 @@ void EditorToolbar::OnImGuiRender() {
                           ImVec4(0.85f, 0.25f, 0.25f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(0.55f, 0.12f, 0.12f, 1.00f));
-    if (ImGui::Button("  ■  ", ImVec2(-1, 30))) {
+
+    if (ImGui::Button("Stop", ImVec2(buttonSize * 2.0f, buttonSize))) {
       s_SceneState = SceneState::Edit;
       s_ActiveWorld->Clear();
       scene::SceneSerializer serializer(*s_ActiveWorld);
       serializer.Deserialize("play_temp.json");
+      ImGui::SetWindowFocus("Scene");
       GE_LOG_INFO("Play stopped - Scene state restored");
     }
     ImGui::PopStyleColor(3);
@@ -198,14 +242,30 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::Text("Indices:     %d", stats.GetTotalIndexCount());
   ImGui::End();
 
+  GE_LOG_INFO("Rendering s_HierarchyPanel");
+  fflush(stdout);
   if (s_HierarchyPanel)
     s_HierarchyPanel->OnImGuiRender();
 
-  if (s_ViewportPanel)
-    s_ViewportPanel->OnImGuiRender();
+  GE_LOG_INFO("Rendering s_SceneViewportPanel");
+  fflush(stdout);
+  if (s_SceneViewportPanel)
+    s_SceneViewportPanel->OnImGuiRender();
 
+  GE_LOG_INFO("Rendering s_GameViewportPanel");
+  fflush(stdout);
+  if (s_GameViewportPanel)
+    s_GameViewportPanel->OnImGuiRender();
+
+  GE_LOG_INFO("Rendering s_ContentBrowserPanel");
+  fflush(stdout);
   if (s_ContentBrowserPanel)
     s_ContentBrowserPanel->OnImGuiRender();
+ 
+  GE_LOG_INFO("Rendering s_ConsolePanel");
+  fflush(stdout);
+  if (s_ConsolePanel)
+    s_ConsolePanel->OnImGuiRender();
 
   ImGui::End(); // End DockSpace Window
 }
@@ -229,6 +289,12 @@ void EditorToolbar::InitNativeMenuBar(void *windowHandle) {
   AppendMenu(hEditMenu, MF_STRING, 2001, "Undo");
   AppendMenu(hEditMenu, MF_STRING, 2002, "Redo");
   AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hEditMenu, "Edit");
+
+  // Entity Menu
+  HMENU hEntityMenu = CreatePopupMenu();
+  AppendMenu(hEntityMenu, MF_STRING, 3001, "Create Empty");
+  AppendMenu(hEntityMenu, MF_STRING, 3002, "Create Sprite");
+  AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hEntityMenu, "Entity");
 
   SetMenu(hwnd, hMenuBar);
 #endif

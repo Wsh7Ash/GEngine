@@ -114,6 +114,7 @@ set(GE_CORE_HEADERS
     src/core/editor/SceneHierarchyPanel.h
     src/core/editor/ContentBrowserPanel.h
     src/core/editor/ViewportPanel.h
+    src/core/editor/ConsolePanel.h
     src/core/scene/SceneSerializer.h
 )
 
@@ -128,6 +129,7 @@ set(GE_CORE_SOURCES
     src/core/editor/SceneHierarchyPanel.cpp
     src/core/editor/ContentBrowserPanel.cpp
     src/core/editor/ViewportPanel.cpp
+    src/core/editor/ConsolePanel.cpp
     src/core/scene/SceneSerializer.cpp
     src/core/renderer/RendererAPI.cpp
     src/core/renderer/Shader.cpp

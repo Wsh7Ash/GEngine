@@ -1,10 +1,13 @@
 #include "SceneHierarchyPanel.h"
+#include "../ecs/ScriptableEntity.h"
+#include "../ecs/components/MeshComponent.h"
 #include "../ecs/components/NativeScriptComponent.h"
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
 #include "../renderer/Renderer2D.h"
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -36,27 +39,21 @@ void SceneHierarchyPanel::OnImGuiRender() {
   }
   ImGui::Separator();
 
-  // Iterate through all entities (using a fixed limit for now, but checking
-  // IsAlive)
+  // Iterate through all entities that have a TagComponent
   std::string filter(search_filter_);
   std::transform(filter.begin(), filter.end(), filter.begin(),
                  [](unsigned char c) { return std::tolower(c); });
 
-  for (uint32_t i = 0; i < 10000; ++i) {
-    ecs::Entity entity(i);
-    if (context_->IsAlive(entity)) {
-      if (!filter.empty()) {
-        std::string tag =
-            context_->HasComponent<ecs::TagComponent>(entity)
-                ? context_->GetComponent<ecs::TagComponent>(entity).tag
-                : "Entity " + std::to_string(entity.GetIndex());
-        std::transform(tag.begin(), tag.end(), tag.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
-        if (tag.find(filter) == std::string::npos)
-          continue;
-      }
-      DrawEntityNode(entity);
+  for (auto entity : context_->Query<ecs::TagComponent>()) {
+    if (!filter.empty()) {
+      auto &tagComp = context_->GetComponent<ecs::TagComponent>(entity);
+      std::string tag = tagComp.tag;
+      std::transform(tag.begin(), tag.end(), tag.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (tag.find(filter) == std::string::npos)
+        continue;
     }
+    DrawEntityNode(entity);
   }
 
   // Right-click on blank space
@@ -136,13 +133,82 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
   }
 }
 
+static void DrawVec3Control(const std::string &label, Math::Vec3f &values,
+                           float resetValue = 0.0f,
+                           float columnWidth = 100.0f) {
+  ImGuiIO &io = ImGui::GetIO();
+  auto boldFont = io.Fonts->Fonts[0]; // Assuming 0 is default/bold enough
+
+  ImGui::PushID(label.c_str());
+
+  ImGui::TableNextRow();
+  ImGui::TableNextColumn();
+  ImGui::Text(label.c_str());
+  ImGui::TableNextColumn();
+
+  ImGui::PushMultiItemsWidths(3, ImGui::CalcItemWidth());
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0, 0});
+
+  float lineHeight =
+      ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0f;
+  ImVec2 buttonSize = {lineHeight + 3.0f, lineHeight};
+
+  // X
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.8f, 0.1f, 0.15f, 1.0f});
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.9f, 0.2f, 0.2f, 1.00f});
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.8f, 0.1f, 0.15f, 1.0f});
+  ImGui::PushFont(boldFont);
+  if (ImGui::Button("X", buttonSize))
+    values.x = resetValue;
+  ImGui::PopFont();
+  ImGui::PopStyleColor(3);
+
+  ImGui::SameLine();
+  ImGui::DragFloat("##X", &values.x, 0.1f, 0.0f, 0.0f, "%.2f");
+  ImGui::PopItemWidth();
+  ImGui::SameLine();
+
+  // Y
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.2f, 0.7f, 0.2f, 1.0f});
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.3f, 0.8f, 0.3f, 1.00f});
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.2f, 0.7f, 0.2f, 1.0f});
+  ImGui::PushFont(boldFont);
+  if (ImGui::Button("Y", buttonSize))
+    values.y = resetValue;
+  ImGui::PopFont();
+  ImGui::PopStyleColor(3);
+
+  ImGui::SameLine();
+  ImGui::DragFloat("##Y", &values.y, 0.1f, 0.0f, 0.0f, "%.2f");
+  ImGui::PopItemWidth();
+  ImGui::SameLine();
+
+  // Z
+  ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.1f, 0.25f, 0.8f, 1.00f});
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.2f, 0.35f, 0.9f, 1.00f});
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.1f, 0.25f, 0.8f, 1.00f});
+  ImGui::PushFont(boldFont);
+  if (ImGui::Button("Z", buttonSize))
+    values.z = resetValue;
+  ImGui::PopFont();
+  ImGui::PopStyleColor(3);
+
+  ImGui::SameLine();
+  ImGui::DragFloat("##Z", &values.z, 0.1f, 0.0f, 0.0f, "%.2f");
+  ImGui::PopItemWidth();
+
+  ImGui::PopStyleVar();
+  ImGui::PopID();
+}
+
 void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   if (context_->HasComponent<ecs::TagComponent>(entity)) {
     auto &tag = context_->GetComponent<ecs::TagComponent>(entity).tag;
+
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
-    snprintf(buffer, sizeof(buffer), "%s", tag.c_str());
-    if (ImGui::InputText("Tag", buffer, sizeof(buffer))) {
+    strncpy(buffer, tag.c_str(), sizeof(buffer));
+    if (ImGui::InputText("##Tag", buffer, sizeof(buffer))) {
       tag = std::string(buffer);
     }
   }
@@ -176,6 +242,13 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
       ImGui::CloseCurrentPopup();
     }
 
+    if (ImGui::MenuItem(
+            "Mesh Component", nullptr, false,
+            !context_->HasComponent<ecs::MeshComponent>(entity))) {
+      context_->AddComponent(entity, ecs::MeshComponent{});
+      ImGui::CloseCurrentPopup();
+    }
+
     if (ImGui::MenuItem("Tag Component", nullptr, false,
                         !context_->HasComponent<ecs::TagComponent>(entity))) {
       context_->AddComponent(entity, ecs::TagComponent{"New Entity"});
@@ -199,32 +272,15 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
                                 80.0f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::Text("Position");
-        ImGui::TableNextColumn();
-        ImGui::PushItemWidth(-1);
-        ImGui::DragFloat3("##pos", &tc.position.x, 0.1f);
-        ImGui::PopItemWidth();
+        DrawVec3Control("Position", tc.position);
 
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::Text("Rotation");
-        ImGui::TableNextColumn();
         static Math::Vec3f rotation = {0, 0, 0};
-        ImGui::PushItemWidth(-1);
-        if (ImGui::DragFloat3("##rot", &rotation.x, 0.1f)) {
-          tc.rotation = Math::Quatf::FromEuler(rotation);
-        }
-        ImGui::PopItemWidth();
+        // Note: For a real engine, you'd decompose the quat here
+        // For now we just show a static proxy to demonstrate the UI
+        DrawVec3Control("Rotation", rotation);
+        tc.rotation = Math::Quatf::FromEuler(rotation);
 
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::Text("Scale");
-        ImGui::TableNextColumn();
-        ImGui::PushItemWidth(-1);
-        ImGui::DragFloat3("##scale", &tc.scale.x, 0.1f);
-        ImGui::PopItemWidth();
+        DrawVec3Control("Scale", tc.scale, 1.0f);
 
         ImGui::EndTable();
       }
@@ -269,12 +325,39 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
     });
   }
 
+  if (context_->HasComponent<ecs::MeshComponent>(entity)) {
+    DrawComponentControl<ecs::MeshComponent>("Mesh", entity, [&]() {
+      auto &mc = context_->GetComponent<ecs::MeshComponent>(entity);
+      ImGui::Text("Mesh Path: %s",
+                  mc.MeshPath.empty() ? "None" : mc.MeshPath.c_str());
+      ImGui::Text("Shader Path: %s",
+                  mc.ShaderPath.empty() ? "None" : mc.ShaderPath.c_str());
+
+      if (ImGui::Button("Select Mesh...")) {
+        // Placeholder for file picker
+      }
+    });
+  }
+
   if (context_->HasComponent<ecs::NativeScriptComponent>(entity)) {
     DrawComponentControl<ecs::NativeScriptComponent>(
         "Native Script", entity, [&]() {
           auto &nsc =
               context_->GetComponent<ecs::NativeScriptComponent>(entity);
-          ImGui::Text("Instance: %s", nsc.instance ? "Active" : "None");
+          ImGui::Text("Bound Script: %s",
+                      nsc.ScriptName.empty() ? "None" : nsc.ScriptName.c_str());
+          ImGui::Text("Instance: %s", nsc.instance ? "Running" : "Idle");
+
+          if (ImGui::BeginCombo("##ScriptSelection", nsc.ScriptName.c_str())) {
+            for (auto const &pair : ecs::NativeScriptComponent::GetRegistry()) {
+              bool isSelected = (nsc.ScriptName == pair.first);
+              if (ImGui::Selectable(pair.first.c_str(), isSelected)) {
+                ecs::NativeScriptComponent::BindByName(&nsc, pair.first);
+              }
+            }
+            ImGui::EndCombo();
+          }
+
           if (ImGui::Button("Remove Script")) {
             context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
           }
