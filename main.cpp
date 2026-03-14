@@ -14,14 +14,7 @@ using namespace ge::editor;
 class CameraController : public ScriptableEntity {
 public:
   void OnUpdate(float ts) override {
-    GE_LOG_INFO("CameraController::OnUpdate started");
-    fflush(stdout);
-    
     auto &pos = GetComponent<TransformComponent>().position;
-    
-    GE_LOG_INFO("CameraController::OnUpdate got position");
-    fflush(stdout);
-
     float speed = 2.0f * ts;
 
     if (Input::IsKeyPressed(GLFW_KEY_W) || Input::IsKeyPressed(GLFW_KEY_UP))
@@ -117,20 +110,23 @@ int main() {
     float time = (float)glfwGetTime();
     float dt = time - lastTime;
     lastTime = time;
-    float logicStartTime = (float)glfwGetTime();
 
-    GE_LOG_INFO("Main loop: Pre-Window update");
-    fflush(stdout);
+    // ── Logic Phase ──────────────────────────────────────
+    float logicStart = (float)glfwGetTime();
+
     window.OnUpdate();
-    GE_LOG_INFO("Main loop: Post-Window update");
-    fflush(stdout);
 
     // Update systems (only in Play Mode)
     if (EditorToolbar::GetState() == SceneState::Play) {
       scriptSystem->Update(world, dt);
     }
 
-    // Rendering
+    float logicEnd = (float)glfwGetTime();
+    float logicMs = (logicEnd - logicStart) * 1000.0f;
+
+    // ── Render Phase ─────────────────────────────────────
+    float renderStart = (float)glfwGetTime();
+
     for (auto& viewportPanel : EditorToolbar::GetViewports()) {
         if (!viewportPanel || !viewportPanel->IsVisible()) continue;
         
@@ -158,27 +154,22 @@ int main() {
         viewportPanel->GetFramebuffer()->Unbind();
     }
 
-    // Measurement end
-    float logicEndTime = (float)glfwGetTime();
+    float renderEnd = (float)glfwGetTime();
+    float renderMs = (renderEnd - renderStart) * 1000.0f;
+
+    // ── Stats Upload ─────────────────────────────────────
     renderer::Renderer2D::SetUptime(time);
-    renderer::Renderer2D::SetLogicTime((logicEndTime - logicStartTime) *
-                                       1000.0f); // ms
+    renderer::Renderer2D::SetLogicTime(logicMs);
+    renderer::Renderer2D::SetRenderTime(renderMs);
 
-
-
-    // Clear main window
+    // ── Editor UI ────────────────────────────────────────
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    // Render Editor UI
     ImGuiLayer::Begin();
-    GE_LOG_INFO("Main loop: Rendering EditorToolbar");
-    fflush(stdout);
     EditorToolbar::OnImGuiRender();
-    GE_LOG_INFO("Main loop: Ending ImGuiLayer");
-    fflush(stdout);
     ImGuiLayer::End();
 
-    // Auto-Save Logic
+    // ── Auto-Save ────────────────────────────────────────
     autoSaveTimer += dt;
     if (autoSaveTimer >= autoSaveInterval) {
       scene::SceneSerializer serializer(world);

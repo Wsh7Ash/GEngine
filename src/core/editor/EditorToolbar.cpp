@@ -223,18 +223,56 @@ void EditorToolbar::OnImGuiRender() {
   }
   ImGui::End();
 
-  // 3. Stats Window
+  // 3. Statistics Panel
   auto stats = renderer::Renderer2D::GetStats();
-  ImGui::Begin("Batch Renderer Stats");
+  ImGui::Begin("Statistics");
+
+  // ── Performance ──
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.00f, 0.71f, 0.85f, 1.00f));
-  ImGui::Text("Renderer Stats");
+  ImGui::Text("Performance");
   ImGui::PopStyleColor();
   ImGui::Separator();
   ImGui::Spacing();
   ImGui::Text("FPS:          %.1f", io.Framerate);
   ImGui::Text("Frame Time:   %.3f ms", 1000.0f / io.Framerate);
   ImGui::Text("Uptime:       %.1f s", stats.Uptime);
-  ImGui::Text("Logic Time:    %.3f ms", stats.LogicTime);
+  ImGui::Spacing();
+
+  // ── Profiling ──
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.65f, 0.13f, 1.00f));
+  ImGui::Text("Profiling");
+  ImGui::PopStyleColor();
+  ImGui::Separator();
+  ImGui::Spacing();
+  ImGui::Text("Logic Time:   %.3f ms", stats.LogicTime);
+  ImGui::Text("Render Time:  %.3f ms", stats.RenderTime);
+  float totalMs = stats.LogicTime + stats.RenderTime;
+  ImGui::Text("Total (L+R):  %.3f ms", totalMs);
+
+  // Simple bar visualization
+  float barWidth = ImGui::GetContentRegionAvail().x;
+  if (totalMs > 0.001f) {
+    float logicFrac = stats.LogicTime / totalMs;
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    auto* drawList = ImGui::GetWindowDrawList();
+    float barHeight = 8.0f;
+    drawList->AddRectFilled(
+        cursor,
+        ImVec2(cursor.x + barWidth * logicFrac, cursor.y + barHeight),
+        IM_COL32(100, 200, 100, 255)); // Green = Logic
+    drawList->AddRectFilled(
+        ImVec2(cursor.x + barWidth * logicFrac, cursor.y),
+        ImVec2(cursor.x + barWidth, cursor.y + barHeight),
+        IM_COL32(100, 150, 255, 255)); // Blue = Render
+    ImGui::Dummy(ImVec2(barWidth, barHeight + 4.0f));
+  }
+  ImGui::Spacing();
+
+  // ── Renderer ──
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.40f, 0.85f, 0.40f, 1.00f));
+  ImGui::Text("Renderer");
+  ImGui::PopStyleColor();
+  ImGui::Separator();
   ImGui::Spacing();
   ImGui::Text("Draw Calls:  %d", stats.DrawCalls);
   ImGui::Text("Quads:       %d", stats.QuadCount);
@@ -242,28 +280,18 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::Text("Indices:     %d", stats.GetTotalIndexCount());
   ImGui::End();
 
-  GE_LOG_INFO("Rendering s_HierarchyPanel");
-  fflush(stdout);
   if (s_HierarchyPanel)
     s_HierarchyPanel->OnImGuiRender();
 
-  GE_LOG_INFO("Rendering s_SceneViewportPanel");
-  fflush(stdout);
   if (s_SceneViewportPanel)
     s_SceneViewportPanel->OnImGuiRender();
 
-  GE_LOG_INFO("Rendering s_GameViewportPanel");
-  fflush(stdout);
   if (s_GameViewportPanel)
     s_GameViewportPanel->OnImGuiRender();
 
-  GE_LOG_INFO("Rendering s_ContentBrowserPanel");
-  fflush(stdout);
   if (s_ContentBrowserPanel)
     s_ContentBrowserPanel->OnImGuiRender();
- 
-  GE_LOG_INFO("Rendering s_ConsolePanel");
-  fflush(stdout);
+
   if (s_ConsolePanel)
     s_ConsolePanel->OnImGuiRender();
 

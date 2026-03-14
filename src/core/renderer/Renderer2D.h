@@ -14,6 +14,7 @@ struct Renderer2DStatistics {
   uint32_t QuadCount = 0;
   float Uptime = 0.0f;
   float LogicTime = 0.0f;
+  float RenderTime = 0.0f;
 
   uint32_t GetTotalVertexCount() const { return QuadCount * 4; }
   uint32_t GetTotalIndexCount() const { return QuadCount * 6; }
@@ -53,6 +54,7 @@ public:
   static Renderer2DStatistics GetStats();
   static void SetUptime(float uptime);
   static void SetLogicTime(float logicTime);
+  static void SetRenderTime(float renderTime);
 
 private:
   static void StartBatch();

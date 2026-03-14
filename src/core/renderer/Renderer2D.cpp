@@ -250,6 +250,9 @@ void Renderer2D::SetUptime(float uptime) { s_Data.Stats.Uptime = uptime; }
 void Renderer2D::SetLogicTime(float logicTime) {
   s_Data.Stats.LogicTime = logicTime;
 }
+void Renderer2D::SetRenderTime(float renderTime) {
+  s_Data.Stats.RenderTime = renderTime;
+}
 
 } // namespace renderer
 } // namespace ge
