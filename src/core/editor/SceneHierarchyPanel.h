@@ -35,6 +35,7 @@ private:
   ecs::World *context_ = nullptr;
   ecs::Entity selection_context_; // Default constructed handle (Null)
   char search_filter_[256] = "";
+  char component_search_[128] = "";
   std::string component_clipboard_;
 };
 

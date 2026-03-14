@@ -46,6 +46,7 @@ private:
   bool showGrid_ = true;
   bool snap_ = false;
   float snapValue_ = 0.5f;
+  int gizmoMode_ = 0; // 0=Translate, 1=Rotate, 2=Scale
   Math::Vec4f clearColor_ = {0.1f, 0.1f, 0.11f, 1.0f};
 };
 

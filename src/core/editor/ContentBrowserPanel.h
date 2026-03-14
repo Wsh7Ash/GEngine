@@ -1,5 +1,6 @@
 #pragma once
 #include <filesystem>
+#include <string>
 
 namespace ge {
 namespace ecs {
@@ -13,6 +14,9 @@ public:
   void SetContext(ecs::World &world) { context_ = &world; }
 
 private:
+  void DrawDirectoryTree(const std::filesystem::path &directory);
+
+  std::filesystem::path base_dir_;
   std::filesystem::path cur_dir_;
   ecs::World *context_ = nullptr;
 };

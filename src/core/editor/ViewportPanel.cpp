@@ -63,9 +63,38 @@ void ViewportPanel::OnImGuiRender() {
                ImVec2{1, 0});
 
   if (!isGameView_) {
-      // Grid UI Toggle Overlay
+      // ── Viewport Toolbar ──
       ImGui::SetCursorPos(ImVec2(10, 30));
-      ImGui::Checkbox("Show Grid", &showGrid_);
+
+      // Gizmo Mode Buttons
+      auto gizmoButton = [&](const char* label, int mode) {
+        bool active = (gizmoMode_ == mode);
+        if (active) {
+          ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.00f, 0.47f, 0.84f, 1.00f));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.00f, 0.55f, 0.95f, 1.00f));
+        } else {
+          ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.20f, 0.22f, 0.80f));
+          ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.35f, 0.90f));
+        }
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.00f, 0.40f, 0.75f, 1.00f));
+        if (ImGui::Button(label, ImVec2(28, 22)))
+          gizmoMode_ = mode;
+        ImGui::PopStyleColor(3);
+      };
+
+      gizmoButton("W", 0); ImGui::SameLine();
+      gizmoButton("E", 1); ImGui::SameLine();
+      gizmoButton("R", 2); ImGui::SameLine();
+      ImGui::Spacing(); ImGui::SameLine();
+
+      // Keyboard shortcuts for gizmo modes
+      if (isFocused_ && !ImGui::GetIO().WantTextInput) {
+        if (ImGui::IsKeyPressed(ImGuiKey_W)) gizmoMode_ = 0;
+        if (ImGui::IsKeyPressed(ImGuiKey_E)) gizmoMode_ = 1;
+        if (ImGui::IsKeyPressed(ImGuiKey_R)) gizmoMode_ = 2;
+      }
+
+      ImGui::Checkbox("Grid", &showGrid_);
       ImGui::SameLine();
       ImGui::Checkbox("Snap", &snap_);
       if (snap_) {
@@ -73,13 +102,9 @@ void ViewportPanel::OnImGuiRender() {
         ImGui::SetNextItemWidth(50);
         ImGui::DragFloat("##SnapValue", &snapValue_, 0.05f, 0.05f, 5.0f, "%.2f");
       }
-      ImGui::SameLine(ImGui::GetWindowWidth() - 120.0f);
-      ImGui::SetNextItemWidth(100);
-      ImGui::ColorEdit4("Clear", &clearColor_.x,
-                        ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
-      ImGui::SameLine();
-      ImGui::SetNextItemWidth(100);
-      ImGui::ColorEdit4("Clear", &clearColor_.x,
+      ImGui::SameLine(ImGui::GetWindowWidth() - 80.0f);
+      ImGui::SetNextItemWidth(60);
+      ImGui::ColorEdit4("##Clear", &clearColor_.x,
                         ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
     
       if (showGrid_ && viewportSize_.x > 0 && viewportSize_.y > 0) {
@@ -168,14 +193,28 @@ void ViewportPanel::OnImGuiRender() {
                                 Math::Mat4f::Scale(tc.scale);
     
         float snapValues[3] = {snapValue_, snapValue_, snapValue_};
-        ImGuizmo::Manipulate(view, projection, ImGuizmo::TRANSLATE, ImGuizmo::LOCAL,
+
+        ImGuizmo::OPERATION op = ImGuizmo::TRANSLATE;
+        if (gizmoMode_ == 1) op = ImGuizmo::ROTATE;
+        else if (gizmoMode_ == 2) op = ImGuizmo::SCALE;
+
+        ImGuizmo::Manipulate(view, projection, op, ImGuizmo::LOCAL,
                              transform.Data(), nullptr,
                              snap_ ? snapValues : nullptr);
     
         if (ImGuizmo::IsUsing()) {
-          // Update entity position from gizmo transform
+          // Extract position from column 3
           tc.position = {transform.cols[3].x, transform.cols[3].y,
                          transform.cols[3].z};
+          // For scale: extract column lengths
+          if (gizmoMode_ == 2) {
+            auto colLen = [](const Math::Vec4f& c) {
+              return sqrtf(c.x * c.x + c.y * c.y + c.z * c.z);
+            };
+            tc.scale.x = colLen(transform.cols[0]);
+            tc.scale.y = colLen(transform.cols[1]);
+            tc.scale.z = colLen(transform.cols[2]);
+          }
         }
       }
     

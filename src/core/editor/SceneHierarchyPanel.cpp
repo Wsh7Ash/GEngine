@@ -228,32 +228,88 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   ImGui::PopStyleColor(3);
 
   if (ImGui::BeginPopup("AddComponent")) {
-    if (ImGui::MenuItem(
-            "Sprite Component", nullptr, false,
-            !context_->HasComponent<ecs::SpriteComponent>(entity))) {
-      context_->AddComponent(entity, ecs::SpriteComponent{});
-      ImGui::CloseCurrentPopup();
-    }
+    // Search bar
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputTextWithHint("##CompSearch", "Search components...",
+                             component_search_, sizeof(component_search_));
+    ImGui::Separator();
 
-    if (ImGui::MenuItem(
-            "Native Script Component", nullptr, false,
-            !context_->HasComponent<ecs::NativeScriptComponent>(entity))) {
-      context_->AddComponent(entity, ecs::NativeScriptComponent{});
-      ImGui::CloseCurrentPopup();
-    }
+    std::string filter(component_search_);
+    std::transform(filter.begin(), filter.end(), filter.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
 
-    if (ImGui::MenuItem(
-            "Mesh Component", nullptr, false,
-            !context_->HasComponent<ecs::MeshComponent>(entity))) {
-      context_->AddComponent(entity, ecs::MeshComponent{});
-      ImGui::CloseCurrentPopup();
-    }
+    auto showItem = [&](const char* label, auto addFn, bool enabled) {
+      if (!filter.empty()) {
+        std::string lower(label);
+        std::transform(lower.begin(), lower.end(), lower.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        if (lower.find(filter) == std::string::npos) return;
+      }
+      if (ImGui::MenuItem(label, nullptr, false, enabled)) {
+        addFn();
+        component_search_[0] = '\0';
+        ImGui::CloseCurrentPopup();
+      }
+    };
 
-    if (ImGui::MenuItem("Tag Component", nullptr, false,
-                        !context_->HasComponent<ecs::TagComponent>(entity))) {
-      context_->AddComponent(entity, ecs::TagComponent{"New Entity"});
-      ImGui::CloseCurrentPopup();
+    // ── Rendering ──
+    bool showRendering = filter.empty();
+    if (!showRendering) {
+      // Show header if any child matches
+      for (auto name : {"Sprite Component", "Mesh Component"}) {
+        std::string lower(name);
+        std::transform(lower.begin(), lower.end(), lower.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        if (lower.find(filter) != std::string::npos) { showRendering = true; break; }
+      }
     }
+    if (showRendering) {
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.40f, 0.85f, 0.40f, 1.00f));
+      ImGui::Text("Rendering");
+      ImGui::PopStyleColor();
+    }
+    showItem("Sprite Component",
+             [&]() { context_->AddComponent(entity, ecs::SpriteComponent{}); },
+             !context_->HasComponent<ecs::SpriteComponent>(entity));
+    showItem("Mesh Component",
+             [&]() { context_->AddComponent(entity, ecs::MeshComponent{}); },
+             !context_->HasComponent<ecs::MeshComponent>(entity));
+
+    // ── Scripting ──
+    bool showScripting = filter.empty();
+    if (!showScripting) {
+      std::string lower("Native Script Component");
+      std::transform(lower.begin(), lower.end(), lower.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (lower.find(filter) != std::string::npos) showScripting = true;
+    }
+    if (showScripting) {
+      ImGui::Separator();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.65f, 0.13f, 1.00f));
+      ImGui::Text("Scripting");
+      ImGui::PopStyleColor();
+    }
+    showItem("Native Script Component",
+             [&]() { context_->AddComponent(entity, ecs::NativeScriptComponent{}); },
+             !context_->HasComponent<ecs::NativeScriptComponent>(entity));
+
+    // ── Core ──
+    bool showCore = filter.empty();
+    if (!showCore) {
+      std::string lower("Tag Component");
+      std::transform(lower.begin(), lower.end(), lower.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (lower.find(filter) != std::string::npos) showCore = true;
+    }
+    if (showCore) {
+      ImGui::Separator();
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.00f, 0.71f, 0.85f, 1.00f));
+      ImGui::Text("Core");
+      ImGui::PopStyleColor();
+    }
+    showItem("Tag Component",
+             [&]() { context_->AddComponent(entity, ecs::TagComponent{"New Entity"}); },
+             !context_->HasComponent<ecs::TagComponent>(entity));
 
     ImGui::EndPopup();
   }
