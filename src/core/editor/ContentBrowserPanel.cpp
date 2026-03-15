@@ -38,11 +38,12 @@ ContentBrowserPanel::ContentBrowserPanel() {
 }
 
 void ContentBrowserPanel::DrawDirectoryTree(const std::filesystem::path &directory) {
-  if (!std::filesystem::exists(directory) || !std::filesystem::is_directory(directory))
+  std::error_code ec;
+  if (!std::filesystem::exists(directory, ec) || !std::filesystem::is_directory(directory, ec))
     return;
 
-  for (auto &entry : std::filesystem::directory_iterator(directory)) {
-    if (!entry.is_directory()) continue;
+  for (auto &entry : std::filesystem::directory_iterator(directory, ec)) {
+    if (ec || !entry.is_directory(ec)) continue;
 
     std::string name = entry.path().filename().string();
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
@@ -52,8 +53,10 @@ void ContentBrowserPanel::DrawDirectoryTree(const std::filesystem::path &directo
 
     // Check if this directory has subdirectories
     bool hasSubDirs = false;
-    for (auto &sub : std::filesystem::directory_iterator(entry.path())) {
-      if (sub.is_directory()) { hasSubDirs = true; break; }
+    std::error_code subEc;
+    for (auto &sub : std::filesystem::directory_iterator(entry.path(), subEc)) {
+      if (subEc) continue;
+      if (sub.is_directory(subEc)) { hasSubDirs = true; break; }
     }
     if (!hasSubDirs)
       flags |= ImGuiTreeNodeFlags_Leaf;
@@ -135,12 +138,14 @@ void ContentBrowserPanel::OnImGuiRender() {
 
   ImGui::Columns(columnCount, 0, false);
 
-  for (auto &directoryEntry : std::filesystem::directory_iterator(cur_dir_)) {
+  std::error_code ec;
+  for (auto &directoryEntry : std::filesystem::directory_iterator(cur_dir_, ec)) {
+    if (ec) continue;
     const auto &path = directoryEntry.path();
     std::string filenameString = path.filename().string();
     ImGui::PushID(filenameString.c_str());
 
-    bool isDirectory = directoryEntry.is_directory();
+    bool isDirectory = directoryEntry.is_directory(ec);
     const char* icon = GetFileIcon(path);
 
     // Color-code buttons
@@ -175,7 +180,7 @@ void ContentBrowserPanel::OnImGuiRender() {
         serializer.Deserialize(path.string());
         GE_LOG_INFO("Scene loaded from %s", path.filename().string().c_str());
       } else if (path.extension() == ".cpp" || path.extension() == ".h") {
-        std::string cmd = "code \"" + std::filesystem::absolute(path).string() + "\"";
+        std::string cmd = "code \"" + std::filesystem::absolute(path, ec).string() + "\"";
         std::system(cmd.c_str());
       }
     }
@@ -184,17 +189,17 @@ void ContentBrowserPanel::OnImGuiRender() {
     if (ImGui::BeginPopupContextItem()) {
       if (ImGui::MenuItem("Open in Explorer")) {
         std::string command = "explorer /select,\"" +
-                              std::filesystem::absolute(path).string() + "\"";
+                              std::filesystem::absolute(path, ec).string() + "\"";
         std::replace(command.begin(), command.end(), '/', '\\');
         std::system(command.c_str());
       }
       if (ImGui::MenuItem("Copy Path")) {
         ImGui::SetClipboardText(
-            std::filesystem::absolute(path).string().c_str());
+            std::filesystem::absolute(path, ec).string().c_str());
       }
       if (!isDirectory && (path.extension() == ".cpp" || path.extension() == ".h")) {
         if (ImGui::MenuItem("Edit in VS Code")) {
-          std::string cmd = "code \"" + std::filesystem::absolute(path).string() + "\"";
+          std::string cmd = "code \"" + std::filesystem::absolute(path, ec).string() + "\"";
           std::system(cmd.c_str());
         }
       }
