@@ -24,11 +24,13 @@ std::string VSCodeUtility::FindVSCodeExecutable() {
     }
 
     // 2. Check common locations
-    std::vector<std::string> commonPaths = {
-        std::string(std::getenv("LOCALAPPDATA")) + "/Programs/Microsoft VS Code/bin/code.cmd",
-        "C:/Program Files/Microsoft VS Code/bin/code.cmd",
-        "C:/Program Files (x86)/Microsoft VS Code/bin/code.cmd"
-    };
+    std::vector<std::string> commonPaths;
+    const char* localAppData = std::getenv("LOCALAPPDATA");
+    if (localAppData) {
+        commonPaths.push_back(std::string(localAppData) + "/Programs/Microsoft VS Code/bin/code.cmd");
+    }
+    commonPaths.push_back("C:/Program Files/Microsoft VS Code/bin/code.cmd");
+    commonPaths.push_back("C:/Program Files (x86)/Microsoft VS Code/bin/code.cmd");
 
     for (const auto& path : commonPaths) {
         if (std::filesystem::exists(path)) {
@@ -53,11 +55,11 @@ void VSCodeUtility::OpenInVSCode(const std::string& path) {
     }
 
 #ifdef GE_PLATFORM_WINDOWS
-    // Use code.cmd to open
-    std::string command = "/c \"" + codePath + "\" \"" + path + "\"";
+    // Use code.cmd to open. Use double quotes carefully.
+    std::string command = "/c \"\"" + codePath + "\" \"" + path + "\"\"";
     ShellExecuteA(NULL, "open", "cmd.exe", command.c_str(), NULL, SW_HIDE);
 #else
-    std::string command = codePath + " " + path + " &";
+    std::string command = "\"" + codePath + "\" \"" + path + "\" &";
     system(command.c_str());
 #endif
     GE_LOG_INFO("Opening in VS Code: {0}", path.c_str());
@@ -66,17 +68,17 @@ void VSCodeUtility::OpenInVSCode(const std::string& path) {
 void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoot, const std::vector<std::string>& includePaths) {
     std::filesystem::path vscodeDir = projectRoot / ".vscode";
     if (!std::filesystem::exists(vscodeDir)) {
-        std::filesystem::create_directory(vscodeDir);
+        std::filesystem::create_directories(vscodeDir);
     }
 
     // 1. c_cpp_properties.json
-    std::string cppProps = R"({
+    std::string cppProps = R"cppprops({
     "configurations": [
         {
             "name": "GEngine",
             "includePath": [
                 "${workspaceFolder}/**",
-)";
+)cppprops";
     for (const auto& include : includePaths) {
         cppProps += "                \"" + include + "\",\n";
     }
@@ -86,7 +88,7 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
         cppProps.pop_back(); // ,
         cppProps += "\n";
     }
-    cppProps += R"(            ],
+    cppProps += R"cppprops(            ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
@@ -101,11 +103,11 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
         }
     ],
     "version": 4
-})";
+})cppprops";
     WriteFile(vscodeDir / "c_cpp_properties.json", cppProps);
 
     // 2. tasks.json
-    std::string tasks = R"({
+    std::string tasks = R"tasks({
     "version": "2.0.0",
     "tasks": [
         {
@@ -119,15 +121,25 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
             "problemMatcher": "$msCompile"
         }
     ]
-})";
+})tasks";
     WriteFile(vscodeDir / "tasks.json", tasks);
 
-    // 3. launch.json
-    std::string launch = R"({
+    // 3. launch.json (Supports both MSVC and lldb/codelldb)
+    std::string launch = R"launch({
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug GEngine",
+            "name": "Debug (codelldb)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/Debug/GameEngine.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "preLaunchTask": "Build GEngine"
+        },
+        {
+            "name": "Debug (MSVC)",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/Debug/GameEngine.exe",
@@ -135,10 +147,11 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "preLaunchTask": "Build GEngine"
         }
     ]
-})";
+})launch";
     WriteFile(vscodeDir / "launch.json", launch);
 
     GE_LOG_INFO("Generated .vscode configuration in {0}", projectRoot.string().c_str());
