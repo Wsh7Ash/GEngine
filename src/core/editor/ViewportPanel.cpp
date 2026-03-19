@@ -3,8 +3,11 @@
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
 #include "../renderer/Renderer2D.h"
-#include "EditorToolbar.h"
+#include "../editor/EditorToolbar.h"
+#include "../cmd/CommandHistory.h"
+#include "../cmd/EntityCommands.h"
 #include <ImGuizmo.h>
+#include <imgui.h>
 
 namespace ge {
 namespace editor {
@@ -203,6 +206,14 @@ void ViewportPanel::OnImGuiRender() {
                              snap_ ? snapValues : nullptr);
     
         if (ImGuizmo::IsUsing()) {
+          if (!isUsingGizmo_) {
+            // Started using gizmo - capture starting state
+            startingPosition_ = tc.position;
+            startingRotation_ = tc.rotation;
+            startingScale_ = tc.scale;
+            isUsingGizmo_ = true;
+          }
+
           // Extract position from column 3
           tc.position = {transform.cols[3].x, transform.cols[3].y,
                          transform.cols[3].z};
@@ -215,6 +226,18 @@ void ViewportPanel::OnImGuiRender() {
             tc.scale.y = colLen(transform.cols[1]);
             tc.scale.z = colLen(transform.cols[2]);
           }
+          // Note: Extraction for rotation is more complex and would involve
+          // DecomposeMatrix; skipping for now as rotations are locked to Z in 2D
+          // but if implemented, it would go here.
+        } else if (isUsingGizmo_) {
+          // Just stopped using gizmo - push final command
+          cmd::CommandHistory::PushCommand(std::make_unique<cmd::CommandChangeTransform>(
+              *sceneContext_, selectedEntity, 
+              startingPosition_, tc.position,
+              startingRotation_, tc.rotation,
+              startingScale_, tc.scale
+          ));
+          isUsingGizmo_ = false;
         }
       }
     

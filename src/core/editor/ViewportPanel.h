@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../math/VecTypes.h"
+#include "../math/quaternion.h"
 #include "../renderer/Framebuffer.h"
 #include <imgui.h>
 #include <memory>
@@ -48,6 +49,12 @@ private:
   float snapValue_ = 0.5f;
   int gizmoMode_ = 0; // 0=Translate, 1=Rotate, 2=Scale
   Math::Vec4f clearColor_ = {0.1f, 0.1f, 0.11f, 1.0f};
+
+  // Undo/Redo state tracking
+  Math::Vec3f startingPosition_ = {0, 0, 0};
+  Math::Quatf startingRotation_ = Math::Quatf::Identity();
+  Math::Vec3f startingScale_ = {1, 1, 1};
+  bool isUsingGizmo_ = false;
 };
 
 } // namespace editor
