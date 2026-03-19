@@ -16,6 +16,8 @@
 #include <memory>
 #include <tuple>
 #include <vector>
+#include <unordered_map>
+#include "components/IDComponent.h"
 
 namespace ge {
 namespace ecs {
@@ -38,10 +40,30 @@ public:
     Entity e = entityManager_.CreateEntity();
     allEntities_.push_back(e);
     isDirty_ = true;
+    
+    UUID uuid;
+    AddComponent<IDComponent>(e, IDComponent{uuid});
+    entityByUUID_[uuid] = e;
+    
+    return e;
+  }
+
+  [[nodiscard]] Entity CreateEntityWithUUID(UUID uuid) {
+    Entity e = entityManager_.CreateEntity();
+    allEntities_.push_back(e);
+    isDirty_ = true;
+    
+    AddComponent<IDComponent>(e, IDComponent{uuid});
+    entityByUUID_[uuid] = e;
+    
     return e;
   }
 
   void DestroyEntity(Entity e) {
+    if (HasComponent<IDComponent>(e)) {
+      entityByUUID_.erase(GetComponent<IDComponent>(e).ID);
+    }
+
     auto it = std::find(allEntities_.begin(), allEntities_.end(), e);
     if (it != allEntities_.end()) {
       *it = allEntities_.back();
@@ -73,6 +95,14 @@ public:
 
   [[nodiscard]] bool IsAlive(Entity e) const noexcept {
     return entityManager_.IsAlive(e);
+  }
+
+  [[nodiscard]] Entity GetEntityByUUID(UUID uuid) const {
+    auto it = entityByUUID_.find(uuid);
+    if (it != entityByUUID_.end()) {
+      return it->second;
+    }
+    return INVALID_ENTITY;
   }
 
   // ── Component management ─────────────────────────────────────
@@ -163,6 +193,8 @@ private:
 
   // Tracks all allocated entities to allow safe, exact cleanup
   std::vector<Entity> allEntities_;
+
+  std::unordered_map<UUID, Entity> entityByUUID_;
 
   bool isDirty_ = false;
 };
