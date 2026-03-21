@@ -5,6 +5,8 @@
 #include "../scene/SceneSerializer.h"
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
+#include "../cmd/CommandHistory.h"
+#include "../editor/VSCodeUtility.h"
 #include "../ecs/components/SpriteComponent.h"
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -27,6 +29,17 @@ std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel =
     nullptr;
 std::shared_ptr<ConsolePanel> EditorToolbar::s_ConsolePanel = nullptr;
 SceneState EditorToolbar::s_SceneState = SceneState::Edit;
+
+static std::filesystem::path FindProjectRoot() {
+  std::filesystem::path cur = std::filesystem::current_path();
+  for (int i = 0; i < 5; ++i) { // Search up to 5 levels
+    if (std::filesystem::exists(cur / "CMakeLists.txt"))
+      return cur;
+    if (cur.has_parent_path()) cur = cur.parent_path();
+    else break;
+  }
+  return std::filesystem::current_path();
+}
 
 void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
   s_ActiveWorld = &world;
@@ -130,7 +143,17 @@ void EditorToolbar::OnImGuiRender() {
     }
   }
 
-  // 1. Main Menu Bar (ImGui)
+  // Keyboard Shortcuts
+  if (io.KeyCtrl) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
+      cmd::CommandHistory::Undo();
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Y)) {
+      cmd::CommandHistory::Redo();
+    }
+  }
+
+  // 1. Horizontal Main Menu Bar
   if (ImGui::BeginMenuBar()) {
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("New Scene")) { /* Clear logic */
@@ -150,11 +173,34 @@ void EditorToolbar::OnImGuiRender() {
     }
 
     if (ImGui::BeginMenu("Edit")) {
-      if (ImGui::MenuItem("Undo")) {}
-      if (ImGui::MenuItem("Redo")) {}
+      if (ImGui::MenuItem("Undo", "Ctrl+Z")) {
+        cmd::CommandHistory::Undo();
+      }
+      if (ImGui::MenuItem("Redo", "Ctrl+Y")) {
+        cmd::CommandHistory::Redo();
+      }
+
       ImGui::Separator();
       if (ImGui::MenuItem("Copy Component(s)")) {}
       if (ImGui::MenuItem("Paste Component(s)")) {}
+
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("Initialize VS Code Project")) {
+          std::vector<std::string> includePaths = {
+              "${workspaceFolder}/src/core",
+              "${workspaceFolder}/deps/glfw/include",
+              "${workspaceFolder}/deps/glad/include",
+              "${workspaceFolder}/deps/imgui",
+              "${workspaceFolder}/deps/imguizmo"
+          };
+          VSCodeUtility::GenerateVSCodeConfig(FindProjectRoot(), includePaths);
+      }
+
+      if (ImGui::MenuItem("Open Project in VS Code")) {
+          VSCodeUtility::OpenInVSCode(FindProjectRoot().string());
+      }
+
       ImGui::EndMenu();
     }
 
