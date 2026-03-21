@@ -1,5 +1,8 @@
 #define GLFW_INCLUDE_NONE
 #include "src/core/ge_core.h"
+#include "src/core/ecs/systems/Physics2DSystem.h"
+#include "src/core/ecs/components/Rigidbody2DComponent.h"
+#include "src/core/ecs/components/BoxCollider2DComponent.h"
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
 #include <memory>
@@ -52,6 +55,14 @@ int main() {
     Signature signature;
     signature.set(GetComponentTypeID<NativeScriptComponent>());
     world.SetSystemSignature<ScriptSystem>(signature);
+  }
+
+  auto physicsSystem = world.RegisterSystem<Physics2DSystem>();
+  {
+    Signature signature;
+    signature.set(GetComponentTypeID<Rigidbody2DComponent>());
+    signature.set(GetComponentTypeID<TransformComponent>());
+    world.SetSystemSignature<Physics2DSystem>(signature);
   }
 
   // Register scripts
@@ -116,7 +127,8 @@ int main() {
 
     window.OnUpdate();
 
-    // Update systems (only in Play Mode)
+    // Update systems
+    physicsSystem->Update(world, dt);
     if (EditorToolbar::GetState() == SceneState::Play) {
       scriptSystem->Update(world, dt);
     }

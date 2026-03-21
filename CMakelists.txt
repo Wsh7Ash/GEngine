@@ -11,11 +11,19 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
     GIT_TAG        master
 )
+set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
     json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
 )
-FetchContent_MakeAvailable(imgui json imguizmo)
+FetchContent_Declare(
+    box2d
+    GIT_REPOSITORY https://github.com/erincatto/box2d.git
+    GIT_TAG        v2.4.1
+)
+FetchContent_MakeAvailable(imgui json imguizmo box2d)
 
 project(GameEngine
     VERSION     0.1.0
@@ -43,7 +51,7 @@ add_subdirectory(deps/glfw)
 
 # ── Compiler warnings ──────────────────────────────────────────
 if(MSVC)
-    add_compile_options(/W4 /WX- /permissive-)
+    add_compile_options(/W4 /WX- /permissive- /FS)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic)
@@ -91,9 +99,13 @@ set(GE_CORE_HEADERS
     src/core/ecs/components/MeshComponent.h
     src/core/ecs/components/SpriteComponent.h
     src/core/ecs/components/NativeScriptComponent.h
+    src/core/ecs/components/IDComponent.h
+    src/core/ecs/components/Rigidbody2DComponent.h
+    src/core/ecs/components/BoxCollider2DComponent.h
     src/core/ecs/ScriptableEntity.h
     src/core/ecs/systems/RenderSystem.h
     src/core/ecs/systems/ScriptSystem.h
+    src/core/ecs/systems/Physics2DSystem.h
     # Renderer
     src/core/renderer/RendererAPI.h
     src/core/renderer/GraphicsContext.h
@@ -115,7 +127,12 @@ set(GE_CORE_HEADERS
     src/core/editor/ContentBrowserPanel.h
     src/core/editor/ViewportPanel.h
     src/core/editor/ConsolePanel.h
+    src/core/editor/VSCodeUtility.h
     src/core/scene/SceneSerializer.h
+    src/core/uuid/UUID.h
+    src/core/cmd/Command.h
+    src/core/cmd/CommandHistory.h
+    src/core/cmd/EntityCommands.h
 )
 
 set(GE_CORE_SOURCES
@@ -130,7 +147,10 @@ set(GE_CORE_SOURCES
     src/core/editor/ContentBrowserPanel.cpp
     src/core/editor/ViewportPanel.cpp
     src/core/editor/ConsolePanel.cpp
+    src/core/editor/VSCodeUtility.cpp
     src/core/scene/SceneSerializer.cpp
+    src/core/uuid/UUID.cpp
+    src/core/cmd/CommandHistory.cpp
     src/core/renderer/RendererAPI.cpp
     src/core/renderer/Shader.cpp
     src/core/renderer/Mesh.cpp
@@ -148,6 +168,9 @@ set(GE_CORE_SOURCES
     src/core/renderer/dx11/DX11Texture.cpp
     src/core/ecs/systems/RenderSystem.cpp
     src/core/ecs/systems/ScriptSystem.cpp
+    src/core/ecs/systems/Physics2DSystem.cpp
+    src/core/assets/AssetManager.cpp
+    src/core/assets/AssetImporter.cpp
     deps/glad/src/glad.c
     
     # ImGui
@@ -164,6 +187,7 @@ set(GE_CORE_SOURCES
 )
 
 add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
+target_link_libraries(ge_core PUBLIC box2d)
 
 target_include_directories(ge_core
     PUBLIC
@@ -192,7 +216,7 @@ endif()
 # ================================================================
 
 add_executable(GameEngine main.cpp)
-target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json)
+target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d)
 
 
 # ================================================================
