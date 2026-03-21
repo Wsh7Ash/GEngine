@@ -1,9 +1,12 @@
+#include "SceneSerializer.h"
+#include "../ecs/components/IDComponent.h"
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/MeshComponent.h"
 #include "../ecs/components/NativeScriptComponent.h"
 #include "../ecs/components/SpriteComponent.h"
-#include "SceneSerializer.h"
+#include "../ecs/components/Rigidbody2DComponent.h"
+#include "../ecs/components/BoxCollider2DComponent.h"
 #include "../debug/log.h"
 #include "../ecs/ScriptableEntity.h"
 #include <fstream>
@@ -23,9 +26,13 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
 
   try {
     // Collect all unique entities from the world
-    for (auto const &entity : world_.Query<::ge::ecs::TagComponent>()) {
+      for (auto const &entity : world_.Query<::ge::ecs::TagComponent>()) {
       json entityJson;
-      entityJson["ID"] = entity.GetIndex();
+      
+      // Serialize UUID (Stable ID)
+      if (world_.HasComponent<::ge::ecs::IDComponent>(entity)) {
+        entityJson["UUID"] = (uint64_t)world_.GetComponent<::ge::ecs::IDComponent>(entity).ID;
+      }
 
       // Serialize Tag
       if (world_.HasComponent<::ge::ecs::TagComponent>(entity)) {
@@ -65,12 +72,33 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
       // Serialize NativeScript
       if (world_.HasComponent<ecs::NativeScriptComponent>(entity)) {
         auto &nsc = world_.GetComponent<ecs::NativeScriptComponent>(entity);
-        entityJson["NativeScript"] = {{"Name", nsc.ScriptName}};
+        json nscJson;
+        nscJson["Name"] = nsc.ScriptName;
         if (nsc.instance) {
           json scriptData;
           nsc.instance->OnSerialize(&scriptData);
-          entityJson["NativeScript"]["Data"] = scriptData;
+          nscJson["Data"] = scriptData;
         }
+        entityJson["NativeScript"] = nscJson;
+      }
+
+      // Serialize Rigidbody2D
+      if (world_.HasComponent<ecs::Rigidbody2DComponent>(entity)) {
+        auto &rb = world_.GetComponent<ecs::Rigidbody2DComponent>(entity);
+        entityJson["Rigidbody2D"] = {
+            {"Type", (int)rb.Type},
+            {"FixedRotation", rb.FixedRotation}};
+      }
+
+      // Serialize BoxCollider2D
+      if (world_.HasComponent<ecs::BoxCollider2DComponent>(entity)) {
+        auto &bc = world_.GetComponent<ecs::BoxCollider2DComponent>(entity);
+        entityJson["BoxCollider2D"] = {
+            {"Offset", {bc.Offset.x, bc.Offset.y}},
+            {"Size", {bc.Size.x, bc.Size.y}},
+            {"Density", bc.Density},
+            {"Friction", bc.Friction},
+            {"Restitution", bc.Restitution}};
       }
 
       root["Entities"].push_back(entityJson);
@@ -118,7 +146,13 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
     return false;
 
   for (auto &entityData : data["Entities"]) {
-    ecs::Entity entity = world_.CreateEntity();
+    ecs::Entity entity;
+    if (entityData.contains("UUID")) {
+      uint64_t uuid = entityData["UUID"];
+      entity = world_.CreateEntityWithUUID(uuid);
+    } else {
+      entity = world_.CreateEntity();
+    }
 
     // Deserialize Tag
     if (entityData.contains("Tag")) {
@@ -183,6 +217,27 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
           targetNsc.instance->OnDeserialize(&entityData["NativeScript"]["Data"]);
         }
       }
+    }
+
+    // Deserialize Rigidbody2D
+    if (entityData.contains("Rigidbody2D")) {
+      ecs::Rigidbody2DComponent rb;
+      rb.Type = (ecs::RigidBody2DType)entityData["Rigidbody2D"]["Type"];
+      rb.FixedRotation = entityData["Rigidbody2D"]["FixedRotation"];
+      world_.AddComponent(entity, rb);
+    }
+
+    // Deserialize BoxCollider2D
+    if (entityData.contains("BoxCollider2D")) {
+      ecs::BoxCollider2DComponent bc;
+      auto &oData = entityData["BoxCollider2D"]["Offset"];
+      auto &sData = entityData["BoxCollider2D"]["Size"];
+      bc.Offset = {(float)oData[0], (float)oData[1]};
+      bc.Size = {(float)sData[0], (float)sData[1]};
+      bc.Density = entityData["BoxCollider2D"]["Density"];
+      bc.Friction = entityData["BoxCollider2D"]["Friction"];
+      bc.Restitution = entityData["BoxCollider2D"]["Restitution"];
+      world_.AddComponent(entity, bc);
     }
   }
 
