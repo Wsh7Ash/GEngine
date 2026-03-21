@@ -5,7 +5,11 @@
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
+#include "../ecs/components/Rigidbody2DComponent.h"
+#include "../ecs/components/BoxCollider2DComponent.h"
 #include "../renderer/Renderer2D.h"
+#include "../cmd/CommandHistory.h"
+#include "../cmd/EntityCommands.h"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <nlohmann/json.hpp>
@@ -133,9 +137,10 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
   }
 }
 
-static void DrawVec3Control(const std::string &label, Math::Vec3f &values,
-                           float resetValue = 0.0f,
-                           float columnWidth = 100.0f) {
+static bool DrawVec3Control(const std::string &label, Math::Vec3f &values,
+                            float resetValue = 0.0f,
+                            float columnWidth = 100.0f) {
+  bool changed = false;
   ImGuiIO &io = ImGui::GetIO();
   auto boldFont = io.Fonts->Fonts[0]; // Assuming 0 is default/bold enough
 
@@ -158,13 +163,16 @@ static void DrawVec3Control(const std::string &label, Math::Vec3f &values,
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.9f, 0.2f, 0.2f, 1.00f});
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.8f, 0.1f, 0.15f, 1.0f});
   ImGui::PushFont(boldFont);
-  if (ImGui::Button("X", buttonSize))
+  if (ImGui::Button("X", buttonSize)) {
     values.x = resetValue;
+    changed = true;
+  }
   ImGui::PopFont();
   ImGui::PopStyleColor(3);
 
   ImGui::SameLine();
   ImGui::DragFloat("##X", &values.x, 0.1f, 0.0f, 0.0f, "%.2f");
+  if (ImGui::IsItemDeactivatedAfterEdit()) changed = true;
   ImGui::PopItemWidth();
   ImGui::SameLine();
 
@@ -173,13 +181,16 @@ static void DrawVec3Control(const std::string &label, Math::Vec3f &values,
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.3f, 0.8f, 0.3f, 1.00f});
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.2f, 0.7f, 0.2f, 1.0f});
   ImGui::PushFont(boldFont);
-  if (ImGui::Button("Y", buttonSize))
+  if (ImGui::Button("Y", buttonSize)) {
     values.y = resetValue;
+    changed = true;
+  }
   ImGui::PopFont();
   ImGui::PopStyleColor(3);
 
   ImGui::SameLine();
   ImGui::DragFloat("##Y", &values.y, 0.1f, 0.0f, 0.0f, "%.2f");
+  if (ImGui::IsItemDeactivatedAfterEdit()) changed = true;
   ImGui::PopItemWidth();
   ImGui::SameLine();
 
@@ -188,17 +199,22 @@ static void DrawVec3Control(const std::string &label, Math::Vec3f &values,
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{0.2f, 0.35f, 0.9f, 1.00f});
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{0.1f, 0.25f, 0.8f, 1.00f});
   ImGui::PushFont(boldFont);
-  if (ImGui::Button("Z", buttonSize))
+  if (ImGui::Button("Z", buttonSize)) {
     values.z = resetValue;
+    changed = true;
+  }
   ImGui::PopFont();
   ImGui::PopStyleColor(3);
 
   ImGui::SameLine();
   ImGui::DragFloat("##Z", &values.z, 0.1f, 0.0f, 0.0f, "%.2f");
+  if (ImGui::IsItemDeactivatedAfterEdit()) changed = true;
   ImGui::PopItemWidth();
 
   ImGui::PopStyleVar();
   ImGui::PopID();
+
+  return changed;
 }
 
 void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
@@ -311,6 +327,14 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
              [&]() { context_->AddComponent(entity, ecs::TagComponent{"New Entity"}); },
              !context_->HasComponent<ecs::TagComponent>(entity));
 
+    showItem("Rigidbody 2D",
+             [&]() { context_->AddComponent(entity, ecs::Rigidbody2DComponent{}); },
+             !context_->HasComponent<ecs::Rigidbody2DComponent>(entity));
+
+    showItem("Box Collider 2D",
+             [&]() { context_->AddComponent(entity, ecs::BoxCollider2DComponent{}); },
+             !context_->HasComponent<ecs::BoxCollider2DComponent>(entity));
+
     ImGui::EndPopup();
   }
   ImGui::PopItemWidth();
@@ -321,6 +345,13 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
     DrawComponentControl<ecs::TransformComponent>("Transform", entity, [&]() {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
+      
+      // Capture state before edit
+      Math::Vec3f oldPos = tc.position;
+      Math::Quatf oldRot = tc.rotation;
+      Math::Vec3f oldScale = tc.scale;
+      bool changed = false;
+
       if (ImGui::BeginTable("TransformTable", 2,
                             ImGuiTableFlags_Resizable |
                                 ImGuiTableFlags_BordersInnerV)) {
@@ -328,17 +359,25 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
                                 80.0f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
-        DrawVec3Control("Position", tc.position);
+        if (DrawVec3Control("Position", tc.position)) changed = true;
 
         static Math::Vec3f rotation = {0, 0, 0};
         // Note: For a real engine, you'd decompose the quat here
-        // For now we just show a static proxy to demonstrate the UI
-        DrawVec3Control("Rotation", rotation);
+        if (DrawVec3Control("Rotation", rotation)) changed = true;
         tc.rotation = Math::Quatf::FromEuler(rotation);
 
-        DrawVec3Control("Scale", tc.scale, 1.0f);
+        if (DrawVec3Control("Scale", tc.scale, 1.0f)) changed = true;
 
         ImGui::EndTable();
+      }
+
+      if (changed) {
+        cmd::CommandHistory::PushCommand(std::make_unique<cmd::CommandChangeTransform>(
+          *context_, entity, 
+          oldPos, tc.position,
+          oldRot, tc.rotation,
+          oldScale, tc.scale
+        ));
       }
     });
   }
@@ -418,6 +457,32 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
             context_->RemoveComponent<ecs::NativeScriptComponent>(entity);
           }
         });
+  }
+
+  if (context_->HasComponent<ecs::Rigidbody2DComponent>(entity)) {
+    DrawComponentControl<ecs::Rigidbody2DComponent>("Rigidbody 2D", entity, [&]() {
+      auto &rb = context_->GetComponent<ecs::Rigidbody2DComponent>(entity);
+      
+      const char* bodyTypes[] = { "Static", "Dynamic", "Kinematic" };
+      int bodyTypeIndex = (int)rb.Type;
+      if (ImGui::Combo("Body Type", &bodyTypeIndex, bodyTypes, 3)) {
+        rb.Type = (ecs::RigidBody2DType)bodyTypeIndex;
+      }
+
+      ImGui::Checkbox("Fixed Rotation", &rb.FixedRotation);
+    });
+  }
+
+  if (context_->HasComponent<ecs::BoxCollider2DComponent>(entity)) {
+    DrawComponentControl<ecs::BoxCollider2DComponent>("Box Collider 2D", entity, [&]() {
+      auto &bc = context_->GetComponent<ecs::BoxCollider2DComponent>(entity);
+      
+      ImGui::DragFloat2("Offset", &bc.Offset.x, 0.1f);
+      ImGui::DragFloat2("Size", &bc.Size.x, 0.1f);
+      ImGui::DragFloat("Density", &bc.Density, 0.1f, 0.0f, 10.0f);
+      ImGui::DragFloat("Friction", &bc.Friction, 0.1f, 0.0f, 1.0f);
+      ImGui::DragFloat("Restitution", &bc.Restitution, 0.1f, 0.0f, 1.0f);
+    });
   }
 }
 
