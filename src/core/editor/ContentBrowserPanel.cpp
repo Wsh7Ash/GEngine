@@ -1,11 +1,15 @@
 #include "ContentBrowserPanel.h"
 #include "../scene/SceneSerializer.h"
+#include "VSCodeUtility.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <imgui.h>
 #include <string>
 #include <vector>
+#include "../assets/AssetManager.h"
+#include "../assets/AssetImporter.h"
+#include "../debug/log.h"
 
 namespace ge {
 namespace editor {
@@ -84,6 +88,11 @@ void ContentBrowserPanel::OnImGuiRender() {
     return;
   }
 
+  if (first_render_) {
+    assets::AssetImporter::ScanDirectory(base_dir_);
+    first_render_ = false;
+  }
+
   float panelWidth = ImGui::GetContentRegionAvail().x;
   float treeWidth = panelWidth * 0.25f;
   if (treeWidth < 120.0f) treeWidth = 120.0f;
@@ -142,6 +151,8 @@ void ContentBrowserPanel::OnImGuiRender() {
   for (auto &directoryEntry : std::filesystem::directory_iterator(cur_dir_, ec)) {
     if (ec) continue;
     const auto &path = directoryEntry.path();
+    if (path.extension() == ".geasset") continue;
+
     std::string filenameString = path.filename().string();
     ImGui::PushID(filenameString.c_str());
 
@@ -164,10 +175,16 @@ void ContentBrowserPanel::OnImGuiRender() {
 
     // Drag and drop source
     if (ImGui::BeginDragDropSource()) {
-      const wchar_t *itemPath = path.c_str();
-      ImGui::SetDragDropPayload("CONTENT_BROWSER_ITEM", itemPath,
-                                (wcslen(itemPath) + 1) * sizeof(wchar_t));
-      ImGui::TextUnformatted(filenameString.c_str());
+      assets::AssetHandle handle = assets::AssetManager::GetHandleFromPath(path);
+      if (handle) {
+        ImGui::SetDragDropPayload("ASSET_HANDLE", &handle, sizeof(assets::AssetHandle));
+        ImGui::Text("Asset: %s", filenameString.c_str());
+      } else {
+        const wchar_t *itemPath = path.c_str();
+        ImGui::SetDragDropPayload("CONTENT_BROWSER_ITEM", itemPath,
+                                  (wcslen(itemPath) + 1) * sizeof(wchar_t));
+        ImGui::TextUnformatted(filenameString.c_str());
+      }
       ImGui::EndDragDropSource();
     }
 
@@ -180,8 +197,7 @@ void ContentBrowserPanel::OnImGuiRender() {
         serializer.Deserialize(path.string());
         GE_LOG_INFO("Scene loaded from %s", path.filename().string().c_str());
       } else if (path.extension() == ".cpp" || path.extension() == ".h") {
-        std::string cmd = "code \"" + std::filesystem::absolute(path, ec).string() + "\"";
-        std::system(cmd.c_str());
+        VSCodeUtility::OpenInVSCode(std::filesystem::absolute(path, ec).string());
       }
     }
 
@@ -199,8 +215,7 @@ void ContentBrowserPanel::OnImGuiRender() {
       }
       if (!isDirectory && (path.extension() == ".cpp" || path.extension() == ".h")) {
         if (ImGui::MenuItem("Edit in VS Code")) {
-          std::string cmd = "code \"" + std::filesystem::absolute(path, ec).string() + "\"";
-          std::system(cmd.c_str());
+          VSCodeUtility::OpenInVSCode(std::filesystem::absolute(path, ec).string());
         }
       }
       ImGui::EndPopup();
