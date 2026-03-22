@@ -52,6 +52,10 @@
 #include "ecs/components/TagComponent.h"
 #include "ecs/components/TransformComponent.h"
 #include "ecs/components/VelocityComponent.h"
+#include "ecs/components/RectTransformComponent.h"
+#include "ecs/components/CanvasComponent.h"
+#include "ecs/components/UIImageComponent.h"
+#include "ecs/components/UIButtonComponent.h"
 #include "ecs/systems/RenderSystem.h"
 #include "ecs/systems/ScriptSystem.h"
 

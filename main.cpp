@@ -1,6 +1,7 @@
 #define GLFW_INCLUDE_NONE
 #include "src/core/ge_core.h"
 #include "src/core/ecs/systems/Physics2DSystem.h"
+#include "src/core/ecs/systems/UISystem.h"
 #include "src/core/ecs/components/Rigidbody2DComponent.h"
 #include "src/core/ecs/components/BoxCollider2DComponent.h"
 #include <GLFW/glfw3.h>
@@ -65,6 +66,13 @@ int main() {
     world.SetSystemSignature<Physics2DSystem>(signature);
   }
 
+  auto uiSystem = world.RegisterSystem<UISystem>();
+  {
+    Signature signature;
+    signature.set(GetComponentTypeID<RectTransformComponent>());
+    world.SetSystemSignature<UISystem>(signature);
+  }
+
   // Register scripts
   NativeScriptComponent::Register<CameraController>("CameraController");
 
@@ -76,6 +84,26 @@ int main() {
     NativeScriptComponent nsc;
     NativeScriptComponent::BindByName(&nsc, "CameraController");
     world.AddComponent(cameraEntity, std::move(nsc));
+  }
+
+  // UI Demo Entity
+  auto uiPanel = world.CreateEntity();
+  world.AddComponent(uiPanel, TagComponent{"UI Panel"});
+  {
+      RectTransformComponent rt;
+      rt.Position = { 0.0f, 0.0f };
+      rt.Size = { 200.0f, 100.0f };
+      rt.AnchorMin = { 0.5f, 1.0f }; // Top-Center
+      rt.AnchorMax = { 0.5f, 1.0f };
+      rt.Pivot = { 0.5f, 1.0f };
+      world.AddComponent(uiPanel, rt);
+      
+      UIImageComponent img;
+      img.Color = { 0.2f, 0.2f, 0.2f, 0.8f };
+      world.AddComponent(uiPanel, img);
+      
+      UIButtonComponent btn;
+      world.AddComponent(uiPanel, btn);
   }
 
   Renderer2D::Init();
@@ -132,6 +160,8 @@ int main() {
     if (EditorToolbar::GetState() == SceneState::Play) {
       scriptSystem->Update(world, dt);
     }
+    // TODO: Update UISystem with actual active viewport size
+    uiSystem->Update(world, dt, {1280.0f, 720.0f});
 
     float logicEnd = (float)glfwGetTime();
     float logicMs = (logicEnd - logicStart) * 1000.0f;
@@ -162,6 +192,7 @@ int main() {
         basicShader->SetMat4("u_ViewProjection",
                              projection * Math::Mat4f::Identity());
         renderSystem->Render(world, dt);
+        uiSystem->Render(world, viewportPanel->GetSize());
 
         viewportPanel->GetFramebuffer()->Unbind();
     }

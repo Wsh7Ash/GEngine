@@ -171,6 +171,7 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/Physics2DSystem.cpp
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp
+    src/core/ecs/systems/UISystem.cpp
     deps/glad/src/glad.c
     
     # ImGui
