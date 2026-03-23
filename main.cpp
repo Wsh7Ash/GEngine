@@ -2,6 +2,7 @@
 #include "src/core/ge_core.h"
 #include "src/core/ecs/systems/Physics2DSystem.h"
 #include "src/core/ecs/systems/UISystem.h"
+#include "src/core/ecs/systems/AudioSystem.h"
 #include "src/core/ecs/components/Rigidbody2DComponent.h"
 #include "src/core/ecs/components/BoxCollider2DComponent.h"
 #include <GLFW/glfw3.h>
@@ -73,6 +74,13 @@ int main() {
     world.SetSystemSignature<UISystem>(signature);
   }
 
+  auto audioSystem = world.RegisterSystem<AudioSystem>();
+  {
+    Signature signature;
+    signature.set(GetComponentTypeID<AudioSourceComponent>());
+    world.SetSystemSignature<AudioSystem>(signature);
+  }
+
   // Register scripts
   NativeScriptComponent::Register<CameraController>("CameraController");
 
@@ -107,6 +115,7 @@ int main() {
   }
 
   Renderer2D::Init();
+  audioSystem->Init();
   EditorToolbar::Init(window.GetNativeWindow(), world);
 
   // 3. Create Camera
@@ -162,6 +171,7 @@ int main() {
     }
     // TODO: Update UISystem with actual active viewport size
     uiSystem->Update(world, dt, {1280.0f, 720.0f});
+    audioSystem->Update(world, dt);
 
     float logicEnd = (float)glfwGetTime();
     float logicMs = (logicEnd - logicStart) * 1000.0f;
@@ -221,6 +231,7 @@ int main() {
     }
   }
 
+  audioSystem->Shutdown();
   EditorToolbar::Shutdown();
   Renderer2D::Shutdown();
   return 0;

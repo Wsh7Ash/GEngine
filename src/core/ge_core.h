@@ -56,6 +56,8 @@
 #include "ecs/components/CanvasComponent.h"
 #include "ecs/components/UIImageComponent.h"
 #include "ecs/components/UIButtonComponent.h"
+#include "ecs/components/AudioSourceComponent.h"
+#include "ecs/components/AudioListenerComponent.h"
 #include "ecs/systems/RenderSystem.h"
 #include "ecs/systems/ScriptSystem.h"
 

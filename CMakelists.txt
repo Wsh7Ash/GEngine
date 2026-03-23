@@ -23,7 +23,12 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/erincatto/box2d.git
     GIT_TAG        v2.4.1
 )
-FetchContent_MakeAvailable(imgui json imguizmo box2d)
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio)
 
 project(GameEngine
     VERSION     0.1.0
@@ -172,6 +177,9 @@ set(GE_CORE_SOURCES
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp
     src/core/ecs/systems/UISystem.cpp
+    src/core/ecs/systems/AudioSystem.cpp
+    src/core/audio/AudioEngine.cpp
+    src/core/audio/miniaudio_impl.cpp
     deps/glad/src/glad.c
     
     # ImGui
@@ -200,6 +208,7 @@ target_include_directories(ge_core
         ${imgui_SOURCE_DIR}/backends
         ${imguizmo_SOURCE_DIR}
         ${json_SOURCE_DIR}/include
+        ${miniaudio_SOURCE_DIR}
 )
 
 # Platform-specific linking
