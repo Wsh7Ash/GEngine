@@ -3,6 +3,7 @@
 #include "src/core/ecs/systems/Physics2DSystem.h"
 #include "src/core/ecs/systems/UISystem.h"
 #include "src/core/ecs/systems/AudioSystem.h"
+#include "src/core/ecs/systems/ParticleSystem.h"
 #include "src/core/ecs/components/Rigidbody2DComponent.h"
 #include "src/core/ecs/components/BoxCollider2DComponent.h"
 #include <GLFW/glfw3.h>
@@ -81,6 +82,13 @@ int main() {
     world.SetSystemSignature<AudioSystem>(signature);
   }
 
+  auto particleSystem = world.RegisterSystem<ParticleSystem>();
+  {
+    Signature signature;
+    signature.set(GetComponentTypeID<ParticleEmitterComponent>());
+    world.SetSystemSignature<ParticleSystem>(signature);
+  }
+
   // Register scripts
   NativeScriptComponent::Register<CameraController>("CameraController");
 
@@ -112,6 +120,24 @@ int main() {
       
       UIButtonComponent btn;
       world.AddComponent(uiPanel, btn);
+  }
+
+  // Particle Demo Entity (fire-like emitter)
+  auto particleEntity = world.CreateEntity();
+  world.AddComponent(particleEntity, TagComponent{"Fire Emitter"});
+  world.AddComponent(particleEntity, TransformComponent{{0.0f, -0.5f, 0.0f}});
+  {
+      ParticleEmitterComponent emitter;
+      emitter.EmissionRate = 50.0f;
+      emitter.Props.VelocityMin = { -0.3f, 0.5f, 0.0f };
+      emitter.Props.VelocityMax = {  0.3f, 1.5f, 0.0f };
+      emitter.Props.ColorStart  = { 1.0f, 0.8f, 0.2f, 1.0f };
+      emitter.Props.ColorEnd    = { 1.0f, 0.0f, 0.0f, 0.0f };
+      emitter.Props.SizeStart   = 0.15f;
+      emitter.Props.SizeEnd     = 0.0f;
+      emitter.Props.LifeTime    = 1.2f;
+      emitter.Props.GravityScale = -0.3f;
+      world.AddComponent(particleEntity, emitter);
   }
 
   Renderer2D::Init();
@@ -172,6 +198,7 @@ int main() {
     // TODO: Update UISystem with actual active viewport size
     uiSystem->Update(world, dt, {1280.0f, 720.0f});
     audioSystem->Update(world, dt);
+    particleSystem->Update(world, dt);
 
     float logicEnd = (float)glfwGetTime();
     float logicMs = (logicEnd - logicStart) * 1000.0f;
@@ -203,6 +230,9 @@ int main() {
                              projection * Math::Mat4f::Identity());
         renderSystem->Render(world, dt);
         uiSystem->Render(world, viewportPanel->GetSize());
+
+        // Render particles using the same 2D camera
+        particleSystem->Render(*camera2D);
 
         viewportPanel->GetFramebuffer()->Unbind();
     }

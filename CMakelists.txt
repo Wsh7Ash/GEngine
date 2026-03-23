@@ -178,6 +178,7 @@ set(GE_CORE_SOURCES
     src/core/assets/AssetImporter.cpp
     src/core/ecs/systems/UISystem.cpp
     src/core/ecs/systems/AudioSystem.cpp
+    src/core/ecs/systems/ParticleSystem.cpp
     src/core/audio/AudioEngine.cpp
     src/core/audio/miniaudio_impl.cpp
     deps/glad/src/glad.c
