@@ -1,7 +1,6 @@
 #include "AnimationSystem.h"
 #include "../components/AnimatorComponent.h"
 #include "../components/SpriteComponent.h"
-#include "../components/SpriteComponent.h"
 
 namespace ge {
 namespace ecs {

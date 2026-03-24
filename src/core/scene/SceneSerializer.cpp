@@ -54,8 +54,17 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
       // Serialize Mesh
       if (world_.HasComponent<ecs::MeshComponent>(entity)) {
         auto &mc = world_.GetComponent<ecs::MeshComponent>(entity);
-        entityJson["Mesh"] = {{"MeshPath", mc.MeshPath},
-                              {"ShaderPath", mc.ShaderPath}};
+        entityJson["Mesh"] = {
+            {"MeshPath", mc.MeshPath},
+            {"AlbedoColor", {mc.AlbedoColor.x, mc.AlbedoColor.y, mc.AlbedoColor.z}},
+            {"Metallic", mc.Metallic},
+            {"Roughness", mc.Roughness},
+            {"AlbedoPath", mc.AlbedoPath},
+            {"NormalPath", mc.NormalPath},
+            {"MetallicPath", mc.MetallicPath},
+            {"RoughnessPath", mc.RoughnessPath},
+            {"AOPath", mc.AOPath}
+        };
       }
 
       // Serialize Sprite
@@ -187,8 +196,20 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
     if (entityData.contains("Mesh")) {
       ecs::MeshComponent mc;
       mc.MeshPath = entityData["Mesh"]["MeshPath"];
-      mc.ShaderPath = entityData["Mesh"]["ShaderPath"];
-      // Note: Actual asset loading from paths would happen here if implemented
+      
+      if (entityData["Mesh"].contains("AlbedoColor")) {
+        auto &aData = entityData["Mesh"]["AlbedoColor"];
+        mc.AlbedoColor = {(float)aData[0], (float)aData[1], (float)aData[2]};
+      }
+      if (entityData["Mesh"].contains("Metallic")) mc.Metallic = entityData["Mesh"]["Metallic"];
+      if (entityData["Mesh"].contains("Roughness")) mc.Roughness = entityData["Mesh"]["Roughness"];
+      
+      if (entityData["Mesh"].contains("AlbedoPath")) mc.AlbedoPath = entityData["Mesh"]["AlbedoPath"];
+      if (entityData["Mesh"].contains("NormalPath")) mc.NormalPath = entityData["Mesh"]["NormalPath"];
+      if (entityData["Mesh"].contains("MetallicPath")) mc.MetallicPath = entityData["Mesh"]["MetallicPath"];
+      if (entityData["Mesh"].contains("RoughnessPath")) mc.RoughnessPath = entityData["Mesh"]["RoughnessPath"];
+      if (entityData["Mesh"].contains("AOPath")) mc.AOPath = entityData["Mesh"]["AOPath"];
+
       world_.AddComponent(entity, mc);
     }
 

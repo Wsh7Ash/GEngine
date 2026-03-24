@@ -158,6 +158,18 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
     s_Data.QuadVertexBufferPtr->TexIndex = textureIndex;
     s_Data.QuadVertexBufferPtr->TilingFactor = 1.0f;
     s_Data.QuadVertexBufferPtr->EntityID = entityID;
+
+    // New: Initialize PBR fields for 2D
+    s_Data.QuadVertexBufferPtr->Normal[0] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Normal[1] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Normal[2] = 1.0f;
+    s_Data.QuadVertexBufferPtr->Tangent[0] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Tangent[1] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Tangent[2] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Bitangent[0] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Bitangent[1] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Bitangent[2] = 0.0f;
+
     s_Data.QuadVertexBufferPtr++;
   }
 
@@ -230,6 +242,18 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
     s_Data.QuadVertexBufferPtr->TexIndex = textureIndex;
     s_Data.QuadVertexBufferPtr->TilingFactor = 1.0f;
     s_Data.QuadVertexBufferPtr->EntityID = entityID;
+
+    // New: Initialize PBR fields for 2D
+    s_Data.QuadVertexBufferPtr->Normal[0] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Normal[1] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Normal[2] = 1.0f;
+    s_Data.QuadVertexBufferPtr->Tangent[0] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Tangent[1] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Tangent[2] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Bitangent[0] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Bitangent[1] = 0.0f;
+    s_Data.QuadVertexBufferPtr->Bitangent[2] = 0.0f;
+
     s_Data.QuadVertexBufferPtr++;
   }
 
@@ -246,10 +270,10 @@ void Renderer2D::DrawFullscreenQuad() {
   // But Renderer2D uses dynamic data.
   // For simplicity, let's just draw a single quad
   Vertex vertices[4];
-  vertices[0] = {{-1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, 0.0f, 1.0f, -1};
-  vertices[1] = {{ 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, 0.0f, 1.0f, -1};
-  vertices[2] = {{ 1.0f,  1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, 0.0f, 1.0f, -1};
-  vertices[3] = {{-1.0f,  1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, 0.0f, 1.0f, -1};
+  vertices[0] = {{-1.0f, -1.0f, 0.0f}, {0,0,1}, {0,0,0}, {0,0,0}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, 0.0f, 1.0f, -1};
+  vertices[1] = {{ 1.0f, -1.0f, 0.0f}, {0,0,1}, {0,0,0}, {0,0,0}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, 0.0f, 1.0f, -1};
+  vertices[2] = {{ 1.0f,  1.0f, 0.0f}, {0,0,1}, {0,0,0}, {0,0,0}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, 0.0f, 1.0f, -1};
+  vertices[3] = {{-1.0f,  1.0f, 0.0f}, {0,0,1}, {0,0,0}, {0,0,0}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, 0.0f, 1.0f, -1};
   s_Data.QuadMesh->SetData(vertices, sizeof(vertices));
   s_Data.QuadMesh->Draw();
 }

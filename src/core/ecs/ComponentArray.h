@@ -12,7 +12,9 @@
 // ================================================================
 
 #include "Entity.h"
+#include "ComponentRegistry.h"
 #include "../containers/dynamic_array.h"
+#include "../debug/log.h"
 #include "../debug/assert.h"
 #include <unordered_map>
 
@@ -94,8 +96,11 @@ public:
     {
         const std::uint32_t entityIdx = e.GetIndex();
         auto it = entityToComponentMap_.find(entityIdx);
-        GE_ASSERT(it != entityToComponentMap_.end(), 
-                  "Retrieving component that doesn't exist on entity.");
+        if (it == entityToComponentMap_.end()) {
+            GE_LOG_CRITICAL("FATAL: Component Array Access [TypeID={}] failed for Entity [idx={}, ver={}]. Component does not exist!", 
+                            GetComponentTypeID<T>(), e.GetIndex(), e.GetVersion());
+            GE_ASSERT(false, "Retrieving component that doesn't exist on entity.");
+        }
         return components_[it->second];
     }
 

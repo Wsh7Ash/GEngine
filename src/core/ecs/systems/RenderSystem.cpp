@@ -1,9 +1,11 @@
 #include "RenderSystem.h"
 #include "../../math/Mat4x4.h"
+#include "../../renderer/Material.h"
 #include "../../renderer/Mesh.h"
 #include "../../renderer/Renderer2D.h"
 #include "../../renderer/Shader.h"
 #include "../../renderer/Texture.h"
+#include "../../renderer/PerspectiveCamera.h"
 
 namespace ge {
 namespace ecs {
@@ -15,13 +17,31 @@ void RenderSystem::Render(World &world, float dt) {
         !world.HasComponent<SpriteComponent>(entity)) {
       auto &transform = world.GetComponent<TransformComponent>(entity);
       auto &meshComp = world.GetComponent<MeshComponent>(entity);
-      if (meshComp.MeshPtr && meshComp.ShaderPtr) {
-        meshComp.ShaderPtr->Bind();
+      
+      if (meshComp.MeshPtr && meshComp.MaterialPtr) {
+        meshComp.MaterialPtr->Bind();
+        auto shader = meshComp.MaterialPtr->GetShader();
+
         Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                             transform.rotation.ToMat4x4() *
                             Math::Mat4f::Scale(transform.scale);
 
-        meshComp.ShaderPtr->SetMat4("u_Model", model);
+        shader->SetMat4("u_Model", model);
+
+        if (camera3D_) {
+            shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
+            shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
+        }
+
+        // Default Lighting (Placeholder for Phase 43)
+        shader->SetVec3("u_LightPos", { 5.0f, 5.0f, 5.0f });
+        shader->SetVec3("u_LightColor", { 30.0f, 30.0f, 30.0f });
+
+        // Apply Material Properties from Component
+        shader->SetVec3("u_AlbedoColor", meshComp.AlbedoColor);
+        shader->SetFloat("u_Metallic", meshComp.Metallic);
+        shader->SetFloat("u_Roughness", meshComp.Roughness);
+
         meshComp.MeshPtr->Draw();
       }
     }

@@ -11,6 +11,7 @@
 #include "../renderer/Renderer2D.h"
 #include "../cmd/CommandHistory.h"
 #include "../cmd/EntityCommands.h"
+#include "../math/MathUtils.h"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <nlohmann/json.hpp>
@@ -397,10 +398,12 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
         if (DrawVec3Control("Position", tc.position)) changed = true;
 
-        static Math::Vec3f rotation = {0, 0, 0};
-        // Note: For a real engine, you'd decompose the quat here
-        if (DrawVec3Control("Rotation", rotation)) changed = true;
-        tc.rotation = Math::Quatf::FromEuler(rotation);
+        Math::Vec3f euler = tc.rotation.ToEuler();
+        Math::Vec3f degrees = { Math::RadiansToDegrees(euler.x), Math::RadiansToDegrees(euler.y), Math::RadiansToDegrees(euler.z) };
+        if (DrawVec3Control("Rotation", degrees)) {
+            tc.rotation = Math::Quatf::FromEuler(Math::DegreesToRadians(degrees.x), Math::DegreesToRadians(degrees.y), Math::DegreesToRadians(degrees.z));
+            changed = true;
+        }
 
         if (DrawVec3Control("Scale", tc.scale, 1.0f)) changed = true;
 
@@ -457,15 +460,61 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   }
 
   if (context_->HasComponent<ecs::MeshComponent>(entity)) {
-    DrawComponentControl<ecs::MeshComponent>("Mesh", entity, [&]() {
+    DrawComponentControl<ecs::MeshComponent>("Mesh & Material (PBR)", entity, [&]() {
       auto &mc = context_->GetComponent<ecs::MeshComponent>(entity);
-      ImGui::Text("Mesh Path: %s",
-                  mc.MeshPath.empty() ? "None" : mc.MeshPath.c_str());
-      ImGui::Text("Shader Path: %s",
-                  mc.ShaderPath.empty() ? "None" : mc.ShaderPath.c_str());
+      
+      if (ImGui::BeginTable("MeshMaterialTable", 2, ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV)) {
+        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
-      if (ImGui::Button("Select Mesh...")) {
-        // Placeholder for file picker
+        // Mesh Path
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::Text("Mesh");
+        ImGui::TableNextColumn(); ImGui::PushItemWidth(-1);
+        ImGui::InputText("##meshpath", (char*)mc.MeshPath.c_str(), mc.MeshPath.capacity(), ImGuiInputTextFlags_ReadOnly);
+        ImGui::PopItemWidth();
+
+        // Albedo
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::Text("Albedo Color");
+        ImGui::TableNextColumn(); ImGui::PushItemWidth(-1);
+        ImGui::ColorEdit3("##albedocolor", &mc.AlbedoColor.x);
+        ImGui::PopItemWidth();
+
+        // Metallic
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::Text("Metallic");
+        ImGui::TableNextColumn(); ImGui::PushItemWidth(-1);
+        ImGui::SliderFloat("##metallic", &mc.Metallic, 0.0f, 1.0f);
+        ImGui::PopItemWidth();
+
+        // Roughness
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::Text("Roughness");
+        ImGui::TableNextColumn(); ImGui::PushItemWidth(-1);
+        ImGui::SliderFloat("##roughness", &mc.Roughness, 0.0f, 1.0f);
+        ImGui::PopItemWidth();
+
+        ImGui::Separator();
+
+        // Textures
+        auto DrawTextureSlot = [&](const char* label, std::string& path) {
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn(); ImGui::Text("%s", label);
+          ImGui::TableNextColumn(); ImGui::PushItemWidth(-1);
+          std::string buttonLabel = path.empty() ? "None (Drop Texture)" : path;
+          ImGui::Button(buttonLabel.c_str(), ImVec2(-1, 0));
+          ImGui::PopItemWidth();
+          // Drag & Drop logic placeholder
+        };
+
+        DrawTextureSlot("Albedo Map", mc.AlbedoPath);
+        DrawTextureSlot("Normal Map", mc.NormalPath);
+        DrawTextureSlot("Metallic Map", mc.MetallicPath);
+        DrawTextureSlot("Roughness Map", mc.RoughnessPath);
+        DrawTextureSlot("AO Map", mc.AOPath);
+
+        ImGui::EndTable();
       }
     });
   }

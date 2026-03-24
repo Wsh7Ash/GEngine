@@ -13,7 +13,10 @@ namespace renderer {
  */
 struct Vertex {
   float Position[3];
-  float Color[4]; // Changed to 4 for Alpha support
+  float Normal[3];      // New: Standard lighting
+  float Tangent[3];     // New: For normal mapping
+  float Bitangent[3];   // New: For normal mapping
+  float Color[4];
   float TexCoord[2];
   float TexIndex;
   float TilingFactor;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../renderer/OrthographicCamera.h"
+#include "../../renderer/PerspectiveCamera.h"
 #include "../System.h"
 #include "../World.h"
 #include "../components/MeshComponent.h"
@@ -29,8 +30,14 @@ public:
     camera2D_ = camera;
   }
 
+  void
+  Set3DCamera(const std::shared_ptr<renderer::PerspectiveCamera> &camera) {
+    camera3D_ = camera;
+  }
+
 private:
   std::shared_ptr<renderer::OrthographicCamera> camera2D_;
+  std::shared_ptr<renderer::PerspectiveCamera> camera3D_;
 };
 
 } // namespace ecs

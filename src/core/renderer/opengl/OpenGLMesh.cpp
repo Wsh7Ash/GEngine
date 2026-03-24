@@ -25,29 +25,44 @@ OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (const void *)offsetof(Vertex, Position));
 
-  // Color attribute
+  // Normal attribute
   glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
-                        (const void *)offsetof(Vertex, Color));
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (const void *)offsetof(Vertex, Normal));
 
   // TexCoord attribute
   glEnableVertexAttribArray(2);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (const void *)offsetof(Vertex, TexCoord));
 
-  // TexIndex attribute
+  // Tangent attribute
   glEnableVertexAttribArray(3);
-  glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+  glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (const void *)offsetof(Vertex, Tangent));
+
+  // Bitangent attribute
+  glEnableVertexAttribArray(4);
+  glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (const void *)offsetof(Vertex, Bitangent));
+
+  // Color attribute
+  glEnableVertexAttribArray(5);
+  glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (const void *)offsetof(Vertex, Color));
+
+  // TexIndex attribute
+  glEnableVertexAttribArray(6);
+  glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (const void *)offsetof(Vertex, TexIndex));
 
   // TilingFactor attribute
-  glEnableVertexAttribArray(4);
-  glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+  glEnableVertexAttribArray(7);
+  glVertexAttribPointer(7, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (const void *)offsetof(Vertex, TilingFactor));
 
   // EntityID attribute
-  glEnableVertexAttribArray(5);
-  glVertexAttribIPointer(5, 1, GL_INT, sizeof(Vertex),
+  glEnableVertexAttribArray(8);
+  glVertexAttribIPointer(8, 1, GL_INT, sizeof(Vertex),
                          (const void *)offsetof(Vertex, EntityID));
 
   glBindVertexArray(0);
