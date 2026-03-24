@@ -9,8 +9,46 @@ namespace renderer {
 /**
  * @brief Configuration for a Framebuffer.
  */
+enum class FramebufferTextureFormat {
+  None = 0,
+
+  // Color
+  RGBA8,
+  RGBA16F,
+  RED_INTEGER,
+
+  // Depth/stencil
+  DEPTH24STENCIL8,
+
+  // Defaults
+  Color = RGBA8,
+  Depth = DEPTH24STENCIL8
+};
+
+struct FramebufferTextureSpecification {
+  FramebufferTextureSpecification() = default;
+  FramebufferTextureSpecification(FramebufferTextureFormat format)
+      : TextureFormat(format) {}
+
+  FramebufferTextureFormat TextureFormat = FramebufferTextureFormat::None;
+  // TODO: filtering/wrap
+};
+
+struct FramebufferAttachmentSpecification {
+  FramebufferAttachmentSpecification() = default;
+  FramebufferAttachmentSpecification(
+      std::initializer_list<FramebufferTextureSpecification> attachments)
+      : Attachments(attachments) {}
+
+  std::vector<FramebufferTextureSpecification> Attachments;
+};
+
+/**
+ * @brief Configuration for a Framebuffer.
+ */
 struct FramebufferSpecification {
   uint32_t Width, Height;
+  FramebufferAttachmentSpecification Attachments;
   uint32_t Samples = 1;
   bool SwapChainTarget = false;
 };

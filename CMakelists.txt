@@ -111,6 +111,8 @@ set(GE_CORE_HEADERS
     src/core/ecs/systems/RenderSystem.h
     src/core/ecs/systems/ScriptSystem.h
     src/core/ecs/systems/Physics2DSystem.h
+    src/core/ecs/systems/PostProcessSystem.h
+    src/core/ecs/components/PostProcessComponent.h
     # Renderer
     src/core/renderer/RendererAPI.h
     src/core/renderer/GraphicsContext.h
@@ -181,6 +183,7 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/UISystem.cpp
     src/core/ecs/systems/AudioSystem.cpp
     src/core/ecs/systems/ParticleSystem.cpp
+    src/core/ecs/systems/PostProcessSystem.cpp
     src/core/audio/AudioEngine.cpp
     src/core/audio/miniaudio_impl.cpp
     deps/glad/src/glad.c

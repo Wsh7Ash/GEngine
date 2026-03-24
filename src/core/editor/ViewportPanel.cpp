@@ -17,6 +17,11 @@ ViewportPanel::ViewportPanel(const std::string& name, bool isGameView)
   renderer::FramebufferSpecification spec;
   spec.Width = 1280;
   spec.Height = 720;
+  spec.Attachments = {
+    renderer::FramebufferTextureFormat::RGBA8,
+    renderer::FramebufferTextureFormat::RED_INTEGER,
+    renderer::FramebufferTextureFormat::Depth
+  };
   framebuffer_ = renderer::Framebuffer::Create(spec);
 }
 
@@ -60,7 +65,7 @@ void ViewportPanel::OnImGuiRender() {
       cameraPosition_.y += delta.y * (2.0f / viewportSize_.y);
   }
 
-  uint32_t textureID = framebuffer_->GetColorAttachmentRendererID();
+  uint32_t textureID = resultTexture_ != 0 ? resultTexture_ : framebuffer_->GetColorAttachmentRendererID();
   ImGui::Image((void *)(uintptr_t)textureID,
                ImVec2{viewportSize_.x, viewportSize_.y}, ImVec2{0, 1},
                ImVec2{1, 0});

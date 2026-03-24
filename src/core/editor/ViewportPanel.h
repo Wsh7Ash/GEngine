@@ -31,12 +31,15 @@ public:
   bool IsVisible() const { return isVisible_; }
   Math::Vec2f GetSize() const { return viewportSize_; }
 
+  void SetResultTexture(uint32_t id) { resultTexture_ = id; }
+
 private:
   std::string name_;
   bool isGameView_;
   bool isVisible_ = true;
 
   std::shared_ptr<renderer::Framebuffer> framebuffer_;
+  uint32_t resultTexture_ = 0;
   ecs::World *sceneContext_ = nullptr;
 
   bool isFocused_ = false;

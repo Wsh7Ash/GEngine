@@ -49,6 +49,8 @@ public:
                        const Math::Vec2f &uvTiling = {1.0f, 1.0f},
                        const Math::Vec2f &uvOffset = {0.0f, 0.0f});
 
+  static void DrawFullscreenQuad();
+
   // Stats
   static void ResetStats();
   static Renderer2DStatistics GetStats();

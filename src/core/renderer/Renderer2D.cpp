@@ -239,6 +239,21 @@ void Renderer2D::DrawQuad(const Math::Vec3f &position, const Math::Vec2f &size,
 
 // (Omitted other overloads for brevity in this step)
 
+void Renderer2D::DrawFullscreenQuad() {
+  s_Data.QuadMesh->SetIndexCount(6);
+  // We need to set the data for a -1 to 1 quad
+  // Actually, we can just use the QuadMesh if we setup it with static data
+  // But Renderer2D uses dynamic data.
+  // For simplicity, let's just draw a single quad
+  Vertex vertices[4];
+  vertices[0] = {{-1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}, 0.0f, 1.0f, -1};
+  vertices[1] = {{ 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}, 0.0f, 1.0f, -1};
+  vertices[2] = {{ 1.0f,  1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}, 0.0f, 1.0f, -1};
+  vertices[3] = {{-1.0f,  1.0f, 0.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}, 0.0f, 1.0f, -1};
+  s_Data.QuadMesh->SetData(vertices, sizeof(vertices));
+  s_Data.QuadMesh->Draw();
+}
+
 void Renderer2D::ResetStats() {
   s_Data.Stats.DrawCalls = 0;
   s_Data.Stats.QuadCount = 0;
