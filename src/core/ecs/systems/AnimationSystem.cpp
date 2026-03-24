@@ -2,7 +2,10 @@
 #include "../components/AnimatorComponent.h"
 #include "../components/SpriteComponent.h"
 #include "../components/ModelComponent.h"
+#include "../components/TransformComponent.h"
 #include "../../renderer/Model.h"
+#include "../../math/mathUtils.h"
+#include <algorithm>
 
 namespace ge {
 namespace ecs {
@@ -71,77 +74,218 @@ void AnimationSystem::Update(World &world, float dt) {
     // ── 3D Skeletal Animation Logic ──────────────────────────────
     if (animator.Is3D && world.HasComponent<ModelComponent>(entity)) {
         auto &modelComp = world.GetComponent<ModelComponent>(entity);
-        if (modelComp.ModelPtr && !animator.SkeletalAnimations.empty()) {
+        if (modelComp.ModelPtr) {
             
             // Auto-populate from model if empty
             if (animator.SkeletalAnimations.empty()) {
                 animator.SkeletalAnimations = modelComp.ModelPtr->GetAnimations();
             }
 
-            if (animator.SkeletalAnimations.count(animator.CurrentState)) {
-                auto &sa = animator.SkeletalAnimations[animator.CurrentState];
-                animator.StateTime += dt;
-                
+            struct PRS {
+                Math::Vec3f pos;
+                Math::Quatf rot;
+                Math::Vec3f scale;
+            };
+
+            auto sampleClip = [&](const AnimatorComponent::SkeletalAnimation& sa, float time, std::map<std::string, PRS>& outResults) {
                 float ticksPerSecond = (float)sa.ticksPerSecond;
                 if(ticksPerSecond == 0.0f) ticksPerSecond = 24.0f; 
-                float timeInTicks = animator.StateTime * ticksPerSecond;
+                float timeInTicks = time * ticksPerSecond;
                 float animationTime = fmod(timeInTicks, sa.duration);
 
-                auto calculateBoneTransform = [&](auto& self, const AnimatorComponent::SkeletalAnimation::Node& node, const Math::Mat4& parentTransform) -> void {
-                    std::string nodeName = node.name;
-                    Math::Mat4 nodeTransform = node.transformation;
+                for (const auto& [nodeName, track] : sa.tracks) {
+                    PRS prs = { {0,0,0}, Math::Quatf::Identity(), {1,1,1} };
+                    
+                    // Pos
+                    if(track.positions.empty()) {}
+                    else if(track.positions.size() == 1) prs.pos = track.positions[0].position;
+                    else {
+                        for(size_t i=0; i<track.positions.size()-1; i++) {
+                            if(animationTime < track.positions[i+1].timeStamp) {
+                                float t = (animationTime - track.positions[i].timeStamp) / (track.positions[i+1].timeStamp - track.positions[i].timeStamp);
+                                prs.pos = Math::Lerp(track.positions[i].position, track.positions[i+1].position, t);
+                                break;
+                            }
+                        }
+                    }
 
-                    if (sa.tracks.count(nodeName)) {
-                        auto &track = sa.tracks[nodeName];
+                    // Rot
+                    if(track.rotations.empty()) {}
+                    else if(track.rotations.size() == 1) prs.rot = track.rotations[0].orientation;
+                    else {
+                        for(size_t i=0; i<track.rotations.size()-1; i++) {
+                            if(animationTime < track.rotations[i+1].timeStamp) {
+                                float t = (animationTime - track.rotations[i].timeStamp) / (track.rotations[i+1].timeStamp - track.rotations[i].timeStamp);
+                                prs.rot = Math::Quatf::Slerp(track.rotations[i].orientation, track.rotations[i+1].orientation, t);
+                                break;
+                            }
+                        }
+                    }
+
+                    // Scale
+                    if(track.scales.empty()) {}
+                    else if(track.scales.size() == 1) prs.scale = track.scales[0].scale;
+                    else {
+                        for(size_t i=0; i<track.scales.size()-1; i++) {
+                            if(animationTime < track.scales[i+1].timeStamp) {
+                                float t = (animationTime - track.scales[i].timeStamp) / (track.scales[i+1].timeStamp - track.scales[i].timeStamp);
+                                prs.scale = Math::Lerp(track.scales[i].scale, track.scales[i+1].scale, t);
+                                break;
+                            }
+                        }
+                    }
+                    outResults[nodeName] = prs;
+                }
+            };
+
+            std::map<std::string, PRS> finalPRS;
+            animator.StateTime += dt;
+
+            // 1. Handle BlendTree1D
+            if (animator.BlendTrees1D.count(animator.CurrentState)) {
+                auto &bt = animator.BlendTrees1D[animator.CurrentState];
+                float paramVal = animator.FloatParams.count(bt.Parameter) ? animator.FloatParams[bt.Parameter] : 0.0f;
+                
+                if (bt.Points.size() >= 2) {
+                    // Find range
+                    int idxA = -1, idxB = -1;
+                    for (int i=0; i < (int)bt.Points.size()-1; i++) {
+                        if (paramVal >= bt.Points[i].Value && paramVal <= bt.Points[i+1].Value) {
+                            idxA = i; idxB = i+1; break;
+                        }
+                    }
+                    if (idxA == -1) { // Clamp
+                        if (paramVal < bt.Points[0].Value) { idxA = 0; idxB = 0; }
+                        else { idxA = (int)bt.Points.size()-1; idxB = idxA; }
+                    }
+
+                    float weight = 0.0f;
+                    if (idxA != idxB) {
+                        weight = (paramVal - bt.Points[idxA].Value) / (bt.Points[idxB].Value - bt.Points[idxA].Value);
+                    }
+
+                    std::map<std::string, PRS> prsA, prsB;
+                    if (animator.SkeletalAnimations.count(bt.Points[idxA].Clip)) 
+                        sampleClip(animator.SkeletalAnimations.at(bt.Points[idxA].Clip), animator.StateTime, prsA);
+                    if (idxA != idxB && animator.SkeletalAnimations.count(bt.Points[idxB].Clip))
+                        sampleClip(animator.SkeletalAnimations.at(bt.Points[idxB].Clip), animator.StateTime, prsB);
+
+                    // Blend
+                    for (auto const& [name, pA] : prsA) {
+                        if (idxA == idxB || prsB.count(name) == 0) {
+                            finalPRS[name] = pA;
+                        } else {
+                            auto &pB = prsB[name];
+                            finalPRS[name] = {
+                                Math::Lerp(pA.pos, pB.pos, weight),
+                                Math::Quatf::Slerp(pA.rot, pB.rot, weight),
+                                Math::Lerp(pA.scale, pB.scale, weight)
+                            };
+                        }
+                    }
+                }
+            } 
+            // 2. Handle BlendTree2D
+            else if (animator.BlendTrees2D.count(animator.CurrentState)) {
+                auto &bt = animator.BlendTrees2D[animator.CurrentState];
+                float x = animator.FloatParams.count(bt.ParameterX) ? animator.FloatParams[bt.ParameterX] : 0.0f;
+                float y = animator.FloatParams.count(bt.ParameterY) ? animator.FloatParams[bt.ParameterY] : 0.0f;
+                Math::Vec2f paramPos = {x, y};
+
+                if (!bt.Points.empty()) {
+                    std::vector<float> weights(bt.Points.size(), 0.0f);
+                    float totalWeight = 0.0f;
+                    
+                    for (size_t i=0; i<bt.Points.size(); i++) {
+                        float dist = Math::Distance(paramPos, bt.Points[i].Position);
+                        if (dist < 0.001f) { // Exact match
+                            std::fill(weights.begin(), weights.end(), 0.0f);
+                            weights[i] = 1.0f;
+                            totalWeight = 1.0f;
+                            break;
+                        }
+                        weights[i] = 1.0f / (dist * dist);
+                        totalWeight += weights[i];
+                    }
+
+                    if (totalWeight > 0.0f) {
+                        bool first = true;
+                        for (size_t i=0; i<bt.Points.size(); i++) {
+                            float w = weights[i] / totalWeight;
+                            if (w < 0.001f) continue;
+
+                            std::map<std::string, PRS> clipPRS;
+                            if (animator.SkeletalAnimations.count(bt.Points[i].Clip)) {
+                                sampleClip(animator.SkeletalAnimations.at(bt.Points[i].Clip), animator.StateTime, clipPRS);
+                                
+                                for (auto const& [name, prs] : clipPRS) {
+                                    if (first) {
+                                        finalPRS[name] = { prs.pos * w, prs.rot * w, prs.scale * w };
+                                    } else {
+                                        finalPRS[name].pos += prs.pos * w;
+                                        // Rotation blending is tricky for multi-clip. 
+                                        // For now, simpler slerp or accumulation
+                                        finalPRS[name].rot = Math::Quatf::Slerp(finalPRS[name].rot, prs.rot, w); 
+                                        finalPRS[name].scale += prs.scale * w;
+                                    }
+                                }
+                                first = false;
+                            }
+                        }
+                    }
+                }
+            }
+            // 3. Handle Single Clip
+            else if (animator.SkeletalAnimations.count(animator.CurrentState)) {
+                sampleClip(animator.SkeletalAnimations.at(animator.CurrentState), animator.StateTime, finalPRS);
+            }
+
+            // 3. Compute Hierarchy and Final Matrices
+            if (!finalPRS.empty()) {
+                auto &saBase = animator.SkeletalAnimations.begin()->second; 
+                if (animator.SkeletalAnimations.count(animator.CurrentState)) 
+                    saBase = animator.SkeletalAnimations.at(animator.CurrentState);
+
+                // --- Root Motion Extraction ---
+                if (animator.UseRootMotion && world.HasComponent<TransformComponent>(entity)) {
+                    auto &transform = world.GetComponent<TransformComponent>(entity);
+                    std::string rootNodeName = saBase.rootNode.name; 
+                    // Note: In some models, the root motion node is a child of the root node (e.g. "RootMotion")
+                    // For this implementation, we use the root node itself.
+                    
+                    if (finalPRS.count(rootNodeName)) {
+                        auto &prs = finalPRS[rootNodeName];
                         
-                        // --- Interpolate Position ---
-                        Math::Vec3f pos = {0,0,0};
-                        if(track.positions.size() == 1) pos = track.positions[0].position;
-                        else {
-                            for(size_t i=0; i<track.positions.size()-1; i++) {
-                                if(animationTime < track.positions[i+1].timeStamp) {
-                                    float t = (animationTime - track.positions[i].timeStamp) / (track.positions[i+1].timeStamp - track.positions[i].timeStamp);
-                                    pos = Math::Lerp(track.positions[i].position, track.positions[i+1].position, t);
-                                    break;
-                                }
-                            }
-                        }
+                        // Calculate delta from previous frame
+                        Math::Vec3f deltaPos = prs.pos - animator.PrevRootPos;
+                        
+                        // Apply to entity transform (in local space for now, or world space if appropriate)
+                        // This moves the entity physically
+                        transform.position += deltaPos; 
+                        
+                        // Store current as previous for next frame
+                        animator.PrevRootPos = prs.pos;
+                        animator.PrevRootRot = prs.rot;
 
-                        // --- Interpolate Rotation ---
-                        Math::Quatf rot = Math::Quatf::Identity();
-                        if(track.rotations.size() == 1) rot = track.rotations[0].orientation;
-                        else {
-                            for(size_t i=0; i<track.rotations.size()-1; i++) {
-                                if(animationTime < track.rotations[i+1].timeStamp) {
-                                    float t = (animationTime - track.rotations[i].timeStamp) / (track.rotations[i+1].timeStamp - track.rotations[i].timeStamp);
-                                    rot = Math::Quatf::Slerp(track.rotations[i].orientation, track.rotations[i+1].orientation, t);
-                                    break;
-                                }
-                            }
-                        }
+                        // ZERO OUT the root bone's position in the mesh to prevent double-movement
+                        // The mesh stays at the entity's origin.
+                        finalPRS[rootNodeName].pos = {0,0,0};
+                    }
+                }
 
-                        // --- Interpolate Scale ---
-                        Math::Vec3f scale = {1,1,1};
-                        if(track.scales.size() == 1) scale = track.scales[0].scale;
-                        else {
-                            for(size_t i=0; i<track.scales.size()-1; i++) {
-                                if(animationTime < track.scales[i+1].timeStamp) {
-                                    float t = (animationTime - track.scales[i].timeStamp) / (track.scales[i+1].timeStamp - track.scales[i].timeStamp);
-                                    scale = Math::Lerp(track.scales[i].scale, track.scales[i+1].scale, t);
-                                    break;
-                                }
-                            }
-                        }
-
-                        nodeTransform = Math::Mat4::TRS(pos, rot, scale);
+                auto calculateBoneTransform = [&](auto& self, const AnimatorComponent::SkeletalAnimation::Node& node, const Math::Mat4& parentTransform) -> void {
+                    Math::Mat4 nodeTransform = node.transformation;
+                    if (finalPRS.count(node.name)) {
+                        auto &prs = finalPRS[node.name];
+                        nodeTransform = Math::Mat4::TRS(prs.pos, prs.rot, prs.scale);
                     }
 
                     Math::Mat4 globalTransform = parentTransform * nodeTransform;
 
-                    if (sa.boneInfoMap.count(nodeName)) {
-                        int index = sa.boneInfoMap[nodeName].id;
-                        Math::Mat4 offset = sa.boneInfoMap[nodeName].offset;
-                        if(index < animator.FinalBoneMatrices.size()) {
+                    if (saBase.boneInfoMap.count(node.name)) {
+                        int index = saBase.boneInfoMap.at(node.name).id;
+                        Math::Mat4 offset = saBase.boneInfoMap.at(node.name).offset;
+                        if(index < (int)animator.FinalBoneMatrices.size()) {
                             animator.FinalBoneMatrices[index] = globalTransform * offset;
                         }
                     }
@@ -150,7 +294,7 @@ void AnimationSystem::Update(World &world, float dt) {
                         self(self, child, globalTransform);
                 };
 
-                calculateBoneTransform(calculateBoneTransform, sa.rootNode, Math::Mat4::Identity());
+                calculateBoneTransform(calculateBoneTransform, saBase.rootNode, Math::Mat4::Identity());
             }
         }
     }

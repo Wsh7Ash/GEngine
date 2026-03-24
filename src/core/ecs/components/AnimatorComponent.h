@@ -112,9 +112,38 @@ struct AnimatorComponent {
       std::map<std::string, BoneInfo> boneInfoMap;
   };
 
+  struct BlendTree1D {
+      std::string Parameter;
+      struct Point {
+          float Value;
+          std::string Clip;
+      };
+      std::vector<Point> Points; // Sorted by Value
+  };
+
+  struct BlendTree2D {
+      std::string ParameterX;
+      std::string ParameterY;
+      struct Point {
+          Math::Vec2f Position;
+          std::string Clip;
+      };
+      std::vector<Point> Points;
+  };
+
   std::map<std::string, SkeletalAnimation> SkeletalAnimations;
+  std::map<std::string, BlendTree1D> BlendTrees1D;
+  std::map<std::string, BlendTree2D> BlendTrees2D;
+
   std::vector<Math::Mat4> FinalBoneMatrices;
   bool Is3D = false;
+
+  // Root Motion state
+  bool UseRootMotion = false;
+  int RootBoneIndex = 0;
+  Math::Vec3f RootDelta = {0,0,0}; // Extracted displacement for this frame
+  Math::Vec3f PrevRootPos = {0,0,0};
+  Math::Quatf PrevRootRot = Math::Quatf::Identity();
 
   AnimatorComponent() {
       FinalBoneMatrices.reserve(100);
