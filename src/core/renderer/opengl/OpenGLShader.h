@@ -18,10 +18,12 @@ namespace renderer {
         virtual void Unbind() const override;
 
         virtual void SetInt(const std::string& name, int value) override;
+        virtual void SetBool(const std::string& name, bool value) override;
         virtual void SetFloat(const std::string& name, float value) override;
         virtual void SetVec3(const std::string& name, const Math::Vec3f& value) override;
         virtual void SetVec4(const std::string& name, const Math::Vec4f& value) override;
         virtual void SetMat4(const std::string& name, const Math::Mat4f& value) override;
+        virtual void SetMat4Array(const std::string& name, const Math::Mat4f* values, uint32_t count) override;
 
     private:
         std::unordered_map<unsigned int, std::string> PreProcess(const std::string& source);

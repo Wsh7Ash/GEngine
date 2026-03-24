@@ -63,6 +63,11 @@ namespace renderer {
         glUniform1i(GetUniformLocation(name), value);
     }
 
+    void OpenGLShader::SetBool(const std::string& name, bool value)
+    {
+        glUniform1i(GetUniformLocation(name), value ? 1 : 0);
+    }
+
     void OpenGLShader::SetFloat(const std::string& name, float value)
     {
         glUniform1f(GetUniformLocation(name), value);
@@ -81,6 +86,11 @@ namespace renderer {
     void OpenGLShader::SetMat4(const std::string& name, const Math::Mat4f& value)
     {
         glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, &value[0][0]);
+    }
+
+    void OpenGLShader::SetMat4Array(const std::string& name, const Math::Mat4f* values, uint32_t count)
+    {
+        glUniformMatrix4fv(GetUniformLocation(name), count, GL_FALSE, (const float*)values);
     }
 
     uint32_t OpenGLShader::CreateProgram(const std::string& vertexSource, const std::string& fragmentSource)

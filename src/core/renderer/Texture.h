@@ -27,12 +27,12 @@ namespace renderer {
         /**
          * @brief Factory method to create a texture from a file.
          */
-        static std::shared_ptr<Texture> Create(const std::string& path);
+        static std::shared_ptr<Texture> Create(const std::string& path, bool hdr = false);
         
         /**
          * @brief Factory method to create a raw texture from memory data.
          */
-        static std::shared_ptr<Texture> Create(uint32_t width, uint32_t height, void* data, uint32_t size);
+        static std::shared_ptr<Texture> Create(uint32_t width, uint32_t height, void* data, uint32_t size, bool hdr = false);
     };
 
 } // namespace renderer

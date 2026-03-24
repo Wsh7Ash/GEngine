@@ -43,6 +43,11 @@ private:
   
   std::shared_ptr<renderer::Shader> shadowShader_;
   std::shared_ptr<renderer::Framebuffer> shadowMap_;
+
+  // IBL Helpers
+  void SetupEnvironment(struct SkyboxComponent& skybox);
+  void RenderCube();
+  void RenderQuad();
 };
 
 } // namespace ecs

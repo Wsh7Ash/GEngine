@@ -21,45 +21,47 @@ namespace renderer {
             std::abort();
         }
 
+        bool isHDR = path.substr(path.find_last_of(".") + 1) == "hdr";
+        
         int width, height, channels;
         stbi_set_flip_vertically_on_load(1);
-        stbi_uc* data = stbi_load_from_memory(buffer.data(), (int)buffer.size(), &width, &height, &channels, 0);
+        
+        void* data = nullptr;
+        if (isHDR)
+            data = stbi_loadf_from_memory(buffer.data(), (int)buffer.size(), &width, &height, &channels, 0);
+        else
+            data = stbi_load_from_memory(buffer.data(), (int)buffer.size(), &width, &height, &channels, 0);
 
         if (data)
         {
             width_ = width;
             height_ = height;
-            GLenum internalFormat = 0, dataFormat = 0;
-            if (channels == 4)
+            GLenum type = isHDR ? GL_FLOAT : GL_UNSIGNED_BYTE;
+            if (isHDR)
             {
-                internalFormat = GL_RGBA8;
-                dataFormat = GL_RGBA;
+                internalFormat_ = GL_RGB16F;
+                dataFormat_ = GL_RGB;
+            }
+            else if (channels == 4)
+            {
+                internalFormat_ = GL_RGBA8;
+                dataFormat_ = GL_RGBA;
             }
             else if (channels == 3)
             {
-                internalFormat = GL_RGB8;
-                dataFormat = GL_RGB;
-            }
-
-            internalFormat_ = internalFormat;
-            dataFormat_ = dataFormat;
-
-            if (!(internalFormat && dataFormat))
-            {
-                GE_LOG_CRITICAL("CRITICAL: Texture format not supported for %s", path.c_str());
-                std::abort();
+                internalFormat_ = GL_RGB8;
+                dataFormat_ = GL_RGB;
             }
 
             glCreateTextures(GL_TEXTURE_2D, 1, &rendererID_);
-            glTextureStorage2D(rendererID_, 1, internalFormat, width_, height_);
+            glTextureStorage2D(rendererID_, 1, internalFormat_, width_, height_);
 
             glTextureParameteri(rendererID_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTextureParameteri(rendererID_, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTextureParameteri(rendererID_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-            glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-            glTextureSubImage2D(rendererID_, 0, 0, 0, width_, height_, dataFormat, GL_UNSIGNED_BYTE, data);
+            glTextureSubImage2D(rendererID_, 0, 0, 0, width_, height_, dataFormat_, type, data);
 
             stbi_image_free(data);
         }
