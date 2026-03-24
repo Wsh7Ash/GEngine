@@ -154,6 +154,7 @@ set(GE_CORE_SOURCES
     src/core/editor/ConsolePanel.cpp
     src/core/editor/VSCodeUtility.cpp
     src/core/scene/SceneSerializer.cpp
+    src/core/scene/PrefabSerializer.cpp
     src/core/uuid/UUID.cpp
     src/core/cmd/CommandHistory.cpp
     src/core/renderer/RendererAPI.cpp

@@ -7,6 +7,7 @@
 #include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/Rigidbody2DComponent.h"
 #include "../ecs/components/BoxCollider2DComponent.h"
+#include "../ecs/components/RelationshipComponent.h"
 #include "../renderer/Renderer2D.h"
 #include "../cmd/CommandHistory.h"
 #include "../cmd/EntityCommands.h"
@@ -14,6 +15,7 @@
 #include <imgui_internal.h>
 #include <nlohmann/json.hpp>
 #include "../ecs/ScriptRegistry.h"
+#include "../scene/PrefabSerializer.h"
 
 using json = nlohmann::json;
 
@@ -51,14 +53,19 @@ void SceneHierarchyPanel::OnImGuiRender() {
 
   for (auto entity : context_->Query<ecs::TagComponent>()) {
     if (!filter.empty()) {
-      auto &tagComp = context_->GetComponent<ecs::TagComponent>(entity);
-      std::string tag = tagComp.tag;
-      std::transform(tag.begin(), tag.end(), tag.begin(),
-                     [](unsigned char c) { return std::tolower(c); });
-      if (tag.find(filter) == std::string::npos)
-        continue;
+        DrawEntityNode(entity);
+    } else {
+        // Only start drawing from root entities (no parent) when not filtering
+        bool hasRelationship = context_->HasComponent<ecs::RelationshipComponent>(entity);
+        bool hasParent = false;
+        if (hasRelationship) {
+            hasParent = context_->GetComponent<ecs::RelationshipComponent>(entity).Parent != ecs::INVALID_ENTITY;
+        }
+
+        if (!hasParent) {
+            DrawEntityNode(entity);
+        }
     }
-    DrawEntityNode(entity);
   }
 
   // Right-click on blank space
@@ -118,16 +125,44 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
     selection_context_ = entity;
   }
 
+  // --- Drag and Drop ---
+  if (ImGui::BeginDragDropSource()) {
+      ImGui::SetDragDropPayload("ENTITY_REORDER", &entity, sizeof(ecs::Entity));
+      ImGui::Text("%s", tag.c_str());
+      ImGui::EndDragDropSource();
+  }
+
+  if (ImGui::BeginDragDropTarget()) {
+      if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_REORDER")) {
+          ecs::Entity droppedEntity = *(const ecs::Entity*)payload->Data;
+          context_->SetParent(droppedEntity, entity);
+      }
+      ImGui::EndDragDropTarget();
+  }
+
   bool entityDeleted = false;
   if (ImGui::BeginPopupContextItem()) {
     if (ImGui::MenuItem("Delete Entity"))
       entityDeleted = true;
 
+    if (ImGui::MenuItem("Save as Prefab...")) {
+        std::string prefabTag = context_->HasComponent<ecs::TagComponent>(entity) 
+            ? context_->GetComponent<ecs::TagComponent>(entity).tag 
+            : "Entity";
+        std::string filepath = "assets/" + prefabTag + ".prefab";
+        scene::PrefabSerializer::Serialize(*context_, entity, filepath);
+    }
+
     ImGui::EndPopup();
   }
 
   if (opened) {
-    // Placeholder for children
+    if (context_->HasComponent<ecs::RelationshipComponent>(entity)) {
+        auto& rc = context_->GetComponent<ecs::RelationshipComponent>(entity);
+        for (auto child : rc.Children) {
+            DrawEntityNode(child);
+        }
+    }
     ImGui::TreePop();
   }
 

@@ -18,6 +18,7 @@
 #include <vector>
 #include <unordered_map>
 #include "components/IDComponent.h"
+#include "components/RelationshipComponent.h"
 
 namespace ge {
 namespace ecs {
@@ -64,6 +65,26 @@ public:
       entityByUUID_.erase(GetComponent<IDComponent>(e).ID);
     }
 
+    // Recursively destroy children
+    if (HasComponent<RelationshipComponent>(e)) {
+      auto &rc = GetComponent<RelationshipComponent>(e);
+      // Make a copy since the Children vector will be modified as children are destroyed
+      auto children = rc.Children;
+      for (auto child : children) {
+        DestroyEntity(child);
+      }
+    }
+
+    // Remove from parent if exists
+    if (HasComponent<RelationshipComponent>(e)) {
+      Entity parent = GetComponent<RelationshipComponent>(e).Parent;
+      if (parent != INVALID_ENTITY && HasComponent<RelationshipComponent>(parent)) {
+        auto &parentRc = GetComponent<RelationshipComponent>(parent);
+        auto &children = parentRc.Children;
+        children.erase(std::remove(children.begin(), children.end(), e), children.end());
+      }
+    }
+
     auto it = std::find(allEntities_.begin(), allEntities_.end(), e);
     if (it != allEntities_.end()) {
       *it = allEntities_.back();
@@ -83,6 +104,37 @@ public:
     entitySignatures_[e.GetIndex()].reset();
     isDirty_ = true;
     systemManager_->EntityDestroyed(e);
+  }
+
+  void SetParent(Entity child, Entity parent) {
+    if (child == parent || child == INVALID_ENTITY) return;
+
+    // Ensure RelationshipComponent exists on child
+    if (!HasComponent<RelationshipComponent>(child)) {
+      AddComponent<RelationshipComponent>(child, RelationshipComponent{});
+    }
+
+    auto &childRc = GetComponent<RelationshipComponent>(child);
+    
+    // Remove from old parent
+    if (childRc.Parent != INVALID_ENTITY && HasComponent<RelationshipComponent>(childRc.Parent)) {
+      auto &oldParentRc = GetComponent<RelationshipComponent>(childRc.Parent);
+      auto &children = oldParentRc.Children;
+      children.erase(std::remove(children.begin(), children.end(), child), children.end());
+    }
+
+    childRc.Parent = parent;
+
+    // Add to new parent
+    if (parent != INVALID_ENTITY) {
+      if (!HasComponent<RelationshipComponent>(parent)) {
+        AddComponent<RelationshipComponent>(parent, RelationshipComponent{});
+      }
+      auto &parentRc = GetComponent<RelationshipComponent>(parent);
+      parentRc.Children.push_back(child);
+    }
+    
+    isDirty_ = true;
   }
 
   void Clear() {

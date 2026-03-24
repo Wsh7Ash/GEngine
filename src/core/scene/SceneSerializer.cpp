@@ -7,6 +7,7 @@
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/Rigidbody2DComponent.h"
 #include "../ecs/components/BoxCollider2DComponent.h"
+#include "../ecs/components/RelationshipComponent.h"
 #include "../debug/log.h"
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/ScriptRegistry.h"
@@ -100,6 +101,14 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
             {"Density", bc.Density},
             {"Friction", bc.Friction},
             {"Restitution", bc.Restitution}};
+      }
+
+      // Serialize Hierarchy
+      if (world_.HasComponent<ecs::RelationshipComponent>(entity)) {
+        auto &rc = world_.GetComponent<ecs::RelationshipComponent>(entity);
+        if (rc.Parent != ecs::INVALID_ENTITY && world_.HasComponent<ecs::IDComponent>(rc.Parent)) {
+          entityJson["Parent"] = (uint64_t)world_.GetComponent<ecs::IDComponent>(rc.Parent).ID;
+        }
       }
 
       root["Entities"].push_back(entityJson);
@@ -239,6 +248,15 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
       bc.Friction = entityData["BoxCollider2D"]["Friction"];
       bc.Restitution = entityData["BoxCollider2D"]["Restitution"];
       world_.AddComponent(entity, bc);
+    }
+
+    // Deserialize Parent (by UUID)
+    if (entityData.contains("Parent")) {
+      UUID parentUUID = entityData["Parent"].get<uint64_t>();
+      ecs::Entity parent = world_.GetEntityByUUID(parentUUID);
+      if (parent != ecs::INVALID_ENTITY) {
+        world_.SetParent(entity, parent);
+      }
     }
   }
 
