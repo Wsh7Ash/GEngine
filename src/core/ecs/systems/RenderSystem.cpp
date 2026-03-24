@@ -35,19 +35,11 @@ void RenderSystem::Render(World &world, float dt) {
         auto &transform = world.GetComponent<TransformComponent>(entity);
         auto &spriteComp = world.GetComponent<SpriteComponent>(entity);
 
-        // Animation Update
+        // Animation properties (updated by AnimationSystem)
         Math::Vec2f uvTiling = spriteComp.tiling;
         Math::Vec2f uvOffset = {0.0f, 0.0f};
 
-        if (spriteComp.isAnimated && spriteComp.framesX > 0 &&
-            spriteComp.framesY > 0) {
-          spriteComp.elapsedTime += dt;
-          if (spriteComp.elapsedTime >= spriteComp.frameTime) {
-            spriteComp.elapsedTime = 0.0f;
-            spriteComp.currentFrame = (spriteComp.currentFrame + 1) %
-                                      (spriteComp.framesX * spriteComp.framesY);
-          }
-
+        if (spriteComp.framesX > 0 && spriteComp.framesY > 0) {
           float frameWidth = 1.0f / (float)spriteComp.framesX;
           float frameHeight = 1.0f / (float)spriteComp.framesY;
           uvTiling = {frameWidth, frameHeight};
@@ -55,7 +47,6 @@ void RenderSystem::Render(World &world, float dt) {
           int column = spriteComp.currentFrame % spriteComp.framesX;
           int row = spriteComp.currentFrame / spriteComp.framesX;
 
-          // Standard spritesheet (0,0 top-left)
           uvOffset = {(float)column * frameWidth,
                       (float)(spriteComp.framesY - 1 - row) * frameHeight};
         }

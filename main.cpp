@@ -4,12 +4,17 @@
 #include "src/core/ecs/systems/UISystem.h"
 #include "src/core/ecs/systems/AudioSystem.h"
 #include "src/core/ecs/systems/ParticleSystem.h"
+#include "src/core/ecs/systems/PostProcessSystem.h"
+#include "src/core/ecs/systems/AnimationSystem.h"
 #include "src/core/ecs/components/Rigidbody2DComponent.h"
 #include "src/core/ecs/components/BoxCollider2DComponent.h"
-#include <GLFW/glfw3.h>
+#include "src/core/ecs/components/PostProcessComponent.h"
+#include "src/core/ecs/components/AnimatorComponent.h"
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <memory>
 #include <vector>
+#include <filesystem>
 
 using namespace ge;
 using namespace ge::ecs;
@@ -91,6 +96,14 @@ int main() {
     world.SetSystemSignature<ParticleSystem>(signature);
   }
 
+  auto animationSystem = world.RegisterSystem<AnimationSystem>();
+  {
+      Signature signature;
+      signature.set(GetComponentTypeID<AnimatorComponent>());
+      signature.set(GetComponentTypeID<SpriteComponent>());
+      world.SetSystemSignature<AnimationSystem>(signature);
+  }
+
   // Register scripts
   // Scripts are now auto-registered via GE_REGISTER_SCRIPT macro.
 
@@ -103,6 +116,8 @@ int main() {
     ScriptRegistry::BindByName(&nsc, "CameraController");
     world.AddComponent(cameraEntity, std::move(nsc));
   }
+  world.AddComponent(cameraEntity, PostProcessComponent{});
+  world.AddComponent(cameraEntity, AnimatorComponent{});
 
   // UI Demo Entity
   auto uiPanel = world.CreateEntity();
@@ -144,6 +159,8 @@ int main() {
 
   Renderer2D::Init();
   audioSystem->Init();
+  auto postProcessSystem = std::make_shared<PostProcessSystem>();
+  postProcessSystem->Init(1280, 720);
   EditorToolbar::Init(window.GetNativeWindow(), world);
 
   // 3. Create Camera
@@ -201,6 +218,7 @@ int main() {
     uiSystem->Update(world, dt, {1280.0f, 720.0f});
     audioSystem->Update(world, dt);
     particleSystem->Update(world, dt);
+    animationSystem->Update(world, dt);
 
     // Hot-reload scripts
     if (Input::IsKeyPressed(GLFW_KEY_F5)) {
@@ -240,6 +258,10 @@ int main() {
 
         // Render particles using the same 2D camera
         particleSystem->Render(*camera2D);
+
+        // ── Post Processing ──────────────────────────────
+        uint32_t finalTexture = postProcessSystem->Process(world, viewportPanel->GetFramebuffer());
+        viewportPanel->SetResultTexture(finalTexture);
 
         viewportPanel->GetFramebuffer()->Unbind();
     }
