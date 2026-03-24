@@ -17,6 +17,7 @@
 #include "../../renderer/Model.h"
 #include "../../renderer/Texture.h"
 #include "../../renderer/Cubemap.h"
+#include "../../math/BoundingVolumes.h"
 #include "../components/SkyboxComponent.h"
 #include <vector>
 
@@ -129,16 +130,29 @@ namespace ecs {
         glViewport(0, 0, 2048, 2048);
         glClear(GL_DEPTH_BUFFER_BIT);
         
-        shadowShader_->Bind();
         shadowShader_->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+
+        // --- Frustum Culling Setup ---
+        Math::Frustum frustum;
+        if (camera3D_) {
+            frustum.FromMatrix(camera3D_->GetViewProjectionMatrix());
+        }
 
         for (auto const& me : meshEntities) {
             auto& transform = world.GetComponent<TransformComponent>(me);
             auto& meshComp = world.GetComponent<MeshComponent>(me);
+            
+            if (!meshComp.IsVisible) continue;
+
             if (meshComp.MeshPtr) {
                 Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
+                
+                // Culling Test
+                Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
+                if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+
                 shadowShader_->SetMat4("u_Model", model);
                 shadowShader_->SetBool("u_IsAnimated", false);
                 meshComp.MeshPtr->Draw();
@@ -152,6 +166,11 @@ namespace ecs {
                 Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
+                
+                // Culling Test
+                Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
+                if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+
                 shadowShader_->SetMat4("u_Model", model);
                 
                 bool isAnimated = false;
@@ -177,13 +196,29 @@ namespace ecs {
         auto &transform = world.GetComponent<TransformComponent>(entity);
         auto &meshComp = world.GetComponent<MeshComponent>(entity);
         
-        if (meshComp.MeshPtr && meshComp.MaterialPtr) {
-            meshComp.MaterialPtr->Bind();
-            auto shader = meshComp.MaterialPtr->GetShader();
+        if (!meshComp.IsVisible) continue;
 
+        if (meshComp.MeshPtr && meshComp.MaterialPtr) {
             Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                 transform.rotation.ToMat4x4() *
                                 Math::Mat4f::Scale(transform.scale);
+            
+            // Culling Test
+            Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
+            if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+
+            // LOD Selection
+            std::shared_ptr<renderer::Mesh> activeMesh = meshComp.MeshPtr;
+            if (camera3D_ && !meshComp.LODLevels.empty()) {
+                float dist = (transform.position - camera3D_->GetPosition()).Length();
+                for (const auto& lod : meshComp.LODLevels) {
+                    if (dist >= lod.DistanceThreshold)
+                        activeMesh = lod.MeshPtr;
+                }
+            }
+
+            meshComp.MaterialPtr->Bind();
+            auto shader = meshComp.MaterialPtr->GetShader();
 
             shader->SetMat4("u_Model", model);
 
@@ -245,7 +280,7 @@ namespace ecs {
                 shader->SetBool("u_UseIBL", false);
             }
 
-            meshComp.MeshPtr->Draw();
+            activeMesh->Draw();
         }
     }
 
@@ -263,6 +298,11 @@ namespace ecs {
                 Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
+
+                // Culling Test
+                Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
+                if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+
                 shader->SetMat4("u_Model", model);
 
                 if (camera3D_) {

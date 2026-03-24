@@ -20,6 +20,15 @@ struct MeshComponent
     std::shared_ptr<renderer::Material> MaterialPtr = nullptr;
 
     std::string MeshPath = "";
+
+    // LOD Support
+    struct LODLevel {
+        std::shared_ptr<renderer::Mesh> MeshPtr = nullptr;
+        float DistanceThreshold = 0.0f; // Distance at which this LOD becomes active
+    };
+    std::vector<LODLevel> LODLevels;
+    
+    bool IsVisible = true; // Manual culling/occlusion hint
     
     // PBR Properties
     Math::Vec3f AlbedoColor = {1.0f, 1.0f, 1.0f};

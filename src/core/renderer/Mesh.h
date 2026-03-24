@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include "../math/BoundingVolumes.h"
 
 
 namespace ge {
@@ -60,6 +61,8 @@ public:
 
   // Helper to create a basic unit cube for the demo
   static std::shared_ptr<Mesh> CreateCube();
+
+  virtual const Math::AABB& GetAABB() const = 0;
 };
 
 } // namespace renderer

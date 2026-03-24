@@ -112,7 +112,13 @@ namespace renderer {
                     }
                 }
 
-                m_Meshes.push_back({ Mesh::Create(vertices, indices), mesh->mName.C_Str() });
+                std::shared_ptr<Mesh> meshPtr = Mesh::Create(vertices, indices);
+                m_Meshes.push_back({ meshPtr, mesh->mName.C_Str() });
+
+                // Aggregate AABB
+                const auto& meshAABB = meshPtr->GetAABB();
+                m_AABB.Expand(meshAABB.Min);
+                m_AABB.Expand(meshAABB.Max);
             }
 
             for (unsigned int i = 0; i < node->mNumChildren; i++)

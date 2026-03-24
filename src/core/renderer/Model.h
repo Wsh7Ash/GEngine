@@ -24,6 +24,8 @@ namespace renderer {
         int& GetBoneCount() { return m_BoneCounter; }
         const std::map<std::string, ecs::AnimatorComponent::SkeletalAnimation>& GetAnimations() const { return m_Animations; }
 
+        const Math::AABB& GetAABB() const { return m_AABB; }
+
         struct MeshNode {
             std::shared_ptr<Mesh> MeshPtr;
             std::string Name;
@@ -39,6 +41,7 @@ namespace renderer {
         int m_BoneCounter = 0;
 
         std::string m_Directory;
+        Math::AABB m_AABB;
 
         friend class assets::AssetImporter;
     };

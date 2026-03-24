@@ -25,12 +25,14 @@ namespace renderer {
 
         virtual const std::vector<Vertex>& GetVertices() const override { return vertices_; }
         virtual const std::vector<uint32_t>& GetIndices() const override { return indices_; }
+        virtual const Math::AABB& GetAABB() const override { return aabb_; }
 
     private:
         uint32_t vao_, vbo_, ebo_;
         uint32_t indexCount_;
         std::vector<Vertex> vertices_;
         std::vector<uint32_t> indices_;
+        Math::AABB aabb_;
     };
 
 } // namespace renderer

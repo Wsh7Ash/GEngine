@@ -7,6 +7,11 @@ namespace renderer {
 OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
                        const std::vector<uint32_t> &indices)
     : indexCount_((uint32_t)indices.size()), vertices_(vertices), indices_(indices) {
+  
+  for (const auto& v : vertices) {
+      aabb_.Expand({ v.Position[0], v.Position[1], v.Position[2] });
+  }
+
   glCreateVertexArrays(1, &vao_);
   glBindVertexArray(vao_);
 
@@ -130,17 +135,30 @@ void OpenGLMesh::Draw() const {
   glDrawElements(GL_TRIANGLES, indexCount_, GL_UNSIGNED_INT, nullptr);
 }
 
-void OpenGLMesh::SetData(const void *vertices, uint32_t size) {
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, size, vertices);
-}
-
 void OpenGLMesh::SetIndices(const uint32_t *indices, uint32_t count) {
   indexCount_ = count;
   indices_.assign(indices, indices + count);
+  
+  // Recalculate AABB if vertices were modified (optimization: should be in SetData)
+  // For now, let's just make sure we have a way to update it.
+  
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(uint32_t), indices,
                GL_STATIC_DRAW);
+}
+
+void OpenGLMesh::SetData(const void* vertices, uint32_t size) {
+    uint32_t count = size / sizeof(Vertex);
+    const Vertex* vData = (const Vertex*)vertices;
+    vertices_.assign(vData, vData + count);
+    
+    aabb_ = Math::AABB(); // Reset
+    for (uint32_t i = 0; i < count; ++i) {
+        aabb_.Expand({ vData[i].Position[0], vData[i].Position[1], vData[i].Position[2] });
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, size, vertices);
 }
 
 } // namespace renderer
