@@ -30,10 +30,25 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio)
 
+# Options
+option(GE_STANDALONE "Build in standalone game mode (No Editor)" OFF)
+
+if(GE_STANDALONE)
+    add_definitions(-DGE_STANDALONE)
+endif()
+
 project(GameEngine
     VERSION     0.1.0
     LANGUAGES   CXX
     DESCRIPTION "GEngine — Phase 1 Foundation Layer"
+)
+
+# Post-build: Copy assets
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/assets"
+    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+    COMMENT "Copying assets to output directory..."
 )
 
 # ── C++ standard ────────────────────────────────────────────────
@@ -115,6 +130,8 @@ set(GE_CORE_HEADERS
     src/core/ecs/systems/AnimationSystem.h
     src/core/ecs/components/PostProcessComponent.h
     src/core/ecs/components/AnimatorComponent.h
+    src/core/platform/VFS.h
+    src/core/platform/Application.h
     # Renderer
     src/core/renderer/RendererAPI.h
     src/core/renderer/GraphicsContext.h
@@ -187,6 +204,8 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/ParticleSystem.cpp
     src/core/ecs/systems/AnimationSystem.cpp
     src/core/ecs/systems/PostProcessSystem.cpp
+    src/core/platform/VFS.cpp
+    src/core/platform/Application.cpp
     src/core/audio/AudioEngine.cpp
     src/core/audio/miniaudio_impl.cpp
     deps/glad/src/glad.c

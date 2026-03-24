@@ -61,6 +61,8 @@ public:
   }
 
   void DestroyEntity(Entity e) {
+    if (!IsAlive(e)) return;
+
     if (HasComponent<IDComponent>(e)) {
       entityByUUID_.erase(GetComponent<IDComponent>(e).ID);
     }
@@ -138,10 +140,20 @@ public:
   }
 
   void Clear() {
-    // Collect active entities directly from our tracked list
+    // Destroy only root entities (RelationshipComponent::Parent == INVALID)
+    // or entities without RelationshipComponent. DestroyEntity will recursively clean up children.
     auto alive = allEntities_;
     for (auto &e : alive) {
-      DestroyEntity(e);
+      if (IsAlive(e)) {
+        bool isRoot = true;
+        if (HasComponent<RelationshipComponent>(e)) {
+          isRoot = (GetComponent<RelationshipComponent>(e).Parent == INVALID_ENTITY);
+        }
+        
+        if (isRoot) {
+          DestroyEntity(e);
+        }
+      }
     }
   }
 
@@ -204,6 +216,10 @@ public:
 
   template <typename T> void SetSystemSignature(Signature signature) {
     systemManager_->SetSignature<T>(signature);
+  }
+
+  template <typename T> std::shared_ptr<T> GetSystem() {
+    return systemManager_->GetSystem<T>();
   }
 
   // ── Queries ──────────────────────────────────────────────────

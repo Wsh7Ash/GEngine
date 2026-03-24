@@ -23,6 +23,11 @@ void Physics2DSystem::Update(World& world, float ts) {
 
     // 1. Synchronize/Create Bodies
     for (auto entity : entities) {
+        if (!world.HasComponent<Rigidbody2DComponent>(entity) || !world.HasComponent<TransformComponent>(entity)) {
+            GE_LOG_WARN("Entity {} matches PhysicsSystem signature but is missing components. Skipping.", entity.GetIndex());
+            continue;
+        }
+
         auto& rb = world.GetComponent<Rigidbody2DComponent>(entity);
         auto& tc = world.GetComponent<TransformComponent>(entity);
 
@@ -35,7 +40,7 @@ void Physics2DSystem::Update(World& world, float ts) {
             bodyDef.position.Set(tc.position.x, tc.position.y);
             bodyDef.angle = tc.rotation.ToEuler().z; 
             bodyDef.fixedRotation = rb.FixedRotation;
-            bodyDef.userData.pointer = (uintptr_t)entity.GetIndex();
+            bodyDef.userData.pointer = (uintptr_t)entity.GetHandle();
 
             body = physics_world_->CreateBody(&bodyDef);
             rb.RuntimeBody = body;
@@ -60,7 +65,7 @@ void Physics2DSystem::Update(World& world, float ts) {
         }
 
         // 2. Sync during Editor Mode (or if Transform was changed via gizmo)
-        if (!isPlaying) {
+        if (!isPlaying && body) {
             body->SetTransform(b2Vec2(tc.position.x, tc.position.y), tc.rotation.ToEuler().z);
         }
     }
@@ -73,6 +78,9 @@ void Physics2DSystem::Update(World& world, float ts) {
 
         // 4. Sync physics results back to ECS
         for (auto entity : entities) {
+            if (!world.HasComponent<Rigidbody2DComponent>(entity) || !world.HasComponent<TransformComponent>(entity))
+                continue;
+
             auto& rb = world.GetComponent<Rigidbody2DComponent>(entity);
             auto& tc = world.GetComponent<TransformComponent>(entity);
 
@@ -92,8 +100,10 @@ void Physics2DSystem::Update(World& world, float ts) {
 void Physics2DSystem::BeginContact(b2Contact* contact) {
     if (!current_world_) return;
 
-    Entity entityA((uint32_t)contact->GetFixtureA()->GetBody()->GetUserData().pointer);
-    Entity entityB((uint32_t)contact->GetFixtureB()->GetBody()->GetUserData().pointer);
+    Entity entityA((uint64_t)contact->GetFixtureA()->GetBody()->GetUserData().pointer);
+    Entity entityB((uint64_t)contact->GetFixtureB()->GetBody()->GetUserData().pointer);
+
+    if (!current_world_->IsAlive(entityA) || !current_world_->IsAlive(entityB)) return;
 
     bool isSensorA = contact->GetFixtureA()->IsSensor();
     bool isSensorB = contact->GetFixtureB()->IsSensor();
@@ -122,8 +132,10 @@ void Physics2DSystem::BeginContact(b2Contact* contact) {
 void Physics2DSystem::EndContact(b2Contact* contact) {
     if (!current_world_) return;
 
-    Entity entityA((uint32_t)contact->GetFixtureA()->GetBody()->GetUserData().pointer);
-    Entity entityB((uint32_t)contact->GetFixtureB()->GetBody()->GetUserData().pointer);
+    Entity entityA((uint64_t)contact->GetFixtureA()->GetBody()->GetUserData().pointer);
+    Entity entityB((uint64_t)contact->GetFixtureB()->GetBody()->GetUserData().pointer);
+
+    if (!current_world_->IsAlive(entityA) || !current_world_->IsAlive(entityB)) return;
 
     bool isSensorA = contact->GetFixtureA()->IsSensor();
     bool isSensorB = contact->GetFixtureB()->IsSensor();

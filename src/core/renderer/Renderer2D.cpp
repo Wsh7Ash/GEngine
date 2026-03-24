@@ -2,8 +2,8 @@
 #include "../debug/log.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "../platform/VFS.h"
 #include <array>
-#include <filesystem>
 #include <vector>
 
 namespace ge {
@@ -38,7 +38,7 @@ void Renderer2D::Init() {
   std::vector<std::string> searchPaths = {"./", "../", "../../", "../../../"};
 
   for (const auto &p : searchPaths) {
-    if (std::filesystem::exists(p + "src/shaders/sprite_batch.vert")) {
+    if (core::VFS::Exists(p + "src/shaders/sprite_batch.vert")) {
       shaderRoot = p + "src/shaders/";
       break;
     }

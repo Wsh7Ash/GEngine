@@ -1,8 +1,7 @@
 #include "OpenGLShader.h"
 #include "../../debug/log.h"
 #include "../../debug/assert.h"
-#include <fstream>
-#include <sstream>
+#include "../../platform/VFS.h"
 #include <vector>
 
 namespace ge {
@@ -98,23 +97,7 @@ namespace renderer {
 
     std::string OpenGLShader::ReadFile(const std::string& filepath)
     {
-        GE_LOG_INFO("Loading shader: %s", filepath.c_str());
-        std::string result;
-        std::ifstream in(filepath, std::ios::in | std::ios::binary);
-        if (in)
-        {
-            in.seekg(0, std::ios::end);
-            result.resize(in.tellg());
-            in.seekg(0, std::ios::beg);
-            in.read(&result[0], result.size());
-            in.close();
-        }
-        else
-        {
-            GE_LOG_CRITICAL("CRITICAL: Could not open shader file '%s'!", filepath.c_str());
-            std::abort();
-        }
-        return result;
+        return core::VFS::ReadString(filepath);
     }
 
     int OpenGLShader::GetUniformLocation(const std::string& name)

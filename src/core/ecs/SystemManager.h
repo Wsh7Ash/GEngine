@@ -37,6 +37,13 @@ public:
     signatures_.insert({type, signature});
   }
 
+  template <typename T> std::shared_ptr<T> GetSystem() {
+    auto type = std::type_index(typeid(T));
+    auto it = systems_.find(type);
+    GE_ASSERT(it != systems_.end(), "System not registered.");
+    return std::static_pointer_cast<T>(it->second);
+  }
+
   void EntityDestroyed(Entity entity) {
     for (auto const &pair : systems_) {
       auto const &system = pair.second;

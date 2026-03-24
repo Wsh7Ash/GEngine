@@ -11,16 +11,24 @@ namespace renderer {
     OpenGLTexture::OpenGLTexture(const std::string& path)
         : path_(path), width_(0), height_(0), rendererID_(0)
     {
-        GE_LOG_INFO("Loading texture: %s", path.c_str());
+        GE_LOG_INFO("Loading texture via VFS: %s", path.c_str());
+        
+        auto buffer = core::VFS::ReadBinary(path);
+        if (buffer.empty())
+        {
+            GE_LOG_CRITICAL("CRITICAL: Failed to load texture at path: %s", path.c_str());
+            std::abort();
+        }
+
         int width, height, channels;
         stbi_set_flip_vertically_on_load(1);
-        stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+        stbi_uc* data = stbi_load_from_memory(buffer.data(), (int)buffer.size(), &width, &height, &channels, 0);
 
         if (data)
         {
             width_ = width;
             height_ = height;
-
+#include "../../platform/VFS.h"
             GLenum internalFormat = 0, dataFormat = 0;
             if (channels == 4)
             {
@@ -57,7 +65,7 @@ namespace renderer {
         }
         else
         {
-            GE_LOG_CRITICAL("CRITICAL: Failed to load texture at path: %s", path.c_str());
+            GE_LOG_CRITICAL("CRITICAL: Failed to decode texture at path: %s", path.c_str());
             std::abort();
         }
     }
