@@ -17,13 +17,60 @@ uniform vec3 u_AlbedoColor;
 uniform float u_Metallic;
 uniform float u_Roughness;
 
-// Lighting (Basic single light for now)
+// Lighting
+#define MAX_LIGHTS 8
+
+struct Light {
+    int Type; // 0: Directional, 1: Point
+    vec3 Position;
+    vec3 Direction;
+    vec3 Color;
+    float Intensity;
+    float Range;
+};
+
+uniform Light u_Lights[MAX_LIGHTS];
+uniform int u_LightCount;
+
 uniform vec3 u_CameraPos;
-uniform vec3 u_LightPos;
-uniform vec3 u_LightColor;
+uniform sampler2D u_ShadowMap;
+uniform mat4 u_LightSpaceMatrix;
 
 const float PI = 3.14159265359;
 
+// ----------------------------------------------------------------------------
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(u_ShadowMap, projCoords.xy).r; 
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+    // calculate bias (based on depth map resolution and slope)
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    
+    // PCF
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(u_ShadowMap, 0);
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(u_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;        
+        }    
+    }
+    shadow /= 9.0;
+    
+    // keep shadow at 0.0 when outside the far_plane region of the light's frustum.
+    if(projCoords.z > 1.0)
+        shadow = 0.0;
+        
+    return shadow;
+}
 // ----------------------------------------------------------------------------
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -81,46 +128,60 @@ void main()
 
     vec3 V = normalize(u_CameraPos - v_WorldPos);
 
-    // Calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 of 0.04 
-    // and if it's a metal, use the albedo color as F0 (metallic workflow)    
+    // Calculate reflectance at normal incidence
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo, metallic);
 
     // Reflectance equation
     vec3 Lo = vec3(0.0);
-    
-    // Single light source logic
-    vec3 L = normalize(u_LightPos - v_WorldPos);
-    vec3 H = normalize(V + L);
-    float distance = length(u_LightPos - v_WorldPos);
-    float attenuation = 1.0 / (distance * distance);
-    vec3 radiance = u_LightColor * attenuation;
 
-    // Cook-Torrance BRDF
-    float NDF = DistributionGGX(N, H, roughness);   
-    float G   = GeometrySmith(N, V, L, roughness);      
-    vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
-       
-    vec3 numerator    = NDF * G * F; 
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; 
-    vec3 specular = numerator / denominator;
-    
-    // kS is equal to Fresnel
-    vec3 kS = F;
-    // for energy conservation, the diffuse and specular light can't
-    // be above 1.0 (unless the surface emits light); to preserve this
-    // relationship the diffuse component (kD) should equal 1.0 - kS.
-    vec3 kD = vec3(1.0) - kS;
-    // multiply kD by the inverse metalness such that only non-metals 
-    // have diffuse lighting, or a linear blend if partly metal (pure metals
-    // have no diffuse light).
-    kD *= 1.0 - metallic;	  
+    for(int i = 0; i < u_LightCount; ++i)
+    {
+        vec3 L;
+        float attenuation = 1.0;
+        
+        if (u_Lights[i].Type == 0) // Directional
+        {
+            L = normalize(-u_Lights[i].Direction);
+        }
+        else // Point
+        {
+            L = normalize(u_Lights[i].Position - v_WorldPos);
+            float distance = length(u_Lights[i].Position - v_WorldPos);
+            attenuation = 1.0 / (distance * distance);
+            
+            // Optional range clipping
+            if (u_Lights[i].Range > 0.0)
+                attenuation *= clamp(1.0 - (distance / u_Lights[i].Range), 0.0, 1.0);
+        }
 
-    // Scale light by NdotL
-    float NdotL = max(dot(N, L), 0.0);        
+        vec3 H = normalize(V + L);
+        vec3 radiance = u_Lights[i].Color * u_Lights[i].Intensity * attenuation;
 
-    // add to outgoing radiance Lo
-    Lo += (kD * albedo / PI + specular) * radiance * NdotL;  
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(N, H, roughness);   
+        float G   = GeometrySmith(N, V, L, roughness);      
+        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
+           
+        vec3 numerator    = NDF * G * F; 
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; 
+        vec3 specular = numerator / denominator;
+        
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;	  
+
+        float NdotL = max(dot(N, L), 0.0);        
+        
+        float shadow = 0.0;
+        if (i == 0 && u_Lights[i].Type == 0) // Primary directional light shadow
+        {
+            vec4 fragPosLightSpace = u_LightSpaceMatrix * vec4(v_WorldPos, 1.0);
+            shadow = ShadowCalculation(fragPosLightSpace, N, L);
+        }
+
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL * (1.0 - shadow);  
+    }
 
     // Ambient lighting (very barebones)
     vec3 ambient = vec3(0.03) * albedo * ao;

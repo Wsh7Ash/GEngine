@@ -19,9 +19,18 @@ public:
 
   virtual void Resize(uint32_t width, uint32_t height) override;
 
-  virtual uint32_t GetColorAttachmentRendererID(uint32_t index = 0) const {
-    GE_ASSERT(index < colorAttachments_.size());
+  virtual uint32_t GetColorAttachmentRendererID(uint32_t index = 0) const override {
+    GE_ASSERT(index < colorAttachments_.size(), "Color attachment index out of bounds!");
     return spec_.Samples > 1 ? resolvedColorAttachments_[index] : colorAttachments_[index];
+  }
+  virtual uint32_t GetDepthAttachmentRendererID() const override { return depthAttachment_; }
+  virtual uint32_t GetEntityAttachmentRendererID() const override {
+      for (size_t i = 0; i < colorAttachmentSpecifications_.size(); ++i) {
+          if (colorAttachmentSpecifications_[i].TextureFormat == FramebufferTextureFormat::RED_INTEGER) {
+              return spec_.Samples > 1 ? resolvedColorAttachments_[i] : colorAttachments_[i];
+          }
+      }
+      return 0;
   }
   virtual void ClearAttachment(uint32_t attachmentIndex, int value) override;
   virtual int ReadPixel(uint32_t attachmentIndex, int x, int y) override;

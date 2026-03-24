@@ -13,6 +13,8 @@
 namespace ge {
 namespace renderer {
 class Mesh;
+class Shader;
+class Framebuffer;
 } // namespace renderer
 
 namespace ecs {
@@ -38,6 +40,9 @@ public:
 private:
   std::shared_ptr<renderer::OrthographicCamera> camera2D_;
   std::shared_ptr<renderer::PerspectiveCamera> camera3D_;
+  
+  std::shared_ptr<renderer::Shader> shadowShader_;
+  std::shared_ptr<renderer::Framebuffer> shadowMap_;
 };
 
 } // namespace ecs

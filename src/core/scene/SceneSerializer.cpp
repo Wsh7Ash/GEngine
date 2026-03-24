@@ -3,6 +3,7 @@
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/MeshComponent.h"
+#include "../ecs/components/LightComponent.h"
 #include "../ecs/components/NativeScriptComponent.h"
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/Rigidbody2DComponent.h"
@@ -64,6 +65,18 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
             {"MetallicPath", mc.MetallicPath},
             {"RoughnessPath", mc.RoughnessPath},
             {"AOPath", mc.AOPath}
+        };
+      }
+
+      // Serialize Light
+      if (world_.HasComponent<ecs::LightComponent>(entity)) {
+        auto &lc = world_.GetComponent<ecs::LightComponent>(entity);
+        entityJson["Light"] = {
+            {"Type", (int)lc.Type},
+            {"Color", {lc.Color.x, lc.Color.y, lc.Color.z}},
+            {"Intensity", lc.Intensity},
+            {"Range", lc.Range},
+            {"CastShadows", lc.CastShadows}
         };
       }
 
@@ -211,6 +224,18 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
       if (entityData["Mesh"].contains("AOPath")) mc.AOPath = entityData["Mesh"]["AOPath"];
 
       world_.AddComponent(entity, mc);
+    }
+
+    // Deserialize Light
+    if (entityData.contains("Light")) {
+      ecs::LightComponent lc;
+      lc.Type = (ecs::LightType)entityData["Light"]["Type"];
+      auto &cData = entityData["Light"]["Color"];
+      lc.Color = {(float)cData[0], (float)cData[1], (float)cData[2]};
+      lc.Intensity = entityData["Light"]["Intensity"];
+      lc.Range = entityData["Light"]["Range"];
+      lc.CastShadows = entityData["Light"]["CastShadows"];
+      world_.AddComponent(entity, lc);
     }
 
     // Deserialize Sprite

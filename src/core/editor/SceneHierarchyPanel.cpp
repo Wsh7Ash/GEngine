@@ -1,6 +1,7 @@
 #include "SceneHierarchyPanel.h"
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/components/MeshComponent.h"
+#include "../ecs/components/LightComponent.h"
 #include "../ecs/components/NativeScriptComponent.h"
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/TagComponent.h"
@@ -309,7 +310,7 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
     bool showRendering = filter.empty();
     if (!showRendering) {
       // Show header if any child matches
-      for (auto name : {"Sprite Component", "Mesh Component"}) {
+      for (auto name : {"Sprite Component", "Mesh Component", "Light Component"}) {
         std::string lower(name);
         std::transform(lower.begin(), lower.end(), lower.begin(),
                        [](unsigned char c) { return std::tolower(c); });
@@ -327,6 +328,9 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
     showItem("Mesh Component",
              [&]() { context_->AddComponent(entity, ecs::MeshComponent{}); },
              !context_->HasComponent<ecs::MeshComponent>(entity));
+    showItem("Light Component",
+             [&]() { context_->AddComponent(entity, ecs::LightComponent{}); },
+             !context_->HasComponent<ecs::LightComponent>(entity));
 
     // ── Scripting ──
     bool showScripting = filter.empty();
@@ -516,6 +520,25 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
         ImGui::EndTable();
       }
+    });
+  }
+
+  if (context_->HasComponent<ecs::LightComponent>(entity)) {
+    DrawComponentControl<ecs::LightComponent>("Light", entity, [&]() {
+      auto &lc = context_->GetComponent<ecs::LightComponent>(entity);
+      
+      const char* lightTypes[] = { "Directional", "Point" };
+      int typeIndex = (int)lc.Type;
+      if (ImGui::Combo("Light Type", &typeIndex, lightTypes, 2)) {
+        lc.Type = (ecs::LightType)typeIndex;
+      }
+
+      ImGui::ColorEdit3("Color", &lc.Color.x);
+      ImGui::DragFloat("Intensity", &lc.Intensity, 0.1f, 0.0f, 100.0f);
+      if (lc.Type == ecs::LightType::Point) {
+        ImGui::DragFloat("Range", &lc.Range, 0.1f, 0.0f, 1000.0f);
+      }
+      ImGui::Checkbox("Cast Shadows", &lc.CastShadows);
     });
   }
 
