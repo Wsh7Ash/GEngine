@@ -2,6 +2,7 @@
 #include "../../debug/log.h"
 #include "../World.h"
 #include "../components/NativeScriptComponent.h"
+#include "../ScriptRegistry.h"
 
 
 namespace ge {
@@ -19,24 +20,13 @@ void ScriptSystem::Update(World &world, float ts) {
     auto &nsc = world.GetComponent<NativeScriptComponent>(entity);
 
     // 1. Instantiate if needed
-    // 1. Instantiate if needed
     if (!nsc.instance) {
-      GE_LOG_INFO("ScriptSystem: Entity %d needs instantiation. ScriptName=%s, InstantiateScript bound=%d", 
-                  entity.GetIndex(), nsc.ScriptName.c_str(), (bool)nsc.InstantiateScript);
-      fflush(stdout);
-      
       // Skip if InstantiateScript is not bound (e.g. after deserialization)
       if (!nsc.InstantiateScript) {
-        GE_LOG_INFO("ScriptSystem: Skipping Entity %d (no InstantiateScript)", entity.GetIndex());
-        fflush(stdout);
         continue;
       }
 
-      GE_LOG_INFO("ScriptSystem: Calling InstantiateScript for Entity %d", entity.GetIndex());
-      fflush(stdout);
       nsc.instance = nsc.InstantiateScript();
-      GE_LOG_INFO("ScriptSystem: Instantiated ScriptableEntity for Entity %d", entity.GetIndex());
-      fflush(stdout);
       nsc.instance->entity_ = entity;
       nsc.instance->world_ = &world;
       nsc.instance->OnCreate();
@@ -45,6 +35,10 @@ void ScriptSystem::Update(World &world, float ts) {
     // 2. Update
     nsc.instance->OnUpdate(ts);
   }
+}
+
+void ScriptSystem::ReloadScripts(World& world) {
+    ScriptRegistry::ReloadAll(world);
 }
 
 } // namespace ecs

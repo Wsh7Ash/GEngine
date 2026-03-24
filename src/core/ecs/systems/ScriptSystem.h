@@ -12,6 +12,7 @@ namespace ecs {
     {
     public:
         void Update(World& world, float ts);
+        void ReloadScripts(World& world);
     };
 
 } // namespace ecs

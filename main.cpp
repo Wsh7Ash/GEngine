@@ -34,6 +34,8 @@ public:
   }
 };
 
+GE_REGISTER_SCRIPT(CameraController);
+
 int main() {
   ge::debug::log::Initialize();
   // select renderer
@@ -90,7 +92,7 @@ int main() {
   }
 
   // Register scripts
-  NativeScriptComponent::Register<CameraController>("CameraController");
+  // Scripts are now auto-registered via GE_REGISTER_SCRIPT macro.
 
   // 3. Create initial entities (if no scene loaded)
   auto cameraEntity = world.CreateEntity();
@@ -98,7 +100,7 @@ int main() {
   world.AddComponent(cameraEntity, TransformComponent{});
   {
     NativeScriptComponent nsc;
-    NativeScriptComponent::BindByName(&nsc, "CameraController");
+    ScriptRegistry::BindByName(&nsc, "CameraController");
     world.AddComponent(cameraEntity, std::move(nsc));
   }
 
@@ -199,6 +201,11 @@ int main() {
     uiSystem->Update(world, dt, {1280.0f, 720.0f});
     audioSystem->Update(world, dt);
     particleSystem->Update(world, dt);
+
+    // Hot-reload scripts
+    if (Input::IsKeyPressed(GLFW_KEY_F5)) {
+      scriptSystem->ReloadScripts(world);
+    }
 
     float logicEnd = (float)glfwGetTime();
     float logicMs = (logicEnd - logicStart) * 1000.0f;

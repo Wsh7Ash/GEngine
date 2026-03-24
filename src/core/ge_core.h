@@ -46,6 +46,8 @@
 #include "ecs/System.h"
 #include "ecs/SystemManager.h"
 #include "ecs/World.h"
+#include "ecs/ScriptRegistry.h"
+#include "ecs/ScriptMacros.h"
 #include "ecs/components/MeshComponent.h"
 #include "ecs/components/NativeScriptComponent.h"
 #include "ecs/components/SpriteComponent.h"

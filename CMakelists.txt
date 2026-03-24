@@ -173,6 +173,7 @@ set(GE_CORE_SOURCES
     src/core/renderer/dx11/DX11Texture.cpp
     src/core/ecs/systems/RenderSystem.cpp
     src/core/ecs/systems/ScriptSystem.cpp
+    src/core/ecs/ScriptRegistry.cpp
     src/core/ecs/systems/Physics2DSystem.cpp
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp

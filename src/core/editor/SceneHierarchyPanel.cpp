@@ -13,6 +13,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <nlohmann/json.hpp>
+#include "../ecs/ScriptRegistry.h"
 
 using json = nlohmann::json;
 
@@ -444,10 +445,10 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
           ImGui::Text("Instance: %s", nsc.instance ? "Running" : "Idle");
 
           if (ImGui::BeginCombo("##ScriptSelection", nsc.ScriptName.c_str())) {
-            for (auto const &pair : ecs::NativeScriptComponent::GetRegistry()) {
-              bool isSelected = (nsc.ScriptName == pair.first);
-              if (ImGui::Selectable(pair.first.c_str(), isSelected)) {
-                ecs::NativeScriptComponent::BindByName(&nsc, pair.first);
+            for (const auto& scriptName : ecs::ScriptRegistry::GetAllNames()) {
+              bool isSelected = (nsc.ScriptName == scriptName);
+              if (ImGui::Selectable(scriptName.c_str(), isSelected)) {
+                ecs::ScriptRegistry::BindByName(&nsc, scriptName);
               }
             }
             ImGui::EndCombo();

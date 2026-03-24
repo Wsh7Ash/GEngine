@@ -57,6 +57,7 @@ private:
   World *world_ = nullptr;
 
   friend class ScriptSystem;
+  friend class ScriptRegistry;
 };
 
 } // namespace ecs

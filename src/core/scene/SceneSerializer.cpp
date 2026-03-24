@@ -9,6 +9,7 @@
 #include "../ecs/components/BoxCollider2DComponent.h"
 #include "../debug/log.h"
 #include "../ecs/ScriptableEntity.h"
+#include "../ecs/ScriptRegistry.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -208,7 +209,7 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
     if (entityData.contains("NativeScript")) {
       std::string scriptName = entityData["NativeScript"]["Name"];
       ecs::NativeScriptComponent nsc;
-      ecs::NativeScriptComponent::BindByName(&nsc, scriptName);
+      ecs::ScriptRegistry::BindByName(&nsc, scriptName);
       world_.AddComponent(entity, std::move(nsc));
 
       if (entityData["NativeScript"].contains("Data")) {
