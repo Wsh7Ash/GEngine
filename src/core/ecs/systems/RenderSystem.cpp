@@ -3,6 +3,8 @@
 #include "../components/TransformComponent.h"
 #include "../components/SpriteComponent.h"
 #include "../components/MeshComponent.h"
+#include "../components/ModelComponent.h"
+#include "../components/AnimatorComponent.h"
 #include "../components/LightComponent.h"
 #include <glad/glad.h>
 #include "../../renderer/Renderer2D.h"
@@ -12,6 +14,7 @@
 #include "../../renderer/Framebuffer.h"
 #include "../../renderer/Material.h"
 #include "../../renderer/Mesh.h"
+#include "../../renderer/Model.h"
 #include "../../renderer/Texture.h"
 
 namespace ge {
@@ -61,10 +64,14 @@ namespace ecs {
 
     // 3. Collect 3D Entities
     std::vector<ecs::Entity> meshEntities;
+    std::vector<ecs::Entity> modelEntities;
     std::vector<ecs::Entity> lightEntities;
     for (auto const& entity : entities) {
         if (world.HasComponent<MeshComponent>(entity) && !world.HasComponent<SpriteComponent>(entity)) {
             meshEntities.push_back(entity);
+        }
+        if (world.HasComponent<ModelComponent>(entity)) {
+            modelEntities.push_back(entity);
         }
         if (world.HasComponent<LightComponent>(entity) && world.HasComponent<TransformComponent>(entity)) {
             lightEntities.push_back(entity);
@@ -114,7 +121,32 @@ namespace ecs {
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
                 shadowShader_->SetMat4("u_Model", model);
+                shadowShader_->SetBool("u_IsAnimated", false);
                 meshComp.MeshPtr->Draw();
+            }
+        }
+
+        for (auto const& me : modelEntities) {
+            auto& transform = world.GetComponent<TransformComponent>(me);
+            auto& modelComp = world.GetComponent<ModelComponent>(me);
+            if (modelComp.ModelPtr) {
+                Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                    transform.rotation.ToMat4x4() *
+                                    Math::Mat4f::Scale(transform.scale);
+                shadowShader_->SetMat4("u_Model", model);
+                
+                bool isAnimated = false;
+                if (world.HasComponent<AnimatorComponent>(me)) {
+                    auto& animator = world.GetComponent<AnimatorComponent>(me);
+                    if (animator.Is3D) {
+                        isAnimated = true;
+                        shadowShader_->SetMat4Array("u_BoneMatrices", animator.FinalBoneMatrices.data(), (uint32_t)animator.FinalBoneMatrices.size());
+                    }
+                }
+                shadowShader_->SetBool("u_IsAnimated", isAnimated);
+                
+                for (auto& node : modelComp.ModelPtr->GetMeshes())
+                    node.MeshPtr->Draw();
             }
         }
         shadowMap_->Unbind();
@@ -173,8 +205,76 @@ namespace ecs {
             shader->SetVec3("u_AlbedoColor", meshComp.AlbedoColor);
             shader->SetFloat("u_Metallic", meshComp.Metallic);
             shader->SetFloat("u_Roughness", meshComp.Roughness);
+            shader->SetBool("u_IsAnimated", false);
 
             meshComp.MeshPtr->Draw();
+        }
+    }
+
+    // New Model Pass
+    for (auto const &entity : modelEntities) {
+        auto &transform = world.GetComponent<TransformComponent>(entity);
+        auto &modelComp = world.GetComponent<ModelComponent>(entity);
+        
+        if (modelComp.ModelPtr && world.HasComponent<MeshComponent>(entity)) {
+             auto &meshComp = world.GetComponent<MeshComponent>(entity);
+             if (meshComp.MaterialPtr) {
+                meshComp.MaterialPtr->Bind();
+                auto shader = meshComp.MaterialPtr->GetShader();
+
+                Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                    transform.rotation.ToMat4x4() *
+                                    Math::Mat4f::Scale(transform.scale);
+                shader->SetMat4("u_Model", model);
+
+                if (camera3D_) {
+                    shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
+                    shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
+                }
+
+                int lightCount = (int)lightEntities.size();
+                if (lightCount > 8) lightCount = 8;
+                shader->SetInt("u_LightCount", lightCount);
+
+                for (int i = 0; i < lightCount; ++i) {
+                    auto& lc = world.GetComponent<LightComponent>(lightEntities[i]);
+                    auto& lt = world.GetComponent<TransformComponent>(lightEntities[i]);
+                    std::string base = "u_Lights[" + std::to_string(i) + "].";
+                    shader->SetInt(base + "Type", (int)lc.Type);
+                    shader->SetVec3(base + "Position", lt.position);
+                    Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+                    Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
+                    shader->SetVec3(base + "Direction", direction);
+                    shader->SetVec3(base + "Color", lc.Color);
+                    shader->SetFloat(base + "Intensity", lc.Intensity);
+                    shader->SetFloat(base + "Range", lc.Range);
+                }
+
+                if (primaryLight != ecs::INVALID_ENTITY) {
+                    shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+                    uint32_t shadowSlot = 10;
+                    glActiveTexture(GL_TEXTURE0 + shadowSlot);
+                    glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
+                    shader->SetInt("u_ShadowMap", (int)shadowSlot);
+                }
+
+                shader->SetVec3("u_AlbedoColor", modelComp.AlbedoColor);
+                shader->SetFloat("u_Metallic", modelComp.Metallic);
+                shader->SetFloat("u_Roughness", modelComp.Roughness);
+
+                bool isAnimated = false;
+                if (world.HasComponent<AnimatorComponent>(entity)) {
+                    auto& animator = world.GetComponent<AnimatorComponent>(entity);
+                    if (animator.Is3D) {
+                        isAnimated = true;
+                        shader->SetMat4Array("u_BoneMatrices", animator.FinalBoneMatrices.data(), (uint32_t)animator.FinalBoneMatrices.size());
+                    }
+                }
+                shader->SetBool("u_IsAnimated", isAnimated);
+
+                for (auto& node : modelComp.ModelPtr->GetMeshes())
+                    node.MeshPtr->Draw();
+             }
         }
     }
   }

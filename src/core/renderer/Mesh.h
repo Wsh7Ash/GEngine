@@ -21,6 +21,10 @@ struct Vertex {
   float TexIndex;
   float TilingFactor;
   int EntityID;
+
+  // Skeletal Animation
+  int BoneIDs[4]   = {-1, -1, -1, -1};
+  float Weights[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 };
 
 /**

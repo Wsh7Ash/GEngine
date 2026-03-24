@@ -3,7 +3,9 @@
 
 #include "TextureAsset.h"
 #include "SceneAsset.h"
+#include "ModelAsset.h"
 #include "../renderer/Texture.h"
+#include "../renderer/Model.h"
 
 namespace ge {
 namespace assets {
@@ -86,6 +88,12 @@ namespace assets {
             case AssetType::Scene:
             {
                 asset = std::make_shared<SceneAsset>(metadata.FilePath.string());
+                break;
+            }
+            case AssetType::Mesh:
+            {
+                auto model = std::make_shared<renderer::Model>(metadata.FilePath.string());
+                asset = std::make_shared<ModelAsset>(model);
                 break;
             }
             default:

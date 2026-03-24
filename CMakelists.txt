@@ -28,6 +28,19 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
     GIT_TAG        master
 )
+FetchContent_Declare(
+    jolt
+    GIT_REPOSITORY https://github.com/joltphysics/JoltPhysics.git
+    GIT_TAG        v5.0.0
+    GIT_SHALLOW    ON
+)
+FetchContent_Declare(
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp.git
+    GIT_TAG        v5.3.1
+    GIT_SHALLOW    ON
+)
+
 
 set(JOLT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
 set(JOLT_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
@@ -35,13 +48,16 @@ set(JOLT_USE_STATIC_CRT OFF CACHE BOOL "" FORCE)
 set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
 set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
 
-FetchContent_Declare(
-    jolt
-    GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
-    GIT_TAG        v5.0.0
-    SOURCE_SUBDIR  Build
-)
-FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio jolt)
+set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_FBX_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio jolt assimp)
 
 # Options
 option(GE_STANDALONE "Build in standalone game mode (No Editor)" OFF)
@@ -147,6 +163,7 @@ set(GE_CORE_HEADERS
     src/core/renderer/GraphicsContext.h
     src/core/renderer/Shader.h
     src/core/renderer/Mesh.h
+    src/core/renderer/Model.h
     src/core/renderer/Texture.h
     src/core/renderer/Framebuffer.h
     src/core/renderer/OrthographicCamera.h
@@ -191,6 +208,7 @@ set(GE_CORE_SOURCES
     src/core/renderer/RendererAPI.cpp
     src/core/renderer/Shader.cpp
     src/core/renderer/Mesh.cpp
+    src/core/renderer/Model.cpp
     src/core/renderer/Texture.cpp
     src/core/renderer/Framebuffer.cpp
     src/core/renderer/OrthographicCamera.cpp
@@ -235,7 +253,7 @@ set(GE_CORE_SOURCES
 )
 
 add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
-target_link_libraries(ge_core PUBLIC box2d Jolt)
+target_link_libraries(ge_core PUBLIC box2d Jolt assimp::assimp)
 
 target_include_directories(ge_core
     PUBLIC
@@ -249,6 +267,8 @@ target_include_directories(ge_core
         ${json_SOURCE_DIR}/include
         ${miniaudio_SOURCE_DIR}
         ${jolt_SOURCE_DIR}
+        ${assimp_SOURCE_DIR}/include
+        ${assimp_BINARY_DIR}/include
 )
 
 # Platform-specific linking
@@ -266,7 +286,7 @@ endif()
 # ================================================================
 
 add_executable(GameEngine main.cpp)
-target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt)
+target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt assimp::assimp)
 
 # Post-build: Copy assets
 add_custom_command(TARGET GameEngine POST_BUILD

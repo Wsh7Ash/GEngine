@@ -65,6 +65,16 @@ OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
   glVertexAttribIPointer(8, 1, GL_INT, sizeof(Vertex),
                          (const void *)offsetof(Vertex, EntityID));
 
+  // BoneIDs attribute
+  glEnableVertexAttribArray(9);
+  glVertexAttribIPointer(9, 4, GL_INT, sizeof(Vertex),
+                         (const void *)offsetof(Vertex, BoneIDs));
+
+  // Weights attribute
+  glEnableVertexAttribArray(10);
+  glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (const void *)offsetof(Vertex, Weights));
+
   glBindVertexArray(0);
 }
 

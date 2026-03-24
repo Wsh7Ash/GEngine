@@ -78,7 +78,7 @@ namespace assets {
     {
         if (extension == ".png" || extension == ".jpg" || extension == ".tga") return AssetType::Texture;
         if (extension == ".ge" || extension == ".json") return AssetType::Scene;
-        if (extension == ".obj" || extension == ".fbx") return AssetType::Mesh;
+        if (extension == ".obj" || extension == ".fbx" || extension == ".gltf" || extension == ".glb") return AssetType::Mesh;
         
         return AssetType::None;
     }

@@ -4,6 +4,9 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <memory>
+#include "../../math/Mat4x4.h"
+#include "../../math/quaternion.h"
 
 namespace ge {
 namespace ecs {
@@ -63,6 +66,61 @@ struct AnimatorComponent {
   // Helper to set parameter
   void SetFloat(const std::string &name, float value) { FloatParams[name] = value; }
   void SetBool(const std::string &name, bool value) { BoolParams[name] = value; }
+
+  // ── 3D Skeletal Animation ─────────────────────────────────────
+  
+  struct BoneInfo {
+      int id;
+      Math::Mat4 offset; // Offset matrix to transform from model space to bone space
+  };
+
+  struct KeyPosition {
+      Math::Vec3f position;
+      float timeStamp;
+  };
+
+  struct KeyRotation {
+      Math::Quatf orientation;
+      float timeStamp;
+  };
+
+  struct KeyScale {
+      Math::Vec3f scale;
+      float timeStamp;
+  };
+
+  struct BoneTrack {
+      std::vector<KeyPosition> positions;
+      std::vector<KeyRotation> rotations;
+      std::vector<KeyScale> scales;
+      Math::Mat4 localTransform;
+      std::string name;
+      int id;
+  };
+
+  struct SkeletalAnimation {
+      float duration;
+      int ticksPerSecond;
+      std::map<std::string, BoneTrack> tracks;
+      
+      struct Node {
+          std::string name;
+          Math::Mat4 transformation;
+          std::vector<Node> children;
+      };
+      Node rootNode;
+      std::map<std::string, BoneInfo> boneInfoMap;
+  };
+
+  std::map<std::string, SkeletalAnimation> SkeletalAnimations;
+  std::vector<Math::Mat4> FinalBoneMatrices;
+  bool Is3D = false;
+
+  AnimatorComponent() {
+      FinalBoneMatrices.reserve(100);
+      for (int i = 0; i < 100; i++)
+          FinalBoneMatrices.push_back(Math::Mat4::Identity());
+  }
 };
 
 } // namespace ecs
