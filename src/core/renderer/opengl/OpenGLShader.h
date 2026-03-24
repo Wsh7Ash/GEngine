@@ -10,6 +10,7 @@ namespace renderer {
     class OpenGLShader : public Shader
     {
     public:
+        OpenGLShader(const std::string& filepath);
         OpenGLShader(const std::string& vertexPath, const std::string& fragmentPath);
         virtual ~OpenGLShader();
 
@@ -23,6 +24,7 @@ namespace renderer {
         virtual void SetMat4(const std::string& name, const Math::Mat4f& value) override;
 
     private:
+        std::unordered_map<unsigned int, std::string> PreProcess(const std::string& source);
         uint32_t CreateProgram(const std::string& vertexSource, const std::string& fragmentSource);
         uint32_t CompileShader(uint32_t type, const std::string& source);
         std::string ReadFile(const std::string& filepath);

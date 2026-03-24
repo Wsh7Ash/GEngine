@@ -4,6 +4,7 @@
 
 // Define STB_IMAGE_IMPLEMENTATION is in stb_image_impl.cpp
 #include "../../../../deps/stb/stb_image.h"
+#include "../../platform/VFS.h"
 
 namespace ge {
 namespace renderer {
@@ -28,7 +29,6 @@ namespace renderer {
         {
             width_ = width;
             height_ = height;
-#include "../../platform/VFS.h"
             GLenum internalFormat = 0, dataFormat = 0;
             if (channels == 4)
             {

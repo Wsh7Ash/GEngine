@@ -27,7 +27,12 @@ namespace renderer {
         virtual void SetMat4(const std::string& name, const Math::Mat4f& value) = 0;
 
         /**
-         * @brief Factory method to create a shader of the current API type.
+         * @brief Factory method to create a shader of the current API type from a single unified file.
+         */
+        static std::shared_ptr<Shader> Create(const std::string& filepath);
+
+        /**
+         * @brief Factory method to create a shader of the current API type from two files.
          */
         static std::shared_ptr<Shader> Create(const std::string& vertexPath, const std::string& fragmentPath);
     };

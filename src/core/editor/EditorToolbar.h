@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ConsolePanel.h"
 #include "ContentBrowserPanel.h"
 #include "SceneHierarchyPanel.h"

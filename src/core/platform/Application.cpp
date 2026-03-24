@@ -11,6 +11,7 @@
 #include "../ecs/SystemManager.h"
 #include "../ecs/ComponentRegistry.h"
 #include "../ecs/systems/Physics2DSystem.h"
+#include "../ecs/systems/Physics3DSystem.h"
 #include "../ecs/systems/UISystem.h"
 #include "../ecs/systems/AudioSystem.h"
 #include "../ecs/systems/ParticleSystem.h"
@@ -127,6 +128,7 @@ void Application::Run() {
         if (editor::EditorToolbar::GetState() == editor::SceneState::Play) {
 #endif
             world_->GetSystem<ecs::Physics2DSystem>()->Update(*world_, dt);
+            world_->GetSystem<ecs::Physics3DSystem>()->Update(*world_, dt);
             world_->GetSystem<ecs::UISystem>()->Update(*world_, dt, { (float)window_->GetWidth(), (float)window_->GetHeight() });
             world_->GetSystem<ecs::AudioSystem>()->Update(*world_, dt);
             world_->GetSystem<ecs::ParticleSystem>()->Update(*world_, dt);

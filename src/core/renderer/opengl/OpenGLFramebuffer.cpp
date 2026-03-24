@@ -82,7 +82,7 @@ static GLenum GETextureFormatToGL(FramebufferTextureFormat format) {
     return GL_R32I;
   }
 
-  GE_ASSERT(false);
+  GE_ASSERT(false, "Unknown texture format!");
   return 0;
 }
 
@@ -201,7 +201,7 @@ void OpenGLFramebuffer::Invalidate() {
   }
 
   if (colorAttachments_.size() > 1) {
-    GE_ASSERT(colorAttachments_.size() <= 4);
+    GE_ASSERT(colorAttachments_.size() <= 4, "Too many color attachments!");
     GLenum buffers[4] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1,
                          GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
     glDrawBuffers(colorAttachments_.size(), buffers);
@@ -217,14 +217,14 @@ void OpenGLFramebuffer::Invalidate() {
 }
 
 void OpenGLFramebuffer::ClearAttachment(uint32_t attachmentIndex, int value) {
-  GE_ASSERT(attachmentIndex < colorAttachments_.size());
+  GE_ASSERT(attachmentIndex < colorAttachments_.size(), "Attachment index out of bounds!");
 
   auto &spec = colorAttachmentSpecifications_[attachmentIndex];
   glClearBufferiv(GL_COLOR, attachmentIndex, &value);
 }
 
 int OpenGLFramebuffer::ReadPixel(uint32_t attachmentIndex, int x, int y) {
-  GE_ASSERT(attachmentIndex < colorAttachments_.size());
+  GE_ASSERT(attachmentIndex < colorAttachments_.size(), "Attachment index out of bounds!");
 
   if (spec_.Samples > 1) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, resolvedRendererID_);

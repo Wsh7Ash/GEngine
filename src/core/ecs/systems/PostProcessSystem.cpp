@@ -40,7 +40,7 @@ namespace ecs {
 
     uint32_t PostProcessSystem::Process(World& world, std::shared_ptr<renderer::Framebuffer> inputFB) {
         auto entities = world.Query<PostProcessComponent>();
-        if (entities.empty()) return inputFB->GetColorAttachmentRendererID(0);
+        if (entities.begin() == entities.end()) return inputFB->GetColorAttachmentRendererID(0);
 
         auto& ppc = world.GetComponent<PostProcessComponent>(*entities.begin());
         if (!ppc.Enabled) return inputFB->GetColorAttachmentRendererID(0);

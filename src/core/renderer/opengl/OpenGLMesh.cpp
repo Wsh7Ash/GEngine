@@ -6,7 +6,7 @@ namespace renderer {
 
 OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
                        const std::vector<uint32_t> &indices)
-    : indexCount_((uint32_t)indices.size()) {
+    : indexCount_((uint32_t)indices.size()), vertices_(vertices), indices_(indices) {
   glCreateVertexArrays(1, &vao_);
   glBindVertexArray(vao_);
 
@@ -127,6 +127,7 @@ void OpenGLMesh::SetData(const void *vertices, uint32_t size) {
 
 void OpenGLMesh::SetIndices(const uint32_t *indices, uint32_t count) {
   indexCount_ = count;
+  indices_.assign(indices, indices + count);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(uint32_t), indices,
                GL_STATIC_DRAW);

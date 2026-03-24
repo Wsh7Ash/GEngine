@@ -24,7 +24,7 @@ void Physics2DSystem::Update(World& world, float ts) {
     // 1. Synchronize/Create Bodies
     for (auto entity : entities) {
         if (!world.HasComponent<Rigidbody2DComponent>(entity) || !world.HasComponent<TransformComponent>(entity)) {
-            GE_LOG_WARN("Entity {} matches PhysicsSystem signature but is missing components. Skipping.", entity.GetIndex());
+            GE_LOG_WARNING("Entity {} matches PhysicsSystem signature but is missing components. Skipping.", entity.GetIndex());
             continue;
         }
 
@@ -40,7 +40,7 @@ void Physics2DSystem::Update(World& world, float ts) {
             bodyDef.position.Set(tc.position.x, tc.position.y);
             bodyDef.angle = tc.rotation.ToEuler().z; 
             bodyDef.fixedRotation = rb.FixedRotation;
-            bodyDef.userData.pointer = (uintptr_t)entity.GetHandle();
+            bodyDef.userData.pointer = (uintptr_t)entity.value;
 
             body = physics_world_->CreateBody(&bodyDef);
             rb.RuntimeBody = body;

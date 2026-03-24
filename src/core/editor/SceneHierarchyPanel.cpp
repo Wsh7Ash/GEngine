@@ -8,6 +8,8 @@
 #include "../ecs/components/TransformComponent.h"
 #include "../ecs/components/Rigidbody2DComponent.h"
 #include "../ecs/components/BoxCollider2DComponent.h"
+#include "../ecs/components/Rigidbody3DComponent.h"
+#include "../ecs/components/Collider3DComponent.h"
 #include "../ecs/components/RelationshipComponent.h"
 #include "../renderer/Renderer2D.h"
 #include "../cmd/CommandHistory.h"
@@ -376,6 +378,14 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
              [&]() { context_->AddComponent(entity, ecs::BoxCollider2DComponent{}); },
              !context_->HasComponent<ecs::BoxCollider2DComponent>(entity));
 
+    showItem("Rigidbody 3D",
+             [&]() { context_->AddComponent(entity, ecs::Rigidbody3DComponent{}); },
+             !context_->HasComponent<ecs::Rigidbody3DComponent>(entity));
+
+    showItem("Collider 3D",
+             [&]() { context_->AddComponent(entity, ecs::Collider3DComponent{}); },
+             !context_->HasComponent<ecs::Collider3DComponent>(entity));
+
     ImGui::EndPopup();
   }
   ImGui::PopItemWidth();
@@ -590,6 +600,49 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
       ImGui::DragFloat("Density", &bc.Density, 0.1f, 0.0f, 10.0f);
       ImGui::DragFloat("Friction", &bc.Friction, 0.1f, 0.0f, 1.0f);
       ImGui::DragFloat("Restitution", &bc.Restitution, 0.1f, 0.0f, 1.0f);
+    });
+  }
+
+  if (context_->HasComponent<ecs::Rigidbody3DComponent>(entity)) {
+    DrawComponentControl<ecs::Rigidbody3DComponent>("Rigidbody 3D", entity, [&]() {
+      auto &rb = context_->GetComponent<ecs::Rigidbody3DComponent>(entity);
+      
+      const char* bodyTypes[] = { "Static", "Kinematic", "Dynamic" };
+      int bodyTypeIndex = (int)rb.MotionType;
+      if (ImGui::Combo("Motion Type", &bodyTypeIndex, bodyTypes, 3)) {
+        rb.MotionType = (ecs::Rigidbody3DMotionType)bodyTypeIndex;
+      }
+
+      ImGui::DragFloat("Mass", &rb.Mass, 0.1f, 0.01f, 1000.0f);
+      ImGui::DragFloat("Linear Damping", &rb.LinearDamping, 0.01f, 0.0f, 1.0f);
+      ImGui::DragFloat("Angular Damping", &rb.AngularDamping, 0.01f, 0.0f, 1.0f);
+      ImGui::Checkbox("Allow Sleeping", &rb.AllowSleeping);
+    });
+  }
+
+  if (context_->HasComponent<ecs::Collider3DComponent>(entity)) {
+    DrawComponentControl<ecs::Collider3DComponent>("Collider 3D", entity, [&]() {
+      auto &cc = context_->GetComponent<ecs::Collider3DComponent>(entity);
+      
+      const char* shapes[] = { "Box", "Sphere", "Capsule" };
+      int shapeIndex = (int)cc.ShapeType;
+      if (ImGui::Combo("Shape Type", &shapeIndex, shapes, 3)) {
+        cc.ShapeType = (ecs::Collider3DShapeType)shapeIndex;
+      }
+
+      if (cc.ShapeType == ecs::Collider3DShapeType::Box) {
+        ImGui::DragFloat3("Half Extents", &cc.BoxHalfExtents.x, 0.1f, 0.01f, 100.0f);
+      } else if (cc.ShapeType == ecs::Collider3DShapeType::Sphere) {
+        ImGui::DragFloat("Radius", &cc.SphereRadius, 0.1f, 0.01f, 100.0f);
+      } else if (cc.ShapeType == ecs::Collider3DShapeType::Capsule) {
+        ImGui::DragFloat("Radius", &cc.CapsuleRadius, 0.1f, 0.01f, 100.0f);
+        ImGui::DragFloat("Half Height", &cc.CapsuleHalfHeight, 0.1f, 0.01f, 100.0f);
+      }
+
+      ImGui::DragFloat3("Offset", &cc.Offset.x, 0.1f);
+      ImGui::Checkbox("Is Trigger", &cc.IsTrigger);
+      ImGui::DragFloat("Friction", &cc.Friction, 0.1f, 0.0f, 1.0f);
+      ImGui::DragFloat("Restitution", &cc.Restitution, 0.1f, 0.0f, 1.0f);
     });
   }
 }

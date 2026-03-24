@@ -7,6 +7,8 @@
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/Rigidbody2DComponent.h"
 #include "../ecs/components/BoxCollider2DComponent.h"
+#include "../ecs/components/Rigidbody3DComponent.h"
+#include "../ecs/components/Collider3DComponent.h"
 #include "../ecs/components/RelationshipComponent.h"
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/ScriptRegistry.h"
@@ -72,8 +74,7 @@ json PrefabSerializer::SerializeEntity(ecs::World& world, ecs::Entity entity) {
     if (world.HasComponent<ecs::MeshComponent>(entity)) {
         auto& mc = world.GetComponent<ecs::MeshComponent>(entity);
         entityJson["Mesh"] = {
-            {"MeshPath", mc.MeshPath},
-            {"ShaderPath", mc.ShaderPath}
+            {"MeshPath", mc.MeshPath}
         };
     }
 
@@ -110,6 +111,37 @@ json PrefabSerializer::SerializeEntity(ecs::World& world, ecs::Entity entity) {
         entityJson["Rigidbody2D"] = {
             {"Type", (int)rb.Type},
             {"FixedRotation", rb.FixedRotation}
+        };
+    }
+    
+    // Serialize Rigidbody3D
+    if (world.HasComponent<ecs::Rigidbody3DComponent>(entity)) {
+        auto& rb = world.GetComponent<ecs::Rigidbody3DComponent>(entity);
+        entityJson["Rigidbody3D"] = {
+            {"MotionType", (int)rb.MotionType},
+            {"Mass", rb.Mass},
+            {"Friction", rb.Friction},
+            {"Restitution", rb.Restitution},
+            {"LinearDamping", rb.LinearDamping},
+            {"AngularDamping", rb.AngularDamping},
+            {"AllowSleeping", rb.AllowSleeping},
+            {"Sensor", rb.Sensor}
+        };
+    }
+    
+    // Serialize Collider3D
+    if (world.HasComponent<ecs::Collider3DComponent>(entity)) {
+        auto& bc = world.GetComponent<ecs::Collider3DComponent>(entity);
+        entityJson["Collider3D"] = {
+            {"ShapeType", (int)bc.ShapeType},
+            {"BoxHalfExtents", {bc.BoxHalfExtents.x, bc.BoxHalfExtents.y, bc.BoxHalfExtents.z}},
+            {"SphereRadius", bc.SphereRadius},
+            {"CapsuleRadius", bc.CapsuleRadius},
+            {"CapsuleHalfHeight", bc.CapsuleHalfHeight},
+            {"Offset", {bc.Offset.x, bc.Offset.y, bc.Offset.z}},
+            {"IsTrigger", bc.IsTrigger},
+            {"Friction", bc.Friction},
+            {"Restitution", bc.Restitution}
         };
     }
 
@@ -166,7 +198,6 @@ ecs::Entity PrefabSerializer::DeserializeEntity(ecs::World& world, const json& d
     if (data.contains("Mesh")) {
         ecs::MeshComponent mc;
         mc.MeshPath = data["Mesh"]["MeshPath"];
-        mc.ShaderPath = data["Mesh"]["ShaderPath"];
         world.AddComponent(entity, std::move(mc));
     }
 
@@ -216,6 +247,35 @@ ecs::Entity PrefabSerializer::DeserializeEntity(ecs::World& world, const json& d
         bc.Friction = data["BoxCollider2D"]["Friction"];
         bc.Restitution = data["BoxCollider2D"]["Restitution"];
         bc.RestitutionThreshold = data["BoxCollider2D"]["RestitutionThreshold"];
+        world.AddComponent(entity, std::move(bc));
+    }
+
+    // Deserialize Rigidbody3D
+    if (data.contains("Rigidbody3D")) {
+        ecs::Rigidbody3DComponent rb;
+        rb.MotionType = (ecs::Rigidbody3DMotionType)data["Rigidbody3D"]["MotionType"];
+        rb.Mass = data["Rigidbody3D"]["Mass"];
+        rb.Friction = data["Rigidbody3D"]["Friction"];
+        rb.Restitution = data["Rigidbody3D"]["Restitution"];
+        rb.LinearDamping = data["Rigidbody3D"]["LinearDamping"];
+        rb.AngularDamping = data["Rigidbody3D"]["AngularDamping"];
+        rb.AllowSleeping = data["Rigidbody3D"]["AllowSleeping"];
+        rb.Sensor = data["Rigidbody3D"]["Sensor"];
+        world.AddComponent(entity, std::move(rb));
+    }
+
+    // Deserialize Collider3D
+    if (data.contains("Collider3D")) {
+        ecs::Collider3DComponent bc;
+        bc.ShapeType = (ecs::Collider3DShapeType)data["Collider3D"]["ShapeType"];
+        bc.BoxHalfExtents = {data["Collider3D"]["BoxHalfExtents"][0], data["Collider3D"]["BoxHalfExtents"][1], data["Collider3D"]["BoxHalfExtents"][2]};
+        bc.SphereRadius = data["Collider3D"]["SphereRadius"];
+        bc.CapsuleRadius = data["Collider3D"]["CapsuleRadius"];
+        bc.CapsuleHalfHeight = data["Collider3D"]["CapsuleHalfHeight"];
+        bc.Offset = {data["Collider3D"]["Offset"][0], data["Collider3D"]["Offset"][1], data["Collider3D"]["Offset"][2]};
+        bc.IsTrigger = data["Collider3D"]["IsTrigger"];
+        bc.Friction = data["Collider3D"]["Friction"];
+        bc.Restitution = data["Collider3D"]["Restitution"];
         world.AddComponent(entity, std::move(bc));
     }
 

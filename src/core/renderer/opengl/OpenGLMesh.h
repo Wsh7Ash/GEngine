@@ -23,9 +23,14 @@ namespace renderer {
         virtual void SetIndices(const uint32_t* indices, uint32_t count) override;
         virtual void SetIndexCount(uint32_t count) override { indexCount_ = count; }
 
+        virtual const std::vector<Vertex>& GetVertices() const override { return vertices_; }
+        virtual const std::vector<uint32_t>& GetIndices() const override { return indices_; }
+
     private:
         uint32_t vao_, vbo_, ebo_;
         uint32_t indexCount_;
+        std::vector<Vertex> vertices_;
+        std::vector<uint32_t> indices_;
     };
 
 } // namespace renderer

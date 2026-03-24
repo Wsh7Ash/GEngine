@@ -28,7 +28,20 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
     GIT_TAG        master
 )
-FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio)
+
+set(JOLT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(JOLT_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(JOLT_USE_STATIC_CRT OFF CACHE BOOL "" FORCE)
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    jolt
+    GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+    GIT_TAG        v5.0.0
+    SOURCE_SUBDIR  Build
+)
+FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio jolt)
 
 # Options
 option(GE_STANDALONE "Build in standalone game mode (No Editor)" OFF)
@@ -43,13 +56,7 @@ project(GameEngine
     DESCRIPTION "GEngine — Phase 1 Foundation Layer"
 )
 
-# Post-build: Copy assets
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CMAKE_SOURCE_DIR}/assets"
-    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
-    COMMENT "Copying assets to output directory..."
-)
+
 
 # ── C++ standard ────────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 20)
@@ -122,10 +129,13 @@ set(GE_CORE_HEADERS
     src/core/ecs/components/IDComponent.h
     src/core/ecs/components/Rigidbody2DComponent.h
     src/core/ecs/components/BoxCollider2DComponent.h
+    src/core/ecs/components/Rigidbody3DComponent.h
+    src/core/ecs/components/Collider3DComponent.h
     src/core/ecs/ScriptableEntity.h
     src/core/ecs/systems/RenderSystem.h
     src/core/ecs/systems/ScriptSystem.h
     src/core/ecs/systems/Physics2DSystem.h
+    src/core/ecs/systems/Physics3DSystem.h
     src/core/ecs/systems/PostProcessSystem.h
     src/core/ecs/systems/AnimationSystem.h
     src/core/ecs/components/PostProcessComponent.h
@@ -197,6 +207,7 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/ScriptSystem.cpp
     src/core/ecs/ScriptRegistry.cpp
     src/core/ecs/systems/Physics2DSystem.cpp
+    src/core/ecs/systems/Physics3DSystem.cpp
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp
     src/core/ecs/systems/UISystem.cpp
@@ -224,7 +235,7 @@ set(GE_CORE_SOURCES
 )
 
 add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
-target_link_libraries(ge_core PUBLIC box2d)
+target_link_libraries(ge_core PUBLIC box2d Jolt)
 
 target_include_directories(ge_core
     PUBLIC
@@ -237,6 +248,7 @@ target_include_directories(ge_core
         ${imguizmo_SOURCE_DIR}
         ${json_SOURCE_DIR}/include
         ${miniaudio_SOURCE_DIR}
+        ${jolt_SOURCE_DIR}
 )
 
 # Platform-specific linking
@@ -254,7 +266,15 @@ endif()
 # ================================================================
 
 add_executable(GameEngine main.cpp)
-target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d)
+target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt)
+
+# Post-build: Copy assets
+add_custom_command(TARGET GameEngine POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/assets"
+    "$<TARGET_FILE_DIR:GameEngine>/assets"
+    COMMENT "Copying assets to output directory..."
+)
 
 
 # ================================================================

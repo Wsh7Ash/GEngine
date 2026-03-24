@@ -42,6 +42,9 @@ public:
   virtual void SetData(const void *vertices, uint32_t size) = 0;
   virtual void SetIndices(const uint32_t *indices, uint32_t count) = 0;
 
+  virtual const std::vector<Vertex>& GetVertices() const = 0;
+  virtual const std::vector<uint32_t>& GetIndices() const = 0;
+
   /**
    * @brief Factory method to create a mesh of the current API type.
    */

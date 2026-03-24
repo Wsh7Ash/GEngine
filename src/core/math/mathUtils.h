@@ -59,9 +59,9 @@ struct Constants
     /// For most algorithms you'll want to tune this per-use-case.
     static constexpr T EPSILON      = static_cast<T>(1e-6);
     /// The smallest positive value representable by T
-    static constexpr T MIN_VALUE    = std::numeric_limits<T>::min();
+    static constexpr T MIN_VALUE    = (std::numeric_limits<T>::min)();
     /// The largest finite value representable by T
-    static constexpr T MAX_VALUE    = std::numeric_limits<T>::max();
+    static constexpr T MAX_VALUE    = (std::numeric_limits<T>::max)();
     /// Positive infinity
     static constexpr T INFINITY_VAL = std::numeric_limits<T>::infinity();
 };

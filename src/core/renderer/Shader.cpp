@@ -6,6 +6,17 @@
 namespace ge {
 namespace renderer {
 
+    std::shared_ptr<Shader> Shader::Create(const std::string& filepath)
+    {
+        switch (RendererAPI::GetAPI())
+        {
+            case RenderAPI::None:    return nullptr;
+            case RenderAPI::OpenGL:  return std::make_shared<OpenGLShader>(filepath);
+            case RenderAPI::DX11:    return nullptr; // TODO
+        }
+        return nullptr;
+    }
+
     std::shared_ptr<Shader> Shader::Create(const std::string& vertexPath, const std::string& fragmentPath)
     {
         switch (RendererAPI::GetAPI())

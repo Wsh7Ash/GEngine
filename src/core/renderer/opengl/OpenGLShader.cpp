@@ -7,11 +7,40 @@
 namespace ge {
 namespace renderer {
 
+    OpenGLShader::OpenGLShader(const std::string& filepath)
+    {
+        std::string source = ReadFile(filepath);
+        auto shaderSources = PreProcess(source);
+        rendererID_ = CreateProgram(shaderSources[GL_VERTEX_SHADER], shaderSources[GL_FRAGMENT_SHADER]);
+    }
+
     OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fragmentPath)
     {
         std::string vertexSource = ReadFile(vertexPath);
         std::string fragmentSource = ReadFile(fragmentPath);
         rendererID_ = CreateProgram(vertexSource, fragmentSource);
+    }
+
+    std::unordered_map<unsigned int, std::string> OpenGLShader::PreProcess(const std::string& source)
+    {
+        std::unordered_map<unsigned int, std::string> shaderSources;
+        const char* typeToken = "#type";
+        size_t typeTokenLength = strlen(typeToken);
+        size_t pos = source.find(typeToken, 0);
+        while (pos != std::string::npos)
+        {
+            size_t eol = source.find_first_of("\r\n", pos);
+            size_t begin = pos + typeTokenLength + 1;
+            std::string type = source.substr(begin, eol - begin);
+            unsigned int shaderType = 0;
+            if (type == "vertex") shaderType = GL_VERTEX_SHADER;
+            else if (type == "fragment" || type == "pixel") shaderType = GL_FRAGMENT_SHADER;
+            
+            size_t nextLinePos = source.find_first_not_of("\r\n", eol);
+            pos = source.find(typeToken, nextLinePos);
+            shaderSources[shaderType] = (pos == std::string::npos) ? source.substr(nextLinePos) : source.substr(nextLinePos, pos - nextLinePos);
+        }
+        return shaderSources;
     }
 
     OpenGLShader::~OpenGLShader()
