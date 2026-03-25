@@ -18,6 +18,7 @@ out/
 # Temporary files
 *.tmp
 *.log
+*.tlog
 *.bak
 
 # OS files
