@@ -10,6 +10,7 @@ uniform mat4 u_LightSpaceMatrix;
 uniform vec3 u_LightPos;
 uniform vec3 u_CameraPos;
 uniform float u_Scattering = 0.5;
+uniform float u_Intensity = 1.0;
 uniform int u_Samples = 32;
 
 void main()
@@ -46,5 +47,5 @@ void main()
     }
 
     volumetricVisibility /= float(u_Samples);
-    FragColor = vec4(vec3(volumetricVisibility * u_Scattering), 1.0);
+    FragColor = vec4(vec3(volumetricVisibility * u_Scattering * u_Intensity), 1.0);
 }

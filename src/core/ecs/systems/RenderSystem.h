@@ -23,10 +23,12 @@ struct PostProcessingSettings {
     bool EnableSSAO = true;
     float SSAORadius = 0.5f;
     float SSAOBias = 0.025f;
+    float SSAOIntensity = 1.0f;
     int SSAOKernelSize = 64;
 
     bool EnableVolumetric = true;
     float VolumetricScattering = 0.5f;
+    float VolumetricIntensity = 1.0f;
     int VolumetricSamples = 32;
 
     bool EnableTAA = true;

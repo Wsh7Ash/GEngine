@@ -349,19 +349,21 @@ void EditorToolbar::OnImGuiRender() {
   // 4. Post-Processing Settings Panel
   if (s_ShowPostProcessingPanel && s_ActiveWorld) {
       auto renderSystem = s_ActiveWorld->GetSystem<ecs::RenderSystem>();
-      if (renderSystem) {
-          auto& settings = renderSystem->GetSettings();
-          ImGui::Begin("Post-Processing", &s_ShowPostProcessingPanel);
-          
-          if (ImGui::CollapsingHeader("SSAO", ImGuiTreeNodeFlags_DefaultOpen)) {
-              ImGui::Checkbox("Enabled##SSAO", &settings.EnableSSAO);
-              ImGui::SliderFloat("Radius", &settings.SSAORadius, 0.0f, 2.0f);
-              ImGui::SliderFloat("Bias", &settings.SSAOBias, 0.0f, 0.1f);
-              ImGui::SliderInt("Samples", &settings.SSAOKernelSize, 1, 128);
-          }
+          if (renderSystem) {
+              auto& settings = renderSystem->GetSettings();
+              ImGui::Begin("Post-Processing", &s_ShowPostProcessingPanel);
+              
+              if (ImGui::CollapsingHeader("SSAO", ImGuiTreeNodeFlags_DefaultOpen)) {
+                  ImGui::Checkbox("Enabled##SSAO", &settings.EnableSSAO);
+                  ImGui::SliderFloat("Intensity##SSAO", &settings.SSAOIntensity, 0.0f, 10.0f);
+                  ImGui::SliderFloat("Radius", &settings.SSAORadius, 0.0f, 2.0f);
+                  ImGui::SliderFloat("Bias", &settings.SSAOBias, 0.0f, 0.1f);
+                  ImGui::SliderInt("Samples", &settings.SSAOKernelSize, 1, 128);
+              }
 
           if (ImGui::CollapsingHeader("Volumetric Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
               ImGui::Checkbox("Enabled##Vol", &settings.EnableVolumetric);
+              ImGui::SliderFloat("Intensity##Vol", &settings.VolumetricIntensity, 0.0f, 10.0f);
               ImGui::SliderFloat("Scattering", &settings.VolumetricScattering, 0.0f, 1.0f);
               ImGui::SliderInt("Samples##Vol", &settings.VolumetricSamples, 8, 128);
           }

@@ -705,6 +705,7 @@ namespace ecs {
 
         // Pass Volumetric Settings
         volumetricShader_->SetFloat("u_Scattering", settings_.VolumetricScattering);
+        volumetricShader_->SetFloat("u_Intensity", settings_.VolumetricIntensity);
         volumetricShader_->SetInt("u_Samples", settings_.VolumetricSamples);
     }
 
@@ -780,6 +781,7 @@ namespace ecs {
     ssaoShader_->SetInt("kernelSize", settings_.SSAOKernelSize);
     ssaoShader_->SetFloat("radius", settings_.SSAORadius);
     ssaoShader_->SetFloat("bias", settings_.SSAOBias);
+    ssaoShader_->SetFloat("intensity", settings_.SSAOIntensity);
     
     RenderQuad();
     ssaoFBO_->Unbind();

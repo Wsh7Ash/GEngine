@@ -14,6 +14,7 @@ uniform mat4 projection;
 uniform int kernelSize = 64;
 uniform float radius = 0.5;
 uniform float bias = 0.025;
+uniform float intensity = 1.0;
 
 // Tile noise over screen
 const vec2 noiseScale = vec2(1280.0/4.0, 720.0/4.0); 
@@ -52,6 +53,5 @@ void main()
         occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;           
     }
     occlusion = 1.0 - (occlusion / kernelSize);
-    
-    FragColor = occlusion;
+    FragColor = mix(1.0, occlusion, intensity);
 }
