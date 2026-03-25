@@ -8,6 +8,7 @@
 #include "../cmd/CommandHistory.h"
 #include "../editor/VSCodeUtility.h"
 #include "../ecs/components/SpriteComponent.h"
+#include "../ecs/systems/RenderSystem.h"
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -28,6 +29,7 @@ std::shared_ptr<ViewportPanel> EditorToolbar::s_GameViewportPanel = nullptr;
 std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel =
     nullptr;
 std::shared_ptr<ConsolePanel> EditorToolbar::s_ConsolePanel = nullptr;
+static bool s_ShowPostProcessingPanel = true;
 SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
 static std::filesystem::path FindProjectRoot() {
@@ -222,6 +224,9 @@ void EditorToolbar::OnImGuiRender() {
     if (ImGui::BeginMenu("Tools")) {
       if (ImGui::MenuItem("Toggle Stats")) { /* Toggle logic */
       }
+      if (ImGui::MenuItem("Post-Processing Settings", nullptr, s_ShowPostProcessingPanel)) {
+          s_ShowPostProcessingPanel = !s_ShowPostProcessingPanel;
+      }
       ImGui::EndMenu();
     }
     ImGui::EndMenuBar();
@@ -340,6 +345,34 @@ void EditorToolbar::OnImGuiRender() {
 
   if (s_ConsolePanel)
     s_ConsolePanel->OnImGuiRender();
+
+  // 4. Post-Processing Settings Panel
+  if (s_ShowPostProcessingPanel && s_ActiveWorld) {
+      auto renderSystem = s_ActiveWorld->GetSystem<ecs::RenderSystem>();
+      if (renderSystem) {
+          auto& settings = renderSystem->GetSettings();
+          ImGui::Begin("Post-Processing", &s_ShowPostProcessingPanel);
+          
+          if (ImGui::CollapsingHeader("SSAO", ImGuiTreeNodeFlags_DefaultOpen)) {
+              ImGui::Checkbox("Enabled##SSAO", &settings.EnableSSAO);
+              ImGui::SliderFloat("Radius", &settings.SSAORadius, 0.0f, 2.0f);
+              ImGui::SliderFloat("Bias", &settings.SSAOBias, 0.0f, 0.1f);
+              ImGui::SliderInt("Samples", &settings.SSAOKernelSize, 1, 128);
+          }
+
+          if (ImGui::CollapsingHeader("Volumetric Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
+              ImGui::Checkbox("Enabled##Vol", &settings.EnableVolumetric);
+              ImGui::SliderFloat("Scattering", &settings.VolumetricScattering, 0.0f, 1.0f);
+              ImGui::SliderInt("Samples##Vol", &settings.VolumetricSamples, 8, 128);
+          }
+
+          if (ImGui::CollapsingHeader("Anti-Aliasing", ImGuiTreeNodeFlags_DefaultOpen)) {
+              ImGui::Checkbox("Temporal AA (TAA)", &settings.EnableTAA);
+          }
+
+          ImGui::End();
+      }
+  }
 
   ImGui::End(); // End DockSpace Window
 }

@@ -19,6 +19,19 @@ namespace renderer {
     class Framebuffer;
 }
 
+struct PostProcessingSettings {
+    bool EnableSSAO = true;
+    float SSAORadius = 0.5f;
+    float SSAOBias = 0.025f;
+    int SSAOKernelSize = 64;
+
+    bool EnableVolumetric = true;
+    float VolumetricScattering = 0.5f;
+    int VolumetricSamples = 32;
+
+    bool EnableTAA = true;
+};
+
 namespace ecs {
 
 /**
@@ -40,6 +53,8 @@ public:
   Set3DCamera(const std::shared_ptr<renderer::PerspectiveCamera> &camera) {
     camera3D_ = camera;
   }
+
+  PostProcessingSettings& GetSettings() { return settings_; }
 
 private:
   std::shared_ptr<renderer::OrthographicCamera> camera2D_;
@@ -74,6 +89,8 @@ private:
   Math::Vec2f jitter_ = {0, 0};
   std::shared_ptr<renderer::Shader> taaShader_;
   std::shared_ptr<renderer::Framebuffer> prevFrameFBO_, resolveFBO_;
+
+  PostProcessingSettings settings_;
 };
 
 } // namespace ecs

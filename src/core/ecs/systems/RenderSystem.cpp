@@ -313,7 +313,9 @@ namespace ecs {
     }
 
     // 5. SSAO Pass
-    ExecuteSSAOPass(world);
+    if (settings_.EnableSSAO) {
+        ExecuteSSAOPass(world);
+    }
 
     // Re-bind Intermediate A for 3D PBR passes (SSAO pass unbinds it usually)
     if (intermediateA_) {
@@ -380,9 +382,13 @@ namespace ecs {
             }
 
             // Bind SSAO texture (Slot 5)
-            glActiveTexture(GL_TEXTURE5);
-            glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
-            shader->SetInt("u_SSAO", 5);
+            if (settings_.EnableSSAO) {
+                glActiveTexture(GL_TEXTURE5);
+                glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
+                shader->SetInt("u_SSAO", 5);
+            } else {
+                shader->SetInt("u_SSAO", -1); // Or handle in shader
+            }
 
             if (primaryLight != ecs::INVALID_ENTITY) {
                 shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
@@ -540,9 +546,11 @@ namespace ecs {
 
     // Post-Process Initialization moved to the top of Render function.
     
-    // --- 8. Resolve and Post-Processing ---
+    // 8. Resolve and Post-Processing ---
     // Volumetric Pass
-    ExecuteVolumetricPass(world);
+    if (settings_.EnableVolumetric) {
+        ExecuteVolumetricPass(world);
+    }
     
     if (camera3D_ && postProcessingStack_) {
         // TAA and Final Blit
@@ -568,10 +576,13 @@ namespace ecs {
         taaShader_->SetInt("u_HistoryColor", 1);
         taaShader_->SetInt("u_VelocityBlock", 2);
         
-        // Additive composition of volumetric lighting could happen here or separately
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, volumetricFBO_->GetColorAttachmentRendererID(0));
-        taaShader_->SetInt("u_Volumetric", 3);
+        if (settings_.EnableVolumetric) {
+            glActiveTexture(GL_TEXTURE3);
+            glBindTexture(GL_TEXTURE_2D, volumetricFBO_->GetColorAttachmentRendererID(0));
+            taaShader_->SetInt("u_Volumetric", 3);
+        } else {
+            taaShader_->SetInt("u_Volumetric", -1);
+        }
         
         RenderQuad();
         resolveFBO_->Unbind();
@@ -689,7 +700,12 @@ namespace ecs {
         // Use the same light space matrix as shadows
         Math::Mat4f lightProjection = Math::Mat4f::Orthographic(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.0f);
         Math::Mat4f lightView = lt.rotation.ToMat4x4().Inverse() * Math::Mat4f::Translate(-lt.position);
-        volumetricShader_->SetMat4("u_LightSpaceMatrix", lightProjection * lightView);
+        Math::Mat4f res = lightProjection * lightView;
+        volumetricShader_->SetMat4("u_LightSpaceMatrix", res);
+
+        // Pass Volumetric Settings
+        volumetricShader_->SetFloat("u_Scattering", settings_.VolumetricScattering);
+        volumetricShader_->SetInt("u_Samples", settings_.VolumetricSamples);
     }
 
     volumetricShader_->SetVec3("u_CameraPos", camera3D_->GetPosition());
@@ -760,6 +776,10 @@ namespace ecs {
     for (unsigned int i = 0; i < 64; ++i) {
         ssaoShader_->SetVec3("samples[" + std::to_string(i) + "]", ssaoKernel_[i]);
     }
+    
+    ssaoShader_->SetInt("kernelSize", settings_.SSAOKernelSize);
+    ssaoShader_->SetFloat("radius", settings_.SSAORadius);
+    ssaoShader_->SetFloat("bias", settings_.SSAOBias);
     
     RenderQuad();
     ssaoFBO_->Unbind();

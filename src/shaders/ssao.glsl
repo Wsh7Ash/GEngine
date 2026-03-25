@@ -11,9 +11,9 @@ uniform vec3 samples[64];
 uniform mat4 projection;
 
 // Parameters
-int kernelSize = 64;
-float radius = 0.5;
-float bias = 0.025;
+uniform int kernelSize = 64;
+uniform float radius = 0.5;
+uniform float bias = 0.025;
 
 // Tile noise over screen
 const vec2 noiseScale = vec2(1280.0/4.0, 720.0/4.0); 
