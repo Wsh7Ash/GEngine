@@ -17,6 +17,10 @@ struct TransformComponent
     Math::Vec3f position = Math::Vec3f(0.0f, 0.0f, 0.0f);
     Math::Quatf  rotation = Math::Quatf::Identity();
     Math::Vec3f scale    = Math::Vec3f(1.0f, 1.0f, 1.0f);
+
+    Math::Mat4f GetTransform() const {
+        return Math::Mat4f::TRS(position, rotation.ToMat4x4(), scale);
+    }
 };
 
 } // namespace ecs

@@ -44,32 +44,9 @@ public:
     return std::static_pointer_cast<T>(it->second);
   }
 
-  void EntityDestroyed(Entity entity) {
-    for (auto const &pair : systems_) {
-      auto const &system = pair.second;
-      if (system)
-        system->entities.erase(entity);
-    }
-  }
+  void EntityDestroyed(Entity entity);
 
-  void EntitySignatureChanged(Entity entity, Signature entitySignature) {
-    for (auto const &pair : systems_) {
-      auto const &type = pair.first;
-      auto const &system = pair.second;
-      if (!system)
-        continue;
-      auto const &systemSignature = signatures_[type];
-
-      // If entity signature matches system signature, keep/insert it
-      if ((entitySignature & systemSignature) == systemSignature) {
-        system->entities.insert(entity);
-      }
-      // Otherwise, remove it
-      else {
-        system->entities.erase(entity);
-      }
-    }
-  }
+  void EntitySignatureChanged(Entity entity, Signature entitySignature);
 
 private:
   std::unordered_map<std::type_index, Signature> signatures_{};

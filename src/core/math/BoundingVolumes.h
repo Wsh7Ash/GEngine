@@ -18,12 +18,12 @@ namespace Math {
         AABB(const Vec3f& min, const Vec3f& max) : Min(min), Max(max) {}
 
         void Expand(const Vec3f& point) {
-            Min.x = std::min(Min.x, point.x);
-            Min.y = std::min(Min.y, point.y);
-            Min.z = std::min(Min.z, point.z);
-            Max.x = std::max(Max.x, point.x);
-            Max.y = std::max(Max.y, point.y);
-            Max.z = std::max(Max.z, point.z);
+            Min.x = (std::min)(Min.x, point.x);
+            Min.y = (std::min)(Min.y, point.y);
+            Min.z = (std::min)(Min.z, point.z);
+            Max.x = (std::max)(Max.x, point.x);
+            Max.y = (std::max)(Max.y, point.y);
+            Max.z = (std::max)(Max.z, point.z);
         }
 
         AABB Transform(const Mat4f& transform) const {

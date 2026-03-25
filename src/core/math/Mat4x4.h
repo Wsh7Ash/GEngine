@@ -350,6 +350,55 @@ struct alignas(16) Mat4x4
     }
 
     // ============================================================
+    //  Matrix Operations
+    // ============================================================
+
+    [[nodiscard]] Mat4x4 Inverse() const noexcept
+    {
+        T s0 = cols[0][0] * cols[1][1] - cols[1][0] * cols[0][1];
+        T s1 = cols[0][0] * cols[1][2] - cols[1][0] * cols[0][2];
+        T s2 = cols[0][0] * cols[1][3] - cols[1][0] * cols[0][3];
+        T s3 = cols[0][1] * cols[1][2] - cols[1][1] * cols[0][2];
+        T s4 = cols[0][1] * cols[1][3] - cols[1][1] * cols[0][3];
+        T s5 = cols[0][2] * cols[1][3] - cols[1][2] * cols[0][3];
+
+        T c5 = cols[2][2] * cols[3][3] - cols[3][2] * cols[2][3];
+        T c4 = cols[2][1] * cols[3][3] - cols[3][1] * cols[2][3];
+        T c3 = cols[2][1] * cols[3][2] - cols[3][1] * cols[2][2];
+        T c2 = cols[2][0] * cols[3][3] - cols[3][0] * cols[2][3];
+        T c1 = cols[2][0] * cols[3][2] - cols[3][0] * cols[2][2];
+        T c0 = cols[2][0] * cols[3][1] - cols[3][0] * cols[2][1];
+
+        T det = s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0;
+        if (Math::Abs(det) <= Constants<T>::EPSILON) return Identity();
+
+        T invDet = T{1} / det;
+        Mat4x4 res;
+
+        res.cols[0][0] = (cols[1][1] * c5 - cols[1][2] * c4 + cols[1][3] * c3) * invDet;
+        res.cols[0][1] = (-cols[0][1] * c5 + cols[0][2] * c4 - cols[0][3] * c3) * invDet;
+        res.cols[0][2] = (cols[3][1] * s5 - cols[3][2] * s4 + cols[3][3] * s3) * invDet;
+        res.cols[0][3] = (-cols[2][1] * s5 + cols[2][2] * s4 - cols[2][3] * s3) * invDet;
+
+        res.cols[1][0] = (-cols[1][0] * c5 + cols[1][2] * c2 - cols[1][3] * c1) * invDet;
+        res.cols[1][1] = (cols[0][0] * c5 - cols[0][2] * c2 + cols[0][3] * c1) * invDet;
+        res.cols[1][2] = (-cols[3][0] * s5 + cols[3][2] * s2 - cols[3][3] * s1) * invDet;
+        res.cols[1][3] = (cols[2][0] * s5 - cols[2][2] * s2 + cols[2][3] * s1) * invDet;
+
+        res.cols[2][0] = (cols[1][0] * c4 - cols[1][1] * c2 + cols[1][3] * c0) * invDet;
+        res.cols[2][1] = (-cols[0][0] * c4 + cols[0][1] * c2 - cols[0][3] * c0) * invDet;
+        res.cols[2][2] = (cols[3][0] * s4 - cols[3][1] * s2 + cols[3][3] * s0) * invDet;
+        res.cols[2][3] = (-cols[2][0] * s4 + cols[2][1] * s2 - cols[2][3] * s0) * invDet;
+
+        res.cols[3][0] = (-cols[1][0] * c3 + cols[1][1] * c1 - cols[1][2] * c0) * invDet;
+        res.cols[3][1] = (cols[0][0] * c3 - cols[0][1] * c1 + cols[0][2] * c0) * invDet;
+        res.cols[3][2] = (-cols[3][0] * s3 + cols[3][1] * s1 - cols[3][2] * s0) * invDet;
+        res.cols[3][3] = (cols[2][0] * s3 - cols[2][1] * s1 + cols[2][2] * s0) * invDet;
+
+        return res;
+    }
+
+    // ============================================================
     //  Factory methods
     // ============================================================
 
@@ -397,6 +446,13 @@ struct alignas(16) Mat4x4
     [[nodiscard]] static constexpr Mat4x4 Scale(const Vec3<T>& s) noexcept
     {
         return Scale(s.x, s.y, s.z);
+    }
+
+    /// TRS (Translate-Rotate-Scale) combined matrix.
+    /// Rotation should be provided as a Mat4x4 (e.g. from a quaternion).
+    [[nodiscard]] static constexpr Mat4x4 TRS(const Vec3<T>& t, const Mat4x4& r, const Vec3<T>& s) noexcept
+    {
+        return Translation(t) * r * Scale(s);
     }
 
 

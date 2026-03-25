@@ -17,7 +17,22 @@
 #include <tuple>
 #include <vector>
 #include <unordered_map>
+#include <algorithm>
 #include "components/IDComponent.h"
+
+namespace ge {
+namespace ecs {
+    struct TransformComponent;
+    struct MeshComponent;
+    struct ModelComponent;
+    struct LightComponent;
+    struct PostProcessComponent;
+    struct TagComponent;
+    struct SpriteComponent;
+    struct AnimatorComponent;
+    struct SkyboxComponent;
+}
+}
 #include "components/RelationshipComponent.h"
 
 namespace ge {
@@ -37,125 +52,15 @@ public:
 
   // ── Entity management ───────────────────────────────────────
 
-  [[nodiscard]] Entity CreateEntity() {
-    Entity e = entityManager_.CreateEntity();
-    allEntities_.push_back(e);
-    isDirty_ = true;
-    
-    UUID uuid;
-    AddComponent<IDComponent>(e, IDComponent{uuid});
-    entityByUUID_[uuid] = e;
-    
-    return e;
-  }
+  [[nodiscard]] Entity CreateEntity();
 
-  [[nodiscard]] Entity CreateEntityWithUUID(UUID uuid) {
-    Entity e = entityManager_.CreateEntity();
-    allEntities_.push_back(e);
-    isDirty_ = true;
-    
-    AddComponent<IDComponent>(e, IDComponent{uuid});
-    entityByUUID_[uuid] = e;
-    
-    return e;
-  }
+  [[nodiscard]] Entity CreateEntityWithUUID(UUID uuid);
 
-  void DestroyEntity(Entity e) {
-    if (!IsAlive(e)) return;
+  void DestroyEntity(Entity e);
 
-    if (HasComponent<IDComponent>(e)) {
-      entityByUUID_.erase(GetComponent<IDComponent>(e).ID);
-    }
+  void SetParent(Entity child, Entity parent);
 
-    // Recursively destroy children
-    if (HasComponent<RelationshipComponent>(e)) {
-      auto &rc = GetComponent<RelationshipComponent>(e);
-      // Make a copy since the Children vector will be modified as children are destroyed
-      auto children = rc.Children;
-      for (auto child : children) {
-        DestroyEntity(child);
-      }
-    }
-
-    // Remove from parent if exists
-    if (HasComponent<RelationshipComponent>(e)) {
-      Entity parent = GetComponent<RelationshipComponent>(e).Parent;
-      if (parent != INVALID_ENTITY && HasComponent<RelationshipComponent>(parent)) {
-        auto &parentRc = GetComponent<RelationshipComponent>(parent);
-        auto &children = parentRc.Children;
-        children.erase(std::remove(children.begin(), children.end(), e), children.end());
-      }
-    }
-
-    auto it = std::find(allEntities_.begin(), allEntities_.end(), e);
-    if (it != allEntities_.end()) {
-      *it = allEntities_.back();
-      allEntities_.pop_back();
-    }
-
-    entityManager_.DestroyEntity(e);
-
-    // Notify all component storages
-    for (auto &storage : componentArrays_) {
-      if (storage) {
-        storage->EntityDestroyed(e);
-      }
-    }
-
-    // Reset signature and notify systems
-    entitySignatures_[e.GetIndex()].reset();
-    isDirty_ = true;
-    systemManager_->EntityDestroyed(e);
-  }
-
-  void SetParent(Entity child, Entity parent) {
-    if (child == parent || child == INVALID_ENTITY) return;
-
-    // Ensure RelationshipComponent exists on child
-    if (!HasComponent<RelationshipComponent>(child)) {
-      AddComponent<RelationshipComponent>(child, RelationshipComponent{});
-    }
-
-    auto &childRc = GetComponent<RelationshipComponent>(child);
-    
-    // Remove from old parent
-    if (childRc.Parent != INVALID_ENTITY && HasComponent<RelationshipComponent>(childRc.Parent)) {
-      auto &oldParentRc = GetComponent<RelationshipComponent>(childRc.Parent);
-      auto &children = oldParentRc.Children;
-      children.erase(std::remove(children.begin(), children.end(), child), children.end());
-    }
-
-    childRc.Parent = parent;
-
-    // Add to new parent
-    if (parent != INVALID_ENTITY) {
-      if (!HasComponent<RelationshipComponent>(parent)) {
-        AddComponent<RelationshipComponent>(parent, RelationshipComponent{});
-      }
-      auto &parentRc = GetComponent<RelationshipComponent>(parent);
-      parentRc.Children.push_back(child);
-    }
-    
-    isDirty_ = true;
-  }
-
-  void Clear() {
-    // Destroy only root entities (RelationshipComponent::Parent == INVALID)
-    // or entities without RelationshipComponent. DestroyEntity will recursively clean up children.
-    auto alive = allEntities_;
-    for (auto &e : alive) {
-      if (IsAlive(e)) {
-        bool isRoot = true;
-        if (HasComponent<RelationshipComponent>(e)) {
-          isRoot = (GetComponent<RelationshipComponent>(e).Parent == INVALID_ENTITY);
-        }
-        
-        if (isRoot) {
-          DestroyEntity(e);
-        }
-      }
-    }
-  }
+  void Clear();
 
   [[nodiscard]] bool IsAlive(Entity e) const noexcept {
     return entityManager_.IsAlive(e);
@@ -198,6 +103,27 @@ public:
   template <typename T> [[nodiscard]] T &GetComponent(Entity e) {
     return GetComponentArray<T>()->GetData(e);
   }
+
+  // Helper accessors to avoid template specialization issues in some translation units
+  TransformComponent& GetTransform(Entity e);
+  MeshComponent& GetMesh(Entity e);
+  ModelComponent& GetModel(Entity e);
+  LightComponent& GetLight(Entity e);
+  PostProcessComponent& GetPostProcess(Entity e);
+  TagComponent& GetTag(Entity e);
+  SpriteComponent& GetSprite(Entity e);
+  AnimatorComponent& GetAnimator(Entity e);
+  SkyboxComponent& GetSkybox(Entity e);
+  RelationshipComponent& GetRelationship(Entity e);
+  IDComponent& GetID(Entity e);
+
+  bool HasAnimator(Entity e) const;
+  bool HasMesh(Entity e) const;
+  bool HasModel(Entity e) const;
+  bool HasLight(Entity e) const;
+  bool HasSprite(Entity e) const;
+  bool HasSkybox(Entity e) const;
+  bool HasRelationship(Entity e) const;
 
   template <typename T> [[nodiscard]] bool HasComponent(Entity e) const {
     const auto id = GetComponentTypeID<T>();

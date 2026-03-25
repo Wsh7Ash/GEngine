@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cassert>
 #include <limits>
+#include <functional>
 
 namespace ge {
 namespace containers
@@ -27,7 +28,7 @@ namespace containers
 template <typename T>
 struct Handle
 {
-    static constexpr std::uint64_t INVALID = std::numeric_limits<std::uint64_t>::max();
+    static constexpr std::uint64_t INVALID = (std::numeric_limits<std::uint64_t>::max)();
 
     std::uint64_t value = INVALID;
 
@@ -162,3 +163,12 @@ private:
 
 } // namespace containers
 } // namespace ge
+
+namespace std {
+    template <typename T>
+    struct hash<ge::containers::Handle<T>> {
+        std::size_t operator()(const ge::containers::Handle<T>& handle) const noexcept {
+            return std::hash<std::uint64_t>{}(handle.value);
+        }
+    };
+} 

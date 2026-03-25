@@ -6,7 +6,7 @@
 namespace ge {
 namespace renderer {
 
-    std::shared_ptr<Texture> Texture::Create(const std::string& path)
+    std::shared_ptr<Texture> Texture::Create(const std::string& path, bool hdr)
     {
         switch (RendererAPI::GetAPI())
         {
@@ -18,7 +18,7 @@ namespace renderer {
         return nullptr;
     }
 
-    std::shared_ptr<Texture> Texture::Create(uint32_t width, uint32_t height, void* data, uint32_t size)
+    std::shared_ptr<Texture> Texture::Create(uint32_t width, uint32_t height, void* data, uint32_t size, bool hdr)
     {
         switch (RendererAPI::GetAPI())
         {

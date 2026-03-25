@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"F:/prjs/GameEngine/build_new/_deps/imgui-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

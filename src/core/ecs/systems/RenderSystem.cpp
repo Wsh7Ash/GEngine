@@ -1,4 +1,7 @@
+#include <glad/glad.h>
 #include "RenderSystem.h"
+#include <cstdint>
+#include <string>
 #include "../World.h"
 #include "../components/TransformComponent.h"
 #include "../components/SpriteComponent.h"
@@ -6,7 +9,8 @@
 #include "../components/ModelComponent.h"
 #include "../components/AnimatorComponent.h"
 #include "../components/LightComponent.h"
-#include <glad/glad.h>
+#include "../components/TagComponent.h"
+#include "../components/RelationshipComponent.h"
 #include "../../renderer/Renderer2D.h"
 #include "../../renderer/RendererAPI.h"
 #include "../../renderer/Shader.h"
@@ -17,9 +21,11 @@
 #include "../../renderer/Model.h"
 #include "../../renderer/Texture.h"
 #include "../../renderer/Cubemap.h"
+#include "../../renderer/PostProcessingPass.h"
 #include "../../math/BoundingVolumes.h"
 #include "../components/SkyboxComponent.h"
 #include <vector>
+#include <random>
 
 namespace ge {
 namespace ecs {
@@ -27,46 +33,148 @@ namespace ecs {
   void RenderSystem::Render(World &world, float dt) {
     (void)dt;
 
-    // 1. 2D Batch Pass (Moved to Top for Isolation)
-    if (camera2D_) {
-        renderer::Renderer2D::BeginScene(*camera2D_);
-        for (auto e : entities) {
-            if (world.HasComponent<SpriteComponent>(e)) {
-                auto& tc = world.GetComponent<TransformComponent>(e);
-                auto& sc = world.GetComponent<SpriteComponent>(e);
+    // Fetch Viewport for jitter and post-processing setup
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    float width = viewport[2] > 0 ? (float)viewport[2] : 1920.0f;
+    float height = viewport[3] > 0 ? (float)viewport[3] : 1080.0f;
 
-                Math::Vec2f uvT = sc.tiling;
-                Math::Vec2f uvO = Math::Vec2f(0.0f, 0.0f);
-                if (sc.framesX > 0 && sc.framesY > 0) {
-                    float frameW = 1.0f / (float)sc.framesX;
-                    float frameH = 1.0f / (float)sc.framesY;
-                    uvT = Math::Vec2f(frameW, frameH);
-                    int col = sc.currentFrame % sc.framesX;
-                    int row = sc.currentFrame / sc.framesX;
-                    uvO = Math::Vec2f((float)col * frameW, (float)(sc.framesY - 1 - row) * frameH);
-                }
-                Math::Vec2f quadSize = Math::Vec2f(tc.scale.x, tc.scale.y);
-
-                if (sc.texture)
-                    renderer::Renderer2D::DrawQuad(tc.position, quadSize, sc.texture, sc.color, (int)e.GetIndex(), sc.FlipX, sc.FlipY, uvT, uvO);
-                else
-                    renderer::Renderer2D::DrawQuad(tc.position, quadSize, sc.color, (int)e.GetIndex());
+    // 1. TAA Jitter and Matrix Update
+    if (camera3D_) {
+        frameIndex_++;
+        // Halton(2,3) sequence for jittering
+        auto halton = [](int i, int b) {
+            float f = 1.0, r = 0.0;
+            while (i > 0) {
+                f /= b;
+                r += f * (i % b);
+                i /= b;
             }
+            return r;
+        };
+        
+        float jx = halton((frameIndex_ % 16) + 1, 2) - 0.5f;
+        float jy = halton((frameIndex_ % 16) + 1, 3) - 0.5f;
+        
+        jitter_ = { jx / width, jy / height }; 
+        
+        // Apply jitter to projection matrix
+        // (Simplified for now: we will pass jitter as a uniform or adjust proj matrix)
+        // Usually, in OpenGL proj[2][0] += jitter.x; proj[2][1] += jitter.y;
+    }
+
+    // Collect entities from ECS using Query
+    std::vector<::ge::ecs::Entity> allEntities;
+    for (auto e : world.Query<::ge::ecs::TagComponent>()) {
+        allEntities.push_back(e);
+    }
+    for (auto e : allEntities) {
+        auto& tag = world.GetTag(e);
+        if (tag.tag == "Camera") {
+            // Found a camera entity, potentially set camera3D_ or similar
+            // This block was incomplete in the instruction, so leaving it as is.
         }
-        renderer::Renderer2D::EndScene();
+    }
+    // 2D Batch Pass moved to the bottom of Render function
+
+    // --- Post-Processing Stack Initialization ---
+    if (!postProcessingStack_) {
+        postProcessingStack_ = std::make_shared<renderer::PostProcessingStack>();
+        
+        // Initialize intermediate framebuffers
+        renderer::FramebufferSpecification spec;
+        spec.Width = viewport[2] > 0 ? viewport[2] : 1920; 
+        spec.Height = viewport[3] > 0 ? viewport[3] : 1080;
+        spec.Attachments = { renderer::FramebufferTextureFormat::RGBA8, renderer::FramebufferTextureFormat::Depth };
+        
+        intermediateA_ = renderer::Framebuffer::Create(spec);
+        intermediateB_ = renderer::Framebuffer::Create(spec);
+
+        // SSAO G-Buffer
+        renderer::FramebufferSpecification gSpec;
+        gSpec.Width = spec.Width;
+        gSpec.Height = spec.Height;
+        gSpec.Attachments = {
+            renderer::FramebufferTextureFormat::RGBA16F, // Position
+            renderer::FramebufferTextureFormat::RGBA16F, // Normal
+            renderer::FramebufferTextureFormat::RG16F,   // Velocity
+            renderer::FramebufferTextureFormat::Depth
+        };
+        gBuffer_ = renderer::Framebuffer::Create(gSpec);
+        
+        // TAA FBOs
+        renderer::FramebufferSpecification taaSpec;
+        taaSpec.Width = spec.Width;
+        taaSpec.Height = spec.Height;
+        taaSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F };
+        prevFrameFBO_ = renderer::Framebuffer::Create(taaSpec);
+        resolveFBO_ = renderer::Framebuffer::Create(taaSpec);
+
+        // SSAO FBOs
+        renderer::FramebufferSpecification ssaoSpec;
+        ssaoSpec.Width = spec.Width;
+        ssaoSpec.Height = spec.Height;
+        ssaoSpec.Attachments = { renderer::FramebufferTextureFormat::RED8 };
+        ssaoFBO_ = renderer::Framebuffer::Create(ssaoSpec);
+        ssaoBlurFBO_ = renderer::Framebuffer::Create(ssaoSpec);
+
+        // Sample Kernel
+        // Sample Kernel
+        std::uniform_real_distribution<float> randomFloats(0.0f, 1.0f);
+        std::default_random_engine generator;
+        for (unsigned int i = 0; i < 64; ++i) {
+            Math::Vec3f sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
+            sample = sample.Normalized();
+            sample *= randomFloats(generator);
+            float scale = (float)i / 64.0f;
+            scale = 0.1f + scale * scale * (1.0f - 0.1f); // Lerp
+            sample *= scale;
+            ssaoKernel_.push_back(sample);
+        }
+
+        // Noise Texture
+        std::vector<Math::Vec3f> ssaoNoise;
+        for (unsigned int i = 0; i < 16; i++) {
+            Math::Vec3f noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f);
+            ssaoNoise.push_back(noise);
+        }
+        glGenTextures(1, &ssaoNoiseTexture_);
+        glBindTexture(GL_TEXTURE_2D, ssaoNoiseTexture_);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssaoNoise[0]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+        // Load Shaders
+        gBufferShader_ = renderer::Shader::Create("src/shaders/gbuffer.vert.glsl", "src/shaders/gbuffer.frag.glsl");
+        ssaoShader_    = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/ssao.glsl");
+        ssaoBlurShader_ = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/ssao_blur.glsl");
+        
+        // TAA
+        taaShader_ = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/taa.glsl");
+        
+        // Volumetric
+        volumetricShader_ = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/volumetric_lighting.glsl");
+        
+        renderer::FramebufferSpecification volSpec;
+        volSpec.Width = spec.Width / 2; // Half-res for performance
+        volSpec.Height = spec.Height / 2;
+        volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
+        volumetricFBO_ = renderer::Framebuffer::Create(volSpec);
     }
 
     // --- IBL & Skybox Setup ---
     ecs::Entity skyboxEntity = ecs::INVALID_ENTITY;
-    for (auto e : entities) {
-        if (world.HasComponent<SkyboxComponent>(e)) {
+    for (auto e : allEntities) {
+        if (world.HasSkybox(e)) {
             skyboxEntity = e;
             break;
         }
     }
 
     if (skyboxEntity != ecs::INVALID_ENTITY) {
-        auto& skybox = world.GetComponent<SkyboxComponent>(skyboxEntity);
+        auto& skybox = world.GetSkybox(skyboxEntity);
         if (skybox.SceneEnvironment && !skybox.SceneEnvironment->IsComputed) {
             SetupEnvironment(skybox);
         }
@@ -82,18 +190,18 @@ namespace ecs {
         shadowShader_ = renderer::Shader::Create("./src/shaders/shadow.vert", "./src/shaders/shadow.frag");
     }
 
-    // 3. Collect 3D Entities
-    std::vector<ecs::Entity> meshEntities;
-    std::vector<ecs::Entity> modelEntities;
-    std::vector<ecs::Entity> lightEntities;
-    for (auto const& entity : entities) {
-        if (world.HasComponent<MeshComponent>(entity) && !world.HasComponent<SpriteComponent>(entity)) {
+    // --- Collect 3D Entities ---
+    std::vector<::ge::ecs::Entity> meshEntities;
+    std::vector<::ge::ecs::Entity> modelEntities;
+    std::vector<::ge::ecs::Entity> lightEntities;
+    for (auto const& entity : allEntities) {
+        if (world.HasMesh(entity) && !world.HasSprite(entity)) {
             meshEntities.push_back(entity);
         }
-        if (world.HasComponent<ModelComponent>(entity)) {
+        if (world.HasModel(entity)) {
             modelEntities.push_back(entity);
         }
-        if (world.HasComponent<LightComponent>(entity) && world.HasComponent<TransformComponent>(entity)) {
+        if (world.HasLight(entity)) {
             lightEntities.push_back(entity);
         }
     }
@@ -102,14 +210,20 @@ namespace ecs {
     Math::Mat4f lightSpaceMatrix = Math::Mat4f::Identity();
     ecs::Entity primaryLight = ecs::INVALID_ENTITY;
     for (auto const& le : lightEntities) {
-        if (world.GetComponent<LightComponent>(le).Type == LightType::Directional && world.GetComponent<LightComponent>(le).CastShadows) {
+        auto& lc = world.GetLight(le);
+        if (lc.Type == ge::ecs::LightType::Directional && lc.CastShadows) {
             primaryLight = le;
             break;
         }
     }
 
+    Math::Frustum frustum;
+    if (camera3D_) {
+        frustum.FromMatrix(camera3D_->GetViewProjectionMatrix());
+    }
+
     if (primaryLight != ecs::INVALID_ENTITY) {
-        auto& lt = world.GetComponent<TransformComponent>(primaryLight);
+        auto& lt = world.GetTransform(primaryLight);
         
         Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
         Math::Vec3f lightDir = { dir4.x, dir4.y, dir4.z };
@@ -121,7 +235,8 @@ namespace ecs {
         Math::Vec3f center = (camera3D_ ? camera3D_->GetPosition() : Math::Vec3f{0});
         Math::Mat4f lightView = Math::Mat4f::LookAt(eye, center, {0, 1, 0});
         
-        lightSpaceMatrix = lightOrtho * lightView;
+        Math::Mat4f res = lightOrtho * lightView;
+        lightSpaceMatrix = res;
 
         GLint oldViewport[4];
         glGetIntegerv(GL_VIEWPORT, oldViewport);
@@ -132,15 +247,9 @@ namespace ecs {
         
         shadowShader_->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
 
-        // --- Frustum Culling Setup ---
-        Math::Frustum frustum;
-        if (camera3D_) {
-            frustum.FromMatrix(camera3D_->GetViewProjectionMatrix());
-        }
-
         for (auto const& me : meshEntities) {
-            auto& transform = world.GetComponent<TransformComponent>(me);
-            auto& meshComp = world.GetComponent<MeshComponent>(me);
+            auto& transform = world.GetTransform(me);
+            auto& meshComp = world.GetMesh(me);
             
             if (!meshComp.IsVisible) continue;
 
@@ -151,7 +260,7 @@ namespace ecs {
                 
                 // Culling Test
                 Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
-                if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+                if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
 
                 shadowShader_->SetMat4("u_Model", model);
                 shadowShader_->SetBool("u_IsAnimated", false);
@@ -160,8 +269,8 @@ namespace ecs {
         }
 
         for (auto const& me : modelEntities) {
-            auto& transform = world.GetComponent<TransformComponent>(me);
-            auto& modelComp = world.GetComponent<ModelComponent>(me);
+            auto& transform = world.GetTransform(me);
+            auto& modelComp = world.GetModel(me);
             if (modelComp.ModelPtr) {
                 Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                     transform.rotation.ToMat4x4() *
@@ -169,16 +278,21 @@ namespace ecs {
                 
                 // Culling Test
                 Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
-                if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+                if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
 
                 shadowShader_->SetMat4("u_Model", model);
                 
                 bool isAnimated = false;
-                if (world.HasComponent<AnimatorComponent>(me)) {
-                    auto& animator = world.GetComponent<AnimatorComponent>(me);
+                static_assert(sizeof(::ge::ecs::AnimatorComponent) > 0, "AnimatorComponent must be complete");
+                if (world.HasAnimator(me)) {
+                    auto& animator = world.GetAnimator(me);
                     if (animator.Is3D) {
                         isAnimated = true;
-                        shadowShader_->SetMat4Array("u_BoneMatrices", animator.FinalBoneMatrices.data(), (uint32_t)animator.FinalBoneMatrices.size());
+                        const char* boneUniformName = "u_BoneMatrices";
+                        const Math::Mat4f* boneData = animator.FinalBoneMatrices.data();
+                        uint32_t boneCount = static_cast<uint32_t>(animator.FinalBoneMatrices.size());
+                        ::ge::renderer::Shader* shaderPtr = shadowShader_.get();
+                        shaderPtr->SetMat4Array(boneUniformName, boneData, boneCount);
                     }
                 }
                 shadowShader_->SetBool("u_IsAnimated", isAnimated);
@@ -191,11 +305,29 @@ namespace ecs {
         glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
     }
 
-    // 5. 3D PBR Lighting Pass
-    for (auto const &entity : meshEntities) {
-        auto &transform = world.GetComponent<TransformComponent>(entity);
-        auto &meshComp = world.GetComponent<MeshComponent>(entity);
-        
+    // --- Begin Post-Processed 3D Pipeline ---
+    // Render the 3D scene (PBR, Skybox) into an HDR intermediate buffer
+    if (intermediateA_) {
+        intermediateA_->Bind();
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear HDR buffer
+    }
+
+    // 5. SSAO Pass
+    ExecuteSSAOPass(world);
+
+    // Re-bind Intermediate A for 3D PBR passes (SSAO pass unbinds it usually)
+    if (intermediateA_) {
+        intermediateA_->Bind();
+    }
+
+    // 6. 3D PBR Lighting Pass
+    static_assert(sizeof(::ge::ecs::TransformComponent) > 0, "TransformComponent must be complete");
+    static_assert(sizeof(::ge::ecs::MeshComponent) > 0, "MeshComponent must be complete");
+    for (auto const& entity : meshEntities) {
+        auto& transform = world.GetTransform(entity);
+        auto& meshComp = world.GetMesh(entity);
+
+        if (!meshComp.MeshPtr) continue;
         if (!meshComp.IsVisible) continue;
 
         if (meshComp.MeshPtr && meshComp.MaterialPtr) {
@@ -205,7 +337,7 @@ namespace ecs {
             
             // Culling Test
             Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
-            if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+            if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
 
             // LOD Selection
             std::shared_ptr<renderer::Mesh> activeMesh = meshComp.MeshPtr;
@@ -232,8 +364,8 @@ namespace ecs {
             shader->SetInt("u_LightCount", lightCount);
 
             for (int i = 0; i < lightCount; ++i) {
-                auto& lc = world.GetComponent<LightComponent>(lightEntities[i]);
-                auto& lt = world.GetComponent<TransformComponent>(lightEntities[i]);
+                auto& lc = world.GetLight(lightEntities[i]);
+                auto& lt = world.GetTransform(lightEntities[i]);
 
                 std::string base = "u_Lights[" + std::to_string(i) + "].";
                 shader->SetInt(base + "Type", (int)lc.Type);
@@ -243,10 +375,14 @@ namespace ecs {
                 Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
                 shader->SetVec3(base + "Direction", direction);
                 
-                shader->SetVec3(base + "Color", lc.Color);
                 shader->SetFloat(base + "Intensity", lc.Intensity);
                 shader->SetFloat(base + "Range", lc.Range);
             }
+
+            // Bind SSAO texture (Slot 5)
+            glActiveTexture(GL_TEXTURE5);
+            glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
+            shader->SetInt("u_SSAO", 5);
 
             if (primaryLight != ecs::INVALID_ENTITY) {
                 shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
@@ -263,7 +399,7 @@ namespace ecs {
 
             // IBL Bindings
             if (skyboxEntity != ecs::INVALID_ENTITY) {
-                auto& skybox = world.GetComponent<SkyboxComponent>(skyboxEntity);
+                auto& skybox = world.GetSkybox(skyboxEntity);
                 if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
                     skybox.SceneEnvironment->IrradianceMap->Bind(11);
                     skybox.SceneEnvironment->PrefilterMap->Bind(12);
@@ -286,11 +422,11 @@ namespace ecs {
 
     // New Model Pass
     for (auto const &entity : modelEntities) {
-        auto &transform = world.GetComponent<TransformComponent>(entity);
-        auto &modelComp = world.GetComponent<ModelComponent>(entity);
+        auto &transform = world.GetTransform(entity);
+        auto &modelComp = world.GetModel(entity);
         
-        if (modelComp.ModelPtr && world.HasComponent<MeshComponent>(entity)) {
-             auto &meshComp = world.GetComponent<MeshComponent>(entity);
+        if (modelComp.ModelPtr && world.HasMesh(entity)) {
+             auto &meshComp = world.GetMesh(entity);
              if (meshComp.MaterialPtr) {
                 meshComp.MaterialPtr->Bind();
                 auto shader = meshComp.MaterialPtr->GetShader();
@@ -301,7 +437,7 @@ namespace ecs {
 
                 // Culling Test
                 Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
-                if (camera3D_ && !frustum.Intersects(worldAABB)) continue;
+                if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
 
                 shader->SetMat4("u_Model", model);
 
@@ -315,8 +451,8 @@ namespace ecs {
                 shader->SetInt("u_LightCount", lightCount);
 
                 for (int i = 0; i < lightCount; ++i) {
-                    auto& lc = world.GetComponent<LightComponent>(lightEntities[i]);
-                    auto& lt = world.GetComponent<TransformComponent>(lightEntities[i]);
+                    auto& lc = world.GetLight(lightEntities[i]);
+                    auto& lt = world.GetTransform(lightEntities[i]);
                     std::string base = "u_Lights[" + std::to_string(i) + "].";
                     shader->SetInt(base + "Type", (int)lc.Type);
                     shader->SetVec3(base + "Position", lt.position);
@@ -342,7 +478,7 @@ namespace ecs {
 
                 // IBL Bindings
                 if (skyboxEntity != ecs::INVALID_ENTITY) {
-                    auto& skybox = world.GetComponent<SkyboxComponent>(skyboxEntity);
+                    auto& skybox = world.GetSkybox(skyboxEntity);
                     if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
                         skybox.SceneEnvironment->IrradianceMap->Bind(11);
                         skybox.SceneEnvironment->PrefilterMap->Bind(12);
@@ -357,8 +493,8 @@ namespace ecs {
                 }
 
                 bool isAnimated = false;
-                if (world.HasComponent<AnimatorComponent>(entity)) {
-                    auto& animator = world.GetComponent<AnimatorComponent>(entity);
+                if (world.HasAnimator(entity)) {
+                    auto& animator = world.GetAnimator(entity);
                     if (animator.Is3D) {
                         isAnimated = true;
                         shader->SetMat4Array("u_BoneMatrices", animator.FinalBoneMatrices.data(), (uint32_t)animator.FinalBoneMatrices.size());
@@ -374,7 +510,7 @@ namespace ecs {
 
     // 6. Skybox Pass
     if (skyboxEntity != ecs::INVALID_ENTITY) {
-        auto& skybox = world.GetComponent<SkyboxComponent>(skyboxEntity);
+        auto& skybox = world.GetSkybox(skyboxEntity);
         if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed && camera3D_) {
             glDepthFunc(GL_LEQUAL);
             static std::shared_ptr<renderer::Shader> skyShader = renderer::Shader::Create("./src/shaders/skybox.glsl");
@@ -397,6 +533,248 @@ namespace ecs {
             glDepthFunc(GL_LESS);
         }
     }
+    
+    if (intermediateA_) {
+        intermediateA_->Unbind(); // End 3D HDR scene pass
+    }
+
+    // Post-Process Initialization moved to the top of Render function.
+    
+    // --- 8. Resolve and Post-Processing ---
+    // Volumetric Pass
+    ExecuteVolumetricPass(world);
+    
+    if (camera3D_ && postProcessingStack_) {
+        // TAA and Final Blit
+        // 1. Bind TAA FBO
+        resolveFBO_->Bind();
+        glClear(GL_COLOR_BUFFER_BIT);
+        
+        taaShader_->Bind();
+        
+        // Bind HDR Color
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, intermediateA_->GetColorAttachmentRendererID(0));
+        
+        // Bind History
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, prevFrameFBO_->GetColorAttachmentRendererID(0));
+        
+        // Bind Velocity
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2));
+        
+        taaShader_->SetInt("u_CurrentColor", 0);
+        taaShader_->SetInt("u_HistoryColor", 1);
+        taaShader_->SetInt("u_VelocityBlock", 2);
+        
+        // Additive composition of volumetric lighting could happen here or separately
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, volumetricFBO_->GetColorAttachmentRendererID(0));
+        taaShader_->SetInt("u_Volumetric", 3);
+        
+        RenderQuad();
+        resolveFBO_->Unbind();
+        
+        // 2. Output to Screen
+        // We draw the TAA resolved image to default framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear default framebuffer for UI/2D
+        
+        static std::shared_ptr<renderer::Shader> blitShader = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/postprocess.frag.glsl");
+        blitShader->Bind();
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, resolveFBO_->GetColorAttachmentRendererID(0));
+        blitShader->SetInt("tex", 0);
+        
+        // Disable Depth Test to allow drawing over entire screen
+        glDisable(GL_DEPTH_TEST);
+        RenderQuad();
+        glEnable(GL_DEPTH_TEST);
+        
+        // 3. Update History Buffer
+        // Simplest: Blit resolveFBO to prevFrameFBO
+        prevFrameFBO_->Bind();
+        blitShader->Bind();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, resolveFBO_->GetColorAttachmentRendererID(0));
+        blitShader->SetInt("tex", 0);
+        RenderQuad();
+        prevFrameFBO_->Unbind();
+        
+    } else if (intermediateA_) {
+        // Simple blit if no TAA/Camera3D
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        static std::shared_ptr<renderer::Shader> blitShader = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/postprocess.frag.glsl");
+        blitShader->Bind();
+        
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, intermediateA_->GetColorAttachmentRendererID(0));
+        blitShader->SetInt("tex", 0);
+        glDisable(GL_DEPTH_TEST);
+        RenderQuad();
+        glEnable(GL_DEPTH_TEST);
+    }
+    
+    // --- 9. 2D Pass ---
+    
+    // 2D Batch Pass (Always render last, so it's on top of 3D and UI)
+    if (camera2D_) {
+        renderer::Renderer2D::BeginScene(*camera2D_);
+        for (auto e : entities) {
+            if (world.HasSprite(e)) {
+                auto& tc = world.GetTransform(e);
+                auto& sc = world.GetSprite(e);
+
+                Math::Vec2f uvT = sc.tiling;
+                Math::Vec2f uvO = Math::Vec2f(0.0f, 0.0f);
+                if (sc.framesX > 0 && sc.framesY > 0) {
+                    float frameW = 1.0f / (float)sc.framesX;
+                    float frameH = 1.0f / (float)sc.framesY;
+                    uvT = Math::Vec2f(frameW, frameH);
+                    int col = sc.currentFrame % sc.framesX;
+                    int row = sc.currentFrame / sc.framesX;
+                    uvO = Math::Vec2f((float)col * frameW, (float)(sc.framesY - 1 - row) * frameH);
+                }
+                Math::Vec2f quadSize = Math::Vec2f(tc.scale.x, tc.scale.y);
+
+                if (sc.texture)
+                    renderer::Renderer2D::DrawQuad(tc.position, quadSize, sc.texture, sc.color, (int)e.GetIndex(), sc.FlipX, sc.FlipY, uvT, uvO);
+                else
+                    renderer::Renderer2D::DrawQuad(tc.position, quadSize, sc.color, (int)e.GetIndex());
+            }
+        }
+        renderer::Renderer2D::EndScene();
+    }
+  }
+
+  void RenderSystem::ExecuteVolumetricPass(World& world) {
+    if (!camera3D_ || !volumetricFBO_ || !shadowMap_) return;
+
+    volumetricFBO_->Bind();
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    volumetricShader_->Bind();
+    
+    // Bind Depth and Shadow Maps
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gBuffer_->GetDepthAttachmentRendererID());
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
+    
+    volumetricShader_->SetInt("u_DepthMap", 0);
+    volumetricShader_->SetInt("u_ShadowMap", 1);
+    
+    volumetricShader_->SetMat4("u_InverseViewProj", camera3D_->GetViewProjectionMatrix().Inverse());
+    // Find primary light
+    auto lightEntities = world.Query<ge::ecs::LightComponent, ge::ecs::TransformComponent>();
+    ge::ecs::Entity primaryLight = ge::ecs::INVALID_ENTITY;
+    for (auto e : lightEntities) {
+        if (world.GetLight(e).Type == ge::ecs::LightType::Directional) {
+            primaryLight = e;
+            break;
+        }
+    }
+    
+    if (primaryLight != ge::ecs::INVALID_ENTITY) {
+        auto& lt = world.GetTransform(primaryLight);
+        auto& lc = world.GetLight(primaryLight);
+        volumetricShader_->SetVec3("u_LightPos", lt.position);
+        
+        // Use the same light space matrix as shadows
+        Math::Mat4f lightProjection = Math::Mat4f::Orthographic(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.0f);
+        Math::Mat4f lightView = lt.rotation.ToMat4x4().Inverse() * Math::Mat4f::Translate(-lt.position);
+        volumetricShader_->SetMat4("u_LightSpaceMatrix", lightProjection * lightView);
+    }
+
+    volumetricShader_->SetVec3("u_CameraPos", camera3D_->GetPosition());
+    
+    RenderQuad();
+    volumetricFBO_->Unbind();
+  }
+
+
+  void RenderSystem::ExecuteSSAOPass(World& world) {
+    if (!camera3D_ || !gBuffer_ || !ssaoShader_) return;
+
+    // 1. G-Buffer Pass
+    gBuffer_->Bind();
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    renderer::RendererAPI::GetAPI(); // Keep reference to avoid unused warning if needed, but we use direct GL here
+    glEnable(GL_DEPTH_TEST);
+    gBufferShader_->Bind();
+    
+    // Render all meshes to G-Buffer
+    auto meshEntities = world.Query<ge::ecs::TagComponent>(); // Temporary query for all renderables
+    for (auto entity : meshEntities) {
+        if (!world.HasMesh(entity)) continue;
+        
+        auto& tc = world.GetTransform(entity);
+        gBufferShader_->SetMat4("u_Model", tc.GetTransform());
+        
+        // Pass TAA temporal data
+        gBufferShader_->SetMat4("u_PrevViewProj", prevViewProj_);
+        
+        Math::Mat4f prevModel = tc.GetTransform(); // Default to current
+        if (prevModelMatrices_.find(entity) != prevModelMatrices_.end()) {
+            prevModel = prevModelMatrices_[entity];
+        }
+        gBufferShader_->SetMat4("u_PrevModel", prevModel);
+        
+        // Store current for next frame
+        prevModelMatrices_[entity] = tc.GetTransform();
+        
+        auto& mc = world.GetMesh(entity);
+        if (mc.MeshPtr) {
+            mc.MeshPtr->Draw();
+        }
+    }
+    gBuffer_->Unbind();
+
+    // 2. SSAO Pass
+    ssaoFBO_->Bind();
+    glClear(GL_COLOR_BUFFER_BIT);
+    ssaoShader_->Bind();
+    
+    // Bind G-Buffer textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Normal
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, ssaoNoiseTexture_);
+    
+    ssaoShader_->SetInt("gPosition", 0);
+    ssaoShader_->SetInt("gNormal", 1);
+    ssaoShader_->SetInt("texNoise", 2);
+    ssaoShader_->SetMat4("projection", camera3D_->GetProjectionMatrix());
+    
+    // Set kernel samples
+    for (unsigned int i = 0; i < 64; ++i) {
+        ssaoShader_->SetVec3("samples[" + std::to_string(i) + "]", ssaoKernel_[i]);
+    }
+    
+    RenderQuad();
+    ssaoFBO_->Unbind();
+
+    // 3. SSAO Blur Pass
+    ssaoBlurFBO_->Bind();
+    glClear(GL_COLOR_BUFFER_BIT);
+    ssaoBlurShader_->Bind();
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, ssaoFBO_->GetColorAttachmentRendererID(0));
+    ssaoBlurShader_->SetInt("ssaoInput", 0);
+    
+    RenderQuad();
+    ssaoBlurFBO_->Unbind();
   }
 
   // --- IBL Helper Methods ---

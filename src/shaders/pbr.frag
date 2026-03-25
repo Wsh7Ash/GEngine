@@ -12,6 +12,7 @@ uniform sampler2D u_NormalMap;
 uniform sampler2D u_MetallicMap;
 uniform sampler2D u_RoughnessMap;
 uniform sampler2D u_AOMap;
+uniform sampler2D u_SSAO;
 
 uniform vec3 u_AlbedoColor;
 uniform float u_Metallic;
@@ -131,6 +132,11 @@ void main()
     float metallic  = texture(u_MetallicMap, v_TexCoord).r * u_Metallic;
     float roughness = texture(u_RoughnessMap, v_TexCoord).r * u_Roughness;
     float ao        = texture(u_AOMap, v_TexCoord).r;
+    
+    // Scale screen-space ambient occlusion
+    vec2 screenCoords = gl_FragCoord.xy / textureSize(u_SSAO, 0);
+    float ssao = texture(u_SSAO, screenCoords).r;
+    ao *= ssao;
 
     // Normal mapping
     vec3 normal = texture(u_NormalMap, v_TexCoord).rgb;

@@ -277,7 +277,7 @@ void AnimationSystem::Update(World &world, float dt) {
                     Math::Mat4 nodeTransform = node.transformation;
                     if (finalPRS.count(node.name)) {
                         auto &prs = finalPRS[node.name];
-                        nodeTransform = Math::Mat4::TRS(prs.pos, prs.rot, prs.scale);
+                        nodeTransform = Math::Mat4::TRS(prs.pos, prs.rot.ToMat4x4(), prs.scale);
                     }
 
                     Math::Mat4 globalTransform = parentTransform * nodeTransform;

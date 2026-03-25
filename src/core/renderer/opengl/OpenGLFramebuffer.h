@@ -3,6 +3,7 @@
 #include "../Framebuffer.h"
 #include "../../debug/assert.h"
 #include <vector>
+#include <cstdint>
 
 namespace ge {
 namespace renderer {

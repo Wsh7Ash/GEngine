@@ -8,6 +8,7 @@
 #include "../ecs/components/AnimatorComponent.h"
 
 namespace ge {
+namespace assets { class AssetImporter; }
 namespace renderer {
 
     /**

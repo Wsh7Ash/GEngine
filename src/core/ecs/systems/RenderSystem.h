@@ -7,15 +7,17 @@
 #include "../components/MeshComponent.h"
 #include "../components/SpriteComponent.h"
 #include "../components/TransformComponent.h"
-#include <memory>
-
+#include <vector>
+#include <unordered_map>
+#include <cstdint>
 
 namespace ge {
 namespace renderer {
-class Mesh;
-class Shader;
-class Framebuffer;
-} // namespace renderer
+    class Mesh;
+    class Shader;
+    class PostProcessingStack;
+    class Framebuffer;
+}
 
 namespace ecs {
 
@@ -26,6 +28,8 @@ namespace ecs {
 class RenderSystem : public System {
 public:
   void Render(World &world, float dt = 0.0f);
+  void ExecuteSSAOPass(World& world);
+  void ExecuteVolumetricPass(World& world);
 
   void
   Set2DCamera(const std::shared_ptr<renderer::OrthographicCamera> &camera) {
@@ -44,10 +48,32 @@ private:
   std::shared_ptr<renderer::Shader> shadowShader_;
   std::shared_ptr<renderer::Framebuffer> shadowMap_;
 
+  // SSAO
+  std::shared_ptr<renderer::Shader> ssaoShader_, ssaoBlurShader_, gBufferShader_;
+  std::shared_ptr<renderer::Framebuffer> gBuffer_, ssaoFBO_, ssaoBlurFBO_;
+  
+  // Volumetric Lighting
+  std::shared_ptr<renderer::Shader> volumetricShader_;
+  std::shared_ptr<renderer::Framebuffer> volumetricFBO_;
+  std::vector<Math::Vec3f> ssaoKernel_;
+  unsigned int ssaoNoiseTexture_ = 0;
+
   // IBL Helpers
   void SetupEnvironment(struct SkyboxComponent& skybox);
   void RenderCube();
   void RenderQuad();
+
+  std::shared_ptr<renderer::PostProcessingStack> postProcessingStack_;
+  std::shared_ptr<renderer::Framebuffer> intermediateA_;
+  std::shared_ptr<renderer::Framebuffer> intermediateB_;
+  
+  // TAA / Temporal Tracking
+  Math::Mat4f prevViewProj_;
+  std::unordered_map<ecs::Entity, Math::Mat4f> prevModelMatrices_;
+  unsigned int frameIndex_ = 0;
+  Math::Vec2f jitter_ = {0, 0};
+  std::shared_ptr<renderer::Shader> taaShader_;
+  std::shared_ptr<renderer::Framebuffer> prevFrameFBO_, resolveFBO_;
 };
 
 } // namespace ecs
