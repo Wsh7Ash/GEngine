@@ -1,11 +1,7 @@
 {
     "Entities": [
         {
-            "ID": 0,
-            "NativeScript": {
-                "Name": "CameraController"
-            },
-            "Tag": "Main Camera",
+            "Tag": "PostProcess",
             "Transform": {
                 "Rotation": [
                     0.0,
@@ -23,7 +19,1189 @@
                     0.0,
                     0.0
                 ]
-            }
+            },
+            "UUID": 6264829734037758157
+        },
+        {
+            "Light": {
+                "CastShadows": true,
+                "Color": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Intensity": 5.0,
+                "Range": 10.0,
+                "Type": 0
+            },
+            "Tag": "Sun",
+            "Transform": {
+                "Rotation": [
+                    -0.14644663035869598,
+                    0.8535533547401428,
+                    -0.3535534143447876,
+                    -0.3535534143447876
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "UUID": 7379069405108922110
+        },
+        {
+            "Light": {
+                "CastShadows": true,
+                "Color": [
+                    1.0,
+                    0.20000000298023224,
+                    0.20000000298023224
+                ],
+                "Intensity": 20.0,
+                "Range": 15.0,
+                "Type": 1
+            },
+            "Tag": "PointLight",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -5.0,
+                    2.0,
+                    0.0
+                ]
+            },
+            "UUID": 17565038134671316108
+        },
+        {
+            "Light": {
+                "CastShadows": true,
+                "Color": [
+                    0.20000000298023224,
+                    1.0,
+                    0.20000000298023224
+                ],
+                "Intensity": 20.0,
+                "Range": 15.0,
+                "Type": 1
+            },
+            "Tag": "PointLight",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    2.0,
+                    5.0
+                ]
+            },
+            "UUID": 7269227986725162264
+        },
+        {
+            "Light": {
+                "CastShadows": true,
+                "Color": [
+                    0.20000000298023224,
+                    0.20000000298023224,
+                    1.0
+                ],
+                "Intensity": 20.0,
+                "Range": 15.0,
+                "Type": 1
+            },
+            "Tag": "PointLight",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    5.0,
+                    2.0,
+                    0.0
+                ]
+            },
+            "UUID": 6320467333018679901
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.20000000298023224,
+                    0.20000000298023224,
+                    0.20000000298023224
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.10000000149011612,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.800000011920929,
+                "RoughnessPath": ""
+            },
+            "Tag": "Floor",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    50.0,
+                    1.0,
+                    50.0
+                ],
+                "Translation": [
+                    0.0,
+                    -0.5,
+                    0.0
+                ]
+            },
+            "UUID": 13973161354454421486
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.05000000074505806,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -6.0,
+                    1.0,
+                    -6.0
+                ]
+            },
+            "UUID": 15098624984545738463
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.25,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -6.0,
+                    1.0,
+                    -3.0
+                ]
+            },
+            "UUID": 16951888792102854054
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.5,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -6.0,
+                    1.0,
+                    0.0
+                ]
+            },
+            "UUID": 9968127691828117784
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.75,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -6.0,
+                    1.0,
+                    3.0
+                ]
+            },
+            "UUID": 3670313438324694463
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 1.0,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -6.0,
+                    1.0,
+                    6.0
+                ]
+            },
+            "UUID": 13342196044069780153
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.25,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.05000000074505806,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -3.0,
+                    1.0,
+                    -6.0
+                ]
+            },
+            "UUID": 12659486397339166525
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.25,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.25,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -3.0,
+                    1.0,
+                    -3.0
+                ]
+            },
+            "UUID": 16983567045314918878
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.25,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.5,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -3.0,
+                    1.0,
+                    0.0
+                ]
+            },
+            "UUID": 12472382232913978600
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.25,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.75,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -3.0,
+                    1.0,
+                    3.0
+                ]
+            },
+            "UUID": 10778532483531633013
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.25,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 1.0,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    -3.0,
+                    1.0,
+                    6.0
+                ]
+            },
+            "UUID": 7786921099419114335
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.5,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.05000000074505806,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    1.0,
+                    -6.0
+                ]
+            },
+            "UUID": 4152784035849143744
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.5,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.25,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    1.0,
+                    -3.0
+                ]
+            },
+            "UUID": 3884268895474596058
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.5,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.5,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    1.0,
+                    0.0
+                ]
+            },
+            "UUID": 11295938087899628396
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.5,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.75,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    1.0,
+                    3.0
+                ]
+            },
+            "UUID": 1138032939856317016
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.5,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 1.0,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    1.0,
+                    6.0
+                ]
+            },
+            "UUID": 6094930224848493167
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.75,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.05000000074505806,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    3.0,
+                    1.0,
+                    -6.0
+                ]
+            },
+            "UUID": 10343858230051382283
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.75,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.25,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    3.0,
+                    1.0,
+                    -3.0
+                ]
+            },
+            "UUID": 12839750878580719634
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.75,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.5,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    3.0,
+                    1.0,
+                    0.0
+                ]
+            },
+            "UUID": 16851530702828345597
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.75,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.75,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    3.0,
+                    1.0,
+                    3.0
+                ]
+            },
+            "UUID": 17652815212450714612
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 0.75,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 1.0,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    3.0,
+                    1.0,
+                    6.0
+                ]
+            },
+            "UUID": 16256635069083138112
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 1.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.05000000074505806,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    6.0,
+                    1.0,
+                    -6.0
+                ]
+            },
+            "UUID": 1804440977062677276
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 1.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.25,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    6.0,
+                    1.0,
+                    -3.0
+                ]
+            },
+            "UUID": 10696170113465849871
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 1.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.5,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    6.0,
+                    1.0,
+                    0.0
+                ]
+            },
+            "UUID": 9191182888475357360
+        },
+        {
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 1.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 0.75,
+                "RoughnessPath": ""
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    6.0,
+                    1.0,
+                    3.0
+                ]
+            },
+            "UUID": 4608433850530348140
+        },
+        {
+            "Light": {
+                "CastShadows": true,
+                "Color": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Intensity": 1.0,
+                "Range": 10.0,
+                "Type": 0
+            },
+            "Mesh": {
+                "AOPath": "",
+                "AlbedoColor": [
+                    0.800000011920929,
+                    0.10000000149011612,
+                    0.10000000149011612
+                ],
+                "AlbedoPath": "",
+                "MeshPath": "",
+                "Metallic": 1.0,
+                "MetallicPath": "",
+                "NormalPath": "",
+                "Roughness": 1.0,
+                "RoughnessPath": ""
+            },
+            "Rigidbody2D": {
+                "FixedRotation": false,
+                "Type": 0
+            },
+            "Sprite": {
+                "Color": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "FlipX": false,
+                "FlipY": false,
+                "frameTime": 0.10000000149011612,
+                "framesX": 1,
+                "framesY": 1,
+                "isAnimated": false
+            },
+            "Tag": "MatCube",
+            "Transform": {
+                "Rotation": [
+                    3.791088740135416e-14,
+                    1.0,
+                    -1.9470718370939721e-07,
+                    -1.9470718370939721e-07
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    6.0,
+                    1.0,
+                    6.0
+                ]
+            },
+            "UUID": 8343396999945653885
+        },
+        {
+            "Tag": "Entity",
+            "Transform": {
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "UUID": 4828681387049873534
+        },
+        {
+            "Sprite": {
+                "Color": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "FlipX": false,
+                "FlipY": false,
+                "frameTime": 0.10000000149011612,
+                "framesX": 1,
+                "framesY": 1,
+                "isAnimated": false
+            },
+            "Tag": "Sprite",
+            "Transform": {
+                "Rotation": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "Scale": [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "Translation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "UUID": 2834610391889884743
         }
     ],
     "Scene": "Untitled"

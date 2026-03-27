@@ -20,6 +20,7 @@
 #include "../ecs/systems/RenderSystem.h"
 
 #include "../ecs/components/Rigidbody2DComponent.h"
+#include "../ecs/components/Rigidbody3DComponent.h"
 #include "../ecs/components/RectTransformComponent.h"
 #include "../ecs/components/AudioSourceComponent.h"
 #include "../ecs/components/ParticleEmitterComponent.h"
@@ -57,6 +58,14 @@ Application::Application(const ApplicationProps& props) {
         signature.set(ecs::GetComponentTypeID<ecs::Rigidbody2DComponent>());
         signature.set(ecs::GetComponentTypeID<ecs::TransformComponent>());
         world_->SetSystemSignature<ecs::Physics2DSystem>(signature);
+    }
+
+    auto physics3DSystem = world_->RegisterSystem<ecs::Physics3DSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::Rigidbody3DComponent>());
+        signature.set(ecs::GetComponentTypeID<ecs::TransformComponent>());
+        world_->SetSystemSignature<ecs::Physics3DSystem>(signature);
     }
 
     auto uiSystem = world_->RegisterSystem<ecs::UISystem>();

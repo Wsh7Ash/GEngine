@@ -299,6 +299,15 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::Text("Render Time:  %.3f ms", stats.RenderTime);
   float totalMs = stats.LogicTime + stats.RenderTime;
   ImGui::Text("Total (L+R):  %.3f ms", totalMs);
+  
+  if (ImGui::TreeNode("Render Passes (CPU)")) {
+      ImGui::Text("Shadows:       %.3f ms", stats.PassShadows);
+      ImGui::Text("Geometry/PBR:  %.3f ms", stats.PassGeometry + stats.PassLighting);
+      ImGui::Text("SSAO/G-Buffer: %.3f ms", stats.PassSSAO);
+      ImGui::Text("Volumetric:    %.3f ms", stats.PassVolumetric);
+      ImGui::Text("Post-Process:  %.3f ms", stats.PassPostProcess);
+      ImGui::TreePop();
+  }
 
   // Simple bar visualization
   float barWidth = ImGui::GetContentRegionAvail().x;
@@ -325,7 +334,8 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::PopStyleColor();
   ImGui::Separator();
   ImGui::Spacing();
-  ImGui::Text("Draw Calls:  %d", stats.DrawCalls);
+  ImGui::Text("Draw Calls (2D): %d", stats.DrawCalls);
+  ImGui::Text("Draw Calls (3D): %d", stats.DrawCalls3D);
   ImGui::Text("Quads:       %d", stats.QuadCount);
   ImGui::Text("Vertices:    %d", stats.GetTotalVertexCount());
   ImGui::Text("Indices:     %d", stats.GetTotalIndexCount());

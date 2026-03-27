@@ -26,9 +26,23 @@
 #include "../components/SkyboxComponent.h"
 #include <vector>
 #include <random>
+#include <chrono>
 
 namespace ge {
 namespace ecs {
+
+struct ScopedProfileTimer {
+    std::chrono::time_point<std::chrono::high_resolution_clock> Start;
+    float* Result;
+    ScopedProfileTimer(float* result) : Result(result) {
+        Start = std::chrono::high_resolution_clock::now();
+    }
+    ~ScopedProfileTimer() {
+        auto end = std::chrono::high_resolution_clock::now();
+        *Result = std::chrono::duration<float, std::milli>(end - Start).count();
+    }
+};
+
 
   void RenderSystem::Render(World &world, float dt) {
     (void)dt;
@@ -147,15 +161,15 @@ namespace ecs {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
         // Load Shaders
-        gBufferShader_ = renderer::Shader::Create("src/shaders/gbuffer.vert.glsl", "src/shaders/gbuffer.frag.glsl");
-        ssaoShader_    = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/ssao.glsl");
-        ssaoBlurShader_ = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/ssao_blur.glsl");
+        gBufferShader_ = renderer::Shader::Create("./src/shaders/gbuffer.vert.glsl", "./src/shaders/gbuffer.frag.glsl");
+        ssaoShader_    = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssao.glsl");
+        ssaoBlurShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssao_blur.glsl");
         
         // TAA
-        taaShader_ = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/taa.glsl");
+        taaShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/taa.glsl");
         
         // Volumetric
-        volumetricShader_ = renderer::Shader::Create("src/shaders/postprocess.vert.glsl", "src/shaders/volumetric_lighting.glsl");
+        volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_lighting.glsl");
         
         renderer::FramebufferSpecification volSpec;
         volSpec.Width = spec.Width / 2; // Half-res for performance
@@ -241,6 +255,7 @@ namespace ecs {
         GLint oldViewport[4];
         glGetIntegerv(GL_VIEWPORT, oldViewport);
 
+        ScopedProfileTimer shadowTimer(&renderer::Renderer2D::GetStats().PassShadows);
         shadowMap_->Bind();
         glViewport(0, 0, 2048, 2048);
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -323,9 +338,11 @@ namespace ecs {
     }
 
     // 6. 3D PBR Lighting Pass
-    static_assert(sizeof(::ge::ecs::TransformComponent) > 0, "TransformComponent must be complete");
-    static_assert(sizeof(::ge::ecs::MeshComponent) > 0, "MeshComponent must be complete");
-    for (auto const& entity : meshEntities) {
+    {
+        ScopedProfileTimer lightingTimer(&renderer::Renderer2D::GetStats().PassLighting);
+        static_assert(sizeof(::ge::ecs::TransformComponent) > 0, "TransformComponent must be complete");
+        static_assert(sizeof(::ge::ecs::MeshComponent) > 0, "MeshComponent must be complete");
+        for (auto const& entity : meshEntities) {
         auto& transform = world.GetTransform(entity);
         auto& meshComp = world.GetMesh(entity);
 
@@ -513,6 +530,7 @@ namespace ecs {
              }
         }
     }
+    } // Close lightingTimer scope
 
     // 6. Skybox Pass
     if (skyboxEntity != ecs::INVALID_ENTITY) {
@@ -553,6 +571,7 @@ namespace ecs {
     }
     
     if (camera3D_ && postProcessingStack_) {
+        ScopedProfileTimer ppTimer(&renderer::Renderer2D::GetStats().PassPostProcess);
         // TAA and Final Blit
         // 1. Bind TAA FBO
         resolveFBO_->Bind();
@@ -666,6 +685,7 @@ namespace ecs {
 
   void RenderSystem::ExecuteVolumetricPass(World& world) {
     if (!camera3D_ || !volumetricFBO_ || !shadowMap_) return;
+    ScopedProfileTimer volTimer(&renderer::Renderer2D::GetStats().PassVolumetric);
 
     volumetricFBO_->Bind();
     glClear(GL_COLOR_BUFFER_BIT);
@@ -718,6 +738,7 @@ namespace ecs {
 
   void RenderSystem::ExecuteSSAOPass(World& world) {
     if (!camera3D_ || !gBuffer_ || !ssaoShader_) return;
+    ScopedProfileTimer ssaoTimer(&renderer::Renderer2D::GetStats().PassSSAO);
 
     // 1. G-Buffer Pass
     gBuffer_->Bind();
@@ -731,7 +752,7 @@ namespace ecs {
     // Render all meshes to G-Buffer
     auto meshEntities = world.Query<ge::ecs::TagComponent>(); // Temporary query for all renderables
     for (auto entity : meshEntities) {
-        if (!world.HasMesh(entity)) continue;
+        if (!world.HasMesh(entity) || !world.HasComponent<ge::ecs::TransformComponent>(entity)) continue;
         
         auto& tc = world.GetTransform(entity);
         gBufferShader_->SetMat4("u_Model", tc.GetTransform());

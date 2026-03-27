@@ -1,5 +1,6 @@
 #include "OpenGLMesh.h"
 #include <glad/glad.h>
+#include "../Renderer2D.h"
 
 namespace ge {
 namespace renderer {
@@ -133,6 +134,7 @@ void OpenGLMesh::Unbind() const { glBindVertexArray(0); }
 void OpenGLMesh::Draw() const {
   Bind();
   glDrawElements(GL_TRIANGLES, indexCount_, GL_UNSIGNED_INT, nullptr);
+  Renderer2D::GetStats().DrawCalls3D++;
 }
 
 void OpenGLMesh::SetIndices(const uint32_t *indices, uint32_t count) {

@@ -214,6 +214,8 @@ set(GE_CORE_SOURCES
     src/core/renderer/Framebuffer.cpp
     src/core/renderer/OrthographicCamera.cpp
     src/core/renderer/Renderer2D.cpp
+    src/core/renderer/PerspectiveCamera.cpp
+    src/core/renderer/Material.cpp
     src/core/renderer/opengl/OpenGLContext.cpp
     src/core/renderer/opengl/OpenGLShader.cpp
     src/core/renderer/opengl/OpenGLMesh.cpp
@@ -231,6 +233,7 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/Physics3DSystem.cpp
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp
+    src/core/assets/AssetCooker.cpp
     src/core/ecs/systems/UISystem.cpp
     src/core/ecs/systems/AudioSystem.cpp
     src/core/ecs/systems/ParticleSystem.cpp

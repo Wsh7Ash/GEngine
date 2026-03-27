@@ -3,6 +3,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <fstream>
 
 namespace ge {
 namespace renderer {
@@ -21,6 +22,50 @@ namespace renderer {
     Model::Model(const std::string& path)
         : m_Directory(path.substr(0, path.find_last_of('/')))
     {
+        if (path.length() > 6 && path.substr(path.length() - 6) == ".gmesh") {
+            std::ifstream in(path, std::ios::binary);
+            if (!in.is_open()) {
+                GE_LOG_ERROR("Failed to open .gmesh file: %s", path.c_str());
+                return;
+            }
+            uint32_t magic, version, meshesCount;
+            in.read((char*)&magic, sizeof(uint32_t));
+            in.read((char*)&version, sizeof(uint32_t));
+            in.read((char*)&meshesCount, sizeof(uint32_t));
+            
+            if (magic != 0x48534D47 || version != 1) {
+                GE_LOG_ERROR("Invalid .gmesh file format.");
+                return;
+            }
+
+            for (uint32_t i = 0; i < meshesCount; i++) {
+                uint32_t nameLen;
+                in.read((char*)&nameLen, sizeof(uint32_t));
+                std::string name(nameLen, '\0');
+                if (nameLen > 0) in.read(&name[0], nameLen);
+
+                uint32_t vertexCount;
+                in.read((char*)&vertexCount, sizeof(uint32_t));
+                std::vector<Vertex> vertices(vertexCount);
+                if (vertexCount > 0) in.read((char*)vertices.data(), vertexCount * sizeof(Vertex));
+
+                uint32_t indexCount;
+                in.read((char*)&indexCount, sizeof(uint32_t));
+                std::vector<uint32_t> indices(indexCount);
+                if (indexCount > 0) in.read((char*)indices.data(), indexCount * sizeof(uint32_t));
+
+                auto meshPtr = Mesh::Create(vertices, indices);
+                m_Meshes.push_back({meshPtr, name});
+                
+                const auto& meshAABB = meshPtr->GetAABB();
+                m_AABB.Expand(meshAABB.Min);
+                m_AABB.Expand(meshAABB.Max);
+            }
+            
+            GE_LOG_INFO("Loaded cooked model: %s", path.c_str());
+            return;
+        }
+
         Assimp::Importer importer;
         const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
 

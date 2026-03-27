@@ -18,6 +18,14 @@ struct Renderer2DStatistics {
 
   uint32_t GetTotalVertexCount() const { return QuadCount * 4; }
   uint32_t GetTotalIndexCount() const { return QuadCount * 6; }
+
+  uint32_t DrawCalls3D = 0;
+  float PassShadows = 0.0f;
+  float PassGeometry = 0.0f;
+  float PassSSAO = 0.0f;
+  float PassLighting = 0.0f;
+  float PassVolumetric = 0.0f;
+  float PassPostProcess = 0.0f;
 };
 
 class Renderer2D {
@@ -53,7 +61,7 @@ public:
 
   // Stats
   static void ResetStats();
-  static Renderer2DStatistics GetStats();
+  static Renderer2DStatistics& GetStats();
   static void SetUptime(float uptime);
   static void SetLogicTime(float logicTime);
   static void SetRenderTime(float renderTime);

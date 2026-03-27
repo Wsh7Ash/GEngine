@@ -281,9 +281,16 @@ void Renderer2D::DrawFullscreenQuad() {
 void Renderer2D::ResetStats() {
   s_Data.Stats.DrawCalls = 0;
   s_Data.Stats.QuadCount = 0;
+  s_Data.Stats.DrawCalls3D = 0;
+  s_Data.Stats.PassShadows = 0.0f;
+  s_Data.Stats.PassGeometry = 0.0f;
+  s_Data.Stats.PassSSAO = 0.0f;
+  s_Data.Stats.PassLighting = 0.0f;
+  s_Data.Stats.PassVolumetric = 0.0f;
+  s_Data.Stats.PassPostProcess = 0.0f;
 }
 
-Renderer2DStatistics Renderer2D::GetStats() { return s_Data.Stats; }
+Renderer2DStatistics& Renderer2D::GetStats() { return s_Data.Stats; }
 
 void Renderer2D::SetUptime(float uptime) { s_Data.Stats.Uptime = uptime; }
 void Renderer2D::SetLogicTime(float logicTime) {

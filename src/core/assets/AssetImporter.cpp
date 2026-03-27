@@ -5,6 +5,9 @@
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <string>
+#include "AssetCooker.h"
+#include "../renderer/Model.h"
+#include <string>
 
 using json = nlohmann::json;
 
@@ -50,6 +53,21 @@ namespace assets {
 
         if (metadata.Type != AssetType::None)
         {
+            if (metadata.Type == AssetType::Mesh && path.extension() != ".gmesh") {
+                std::filesystem::path cookedPath = path.string() + ".gmesh";
+                bool needsCook = true;
+                if (std::filesystem::exists(cookedPath) && 
+                    std::filesystem::last_write_time(cookedPath) >= std::filesystem::last_write_time(path)) {
+                    needsCook = false;
+                }
+
+                if (needsCook) {
+                    GE_LOG_INFO("AssetImporter: Cooking model to %s", cookedPath.string().c_str());
+                    auto tempModel = std::make_shared<renderer::Model>(path.string());
+                    AssetCooker::CookModel(tempModel, cookedPath);
+                }
+            }
+
             // Register with AssetManager
             AssetManager::RegisterMetadata(metadata);
         }
@@ -79,6 +97,7 @@ namespace assets {
         if (extension == ".png" || extension == ".jpg" || extension == ".tga") return AssetType::Texture;
         if (extension == ".ge" || extension == ".json") return AssetType::Scene;
         if (extension == ".obj" || extension == ".fbx" || extension == ".gltf" || extension == ".glb") return AssetType::Mesh;
+        if (extension == ".gmesh") return AssetType::Mesh;
         
         return AssetType::None;
     }
