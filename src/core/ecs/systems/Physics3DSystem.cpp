@@ -17,11 +17,13 @@
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 
 #include "Physics3DSystem.h"
 #include "../World.h"
 #include "../components/TransformComponent.h"
 #include "../components/Rigidbody3DComponent.h"
+#include "../components/CharacterController3DComponent.h"
 #include "../components/Collider3DComponent.h"
 #include "../components/MeshComponent.h"
 #include "../../renderer/Mesh.h"
@@ -325,6 +327,72 @@ namespace {
                 JPH::Vec3 position(tc.position.x, tc.position.y, tc.position.z);
                 JPH::Quat rotation(tc.rotation.x, tc.rotation.y, tc.rotation.z, tc.rotation.w);
                 bodyInterface.SetPositionAndRotation(*bodyIDPtr, position, rotation, JPH::EActivation::DontActivate);
+            }
+        }
+
+        // 1.5 Update and Create Character Controllers
+        if (isPlaying) {
+            auto characters = world.Query<CharacterController3DComponent, TransformComponent>();
+            for (auto entity : characters) {
+                auto& cc = world.GetComponent<CharacterController3DComponent>(entity);
+                auto& tc = world.GetComponent<TransformComponent>(entity);
+
+                if (!cc.RuntimeCharacter) {
+                    JPH::CharacterVirtualSettings settings;
+                    settings.mShape = new JPH::CapsuleShape(0.5f * cc.Height - cc.Radius, cc.Radius);
+                    settings.mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -0.5f * cc.Height);
+                    settings.mUp = JPH::Vec3::sAxisY();
+                    settings.mCharacterPadding = cc.CharacterPadding;
+                    settings.mMaxSlopeAngle = cc.MaxSlopeAngle * JPH::JPH_PI / 180.0f;
+                    settings.mMaxStrength = cc.MaxStrength;
+                    settings.mMass = cc.Mass;
+
+                    JPH::Vec3 position(tc.position.x, tc.position.y, tc.position.z);
+                    JPH::Quat rotation(tc.rotation.x, tc.rotation.y, tc.rotation.z, tc.rotation.w);
+
+                    JPH::CharacterVirtual* character = new JPH::CharacterVirtual(&settings, position, rotation, m_PhysicsSystem);
+                    cc.RuntimeCharacter = character;
+                }
+
+                JPH::CharacterVirtual* character = cc.RuntimeCharacter;
+
+                // Simple gravity integration
+                JPH::Vec3 gravity = m_PhysicsSystem->GetGravity();
+                JPH::Vec3 linearVelocity = character->GetLinearVelocity();
+                
+                // Allow user script to override LinearVelocity horizontal components
+                linearVelocity.SetX(cc.LinearVelocity.x);
+                linearVelocity.SetZ(cc.LinearVelocity.z);
+                
+                if (!character->IsSupported()) {
+                    linearVelocity += gravity * dt;
+                } else if (cc.LinearVelocity.y > 0.0f) {
+                    linearVelocity.SetY(cc.LinearVelocity.y); // Jump
+                    cc.LinearVelocity.y = 0.0f; // Reset jump intent
+                }
+
+                character->SetLinearVelocity(linearVelocity);
+
+                JPH::DefaultBroadPhaseLayerFilter broadPhaseLayerFilter = m_PhysicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::MOVING);
+                JPH::DefaultObjectLayerFilter objectLayerFilter = m_PhysicsSystem->GetDefaultLayerFilter(Layers::MOVING);
+                JPH::BodyFilter bodyFilter;
+                JPH::ShapeFilter shapeFilter;
+
+                JPH::CharacterVirtual::ExtendedUpdateSettings updateSettings;
+                character->ExtendedUpdate(dt,
+                    gravity,
+                    updateSettings,
+                    broadPhaseLayerFilter,
+                    objectLayerFilter,
+                    bodyFilter,
+                    shapeFilter,
+                    *m_TempAllocator);
+
+                cc.IsGrounded = character->IsSupported();
+                cc.LinearVelocity = Math::Vec3f(character->GetLinearVelocity().GetX(), character->GetLinearVelocity().GetY(), character->GetLinearVelocity().GetZ());
+
+                JPH::Vec3 pos = character->GetPosition();
+                tc.position = Math::Vec3f(pos.GetX(), pos.GetY(), pos.GetZ());
             }
         }
 

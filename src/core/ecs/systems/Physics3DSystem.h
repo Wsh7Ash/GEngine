@@ -32,6 +32,8 @@ namespace ecs {
         void OnRigidbodyAdded(Entity entity, World& world);
         void OnRigidbodyRemoved(Entity entity, World& world);
 
+        JPH::PhysicsSystem* GetPhysicsSystem() const { return m_PhysicsSystem; }
+
     private:
         void InitializeJolt();
         void ShutdownJolt();

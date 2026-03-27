@@ -10,6 +10,9 @@
 #include "src/core/ecs/components/LightComponent.h"
 #include "src/core/ecs/components/PostProcessComponent.h"
 #include "src/core/ecs/components/TagComponent.h"
+#include "src/core/ecs/components/Rigidbody3DComponent.h"
+#include "src/core/ecs/components/Collider3DComponent.h"
+#include "src/core/ecs/components/CharacterController3DComponent.h"
 
 using namespace ge;
 
@@ -85,6 +88,15 @@ public:
             mc.Metallic = 0.1f;
             mc.Roughness = 0.8f;
             world.AddComponent<ecs::MeshComponent>(floor, mc);
+
+            ecs::Rigidbody3DComponent rb;
+            rb.MotionType = ecs::Rigidbody3DMotionType::Static;
+            world.AddComponent<ecs::Rigidbody3DComponent>(floor, rb);
+
+            ecs::Collider3DComponent cc;
+            cc.ShapeType = ecs::Collider3DShapeType::Box;
+            cc.BoxHalfExtents = { 25.0f, 0.5f, 25.0f };
+            world.AddComponent<ecs::Collider3DComponent>(floor, cc);
         }
 
         // 7. PBR Material Grid (5x5 = 25 cubes varying metallic/roughness)
@@ -105,6 +117,29 @@ public:
                 mc.Roughness = rough < 0.05f ? 0.05f : rough;
                 world.AddComponent<ecs::MeshComponent>(cube, mc);
             }
+        }
+
+        // 8. Test CharacterVirtual
+        {
+            auto character = world.CreateEntity();
+            world.AddComponent<ecs::TransformComponent>(character, ecs::TransformComponent{});
+            world.AddComponent<ecs::TagComponent>(character, ecs::TagComponent{"Player"});
+            
+            auto& ct = world.GetComponent<ecs::TransformComponent>(character);
+            ct.position = { 0.0f, 5.0f, -5.0f }; // Start floating above floor
+            ct.scale = { 0.5f, 1.8f, 0.5f };
+
+            ecs::MeshComponent mc;
+            mc.MeshPtr = cubeMesh;
+            mc.MaterialPtr = baseMaterial;
+            mc.AlbedoColor = { 0.1f, 0.8f, 0.1f }; // Green player cube
+            world.AddComponent<ecs::MeshComponent>(character, mc);
+
+            ecs::CharacterController3DComponent cc;
+            // Move forward and constantly try to apply downward/jumping logic via velocity
+            // As a simple test: Apply constant forward velocity
+            cc.LinearVelocity = { 0.0f, 0.0f, 2.0f };
+            world.AddComponent<ecs::CharacterController3DComponent>(character, cc);
         }
     }
 
