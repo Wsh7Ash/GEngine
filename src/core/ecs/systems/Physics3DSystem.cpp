@@ -23,6 +23,13 @@
 #include <Jolt/Physics/SoftBody/SoftBodySharedSettings.h>
 #include <Jolt/Physics/SoftBody/SoftBodySurface.h>
 #include <Jolt/Physics/SoftBody/SoftBodyVertex.h>
+#include <Jolt/Physics/Constraints/Constraint.h>
+#include <Jolt/Physics/Constraints/HingeConstraint.h>
+#include <Jolt/Physics/Constraints/PointConstraint.h>
+#include <Jolt/Physics/Constraints/FixedConstraint.h>
+#include <Jolt/Physics/Constraints/SliderConstraint.h>
+#include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/SpringSettings.h>
 
 #include "Physics3DSystem.h"
 #include "../World.h"
@@ -32,6 +39,8 @@
 #include "../components/Collider3DComponent.h"
 #include "../components/MeshComponent.h"
 #include "../components/SoftBodyComponent.h"
+#include "../components/JointComponent.h"
+#include "../components/InputStateComponent.h"
 #include "../../renderer/Mesh.h"
 #include "../components/NativeScriptComponent.h"
 #include "../../debug/log.h"
@@ -462,17 +471,76 @@ namespace {
 
                 JPH::CharacterVirtual* character = cc.RuntimeCharacter;
 
-                // Simple gravity integration
                 JPH::Vec3 gravity = m_PhysicsSystem->GetGravity();
                 JPH::Vec3 linearVelocity = character->GetLinearVelocity();
                 
-                // Allow user script to override LinearVelocity horizontal components
-                linearVelocity.SetX(cc.LinearVelocity.x);
-                linearVelocity.SetZ(cc.LinearVelocity.z);
+                float speedMultiplier = 1.0f;
+                bool hasInputState = world.HasComponent<InputStateComponent>(entity);
+                
+                if (hasInputState) {
+                    auto& input = world.GetComponent<InputStateComponent>(entity);
+                    
+                    // Store previous state
+                    input.PreviousState = input.CurrentState;
+                    input.PreviousPosition = tc.position;
+                    
+                    // Process input state
+                    Math::Vec3f moveDir = {input.MoveAxis.X, 0.0f, input.MoveAxis.Z};
+                    float moveLength = Math::Length(moveDir);
+                    
+                    if (moveLength > 0.01f) {
+                        moveDir = Math::Normalize(moveDir);
+                        
+                        if (input.Sprint.IsPressed) {
+                            speedMultiplier = input.RunMultiplier;
+                            input.CurrentState = MovementState::Running;
+                        } else {
+                            input.CurrentState = MovementState::Walking;
+                        }
+                        
+                        linearVelocity.SetX(moveDir.x * input.MoveSpeed * speedMultiplier);
+                        linearVelocity.SetZ(moveDir.z * input.MoveSpeed * speedMultiplier);
+                    } else {
+                        input.CurrentState = MovementState::Idle;
+                        linearVelocity.SetX(0.0f);
+                        linearVelocity.SetZ(0.0f);
+                    }
+                    
+                    if (!character->IsSupported()) {
+                        if (linearVelocity.GetY() > 0.0f) {
+                            input.CurrentState = MovementState::Jumping;
+                        } else {
+                            input.CurrentState = MovementState::Falling;
+                        }
+                    }
+                    
+                    // Movement state changed callback
+                    if (input.CurrentState != input.PreviousState) {
+                        if (world.HasComponent<NativeScriptComponent>(entity)) {
+                            auto& nsc = world.GetComponent<NativeScriptComponent>(entity);
+                            if (nsc.instance) {
+                                nsc.instance->OnMovementStateChanged(input.CurrentState, input.PreviousState);
+                            }
+                        }
+                    }
+                    
+                    // Jump handling
+                    if (input.Jump.IsJustPressed && character->IsSupported()) {
+                        linearVelocity.SetY(input.Jump.Value);
+                        if (world.HasComponent<NativeScriptComponent>(entity)) {
+                            auto& nsc = world.GetComponent<NativeScriptComponent>(entity);
+                            if (nsc.instance) nsc.instance->OnJumpPressed();
+                        }
+                    }
+                } else {
+                    // Legacy behavior - allow user script to override LinearVelocity horizontal components
+                    linearVelocity.SetX(cc.LinearVelocity.x);
+                    linearVelocity.SetZ(cc.LinearVelocity.z);
+                }
                 
                 if (!character->IsSupported()) {
                     linearVelocity += gravity * dt;
-                } else if (cc.LinearVelocity.y > 0.0f) {
+                } else if (cc.LinearVelocity.y > 0.0f && !hasInputState) {
                     linearVelocity.SetY(cc.LinearVelocity.y); // Jump
                     cc.LinearVelocity.y = 0.0f; // Reset jump intent
                 }
@@ -498,7 +566,30 @@ namespace {
                 cc.LinearVelocity = Math::Vec3f(character->GetLinearVelocity().GetX(), character->GetLinearVelocity().GetY(), character->GetLinearVelocity().GetZ());
 
                 JPH::Vec3 pos = character->GetPosition();
-                tc.position = Math::Vec3f(pos.GetX(), pos.GetY(), pos.GetZ());
+                Math::Vec3f newPos = Math::Vec3f(pos.GetX(), pos.GetY(), pos.GetZ());
+                
+                // Smooth interpolation to prevent jitter
+                if (hasInputState) {
+                    auto& input = world.GetComponent<InputStateComponent>(entity);
+                    
+                    // Store physics position for interpolation
+                    input.InterpolatedPosition = newPos;
+                    input.InterpolationAlpha = 0.0f;
+                    
+                    // Interpolate between previous and current position
+                    Math::Vec3f interpolated = Math::Lerp(input.PreviousPosition, newPos, 0.5f);
+                    tc.position = interpolated;
+                    
+                    // Call transform interpolation hook
+                    if (world.HasComponent<NativeScriptComponent>(entity)) {
+                        auto& nsc = world.GetComponent<NativeScriptComponent>(entity);
+                        if (nsc.instance) {
+                            nsc.instance->OnTransformInterpolate(interpolated, 0.5f);
+                        }
+                    }
+                } else {
+                    tc.position = newPos;
+                }
             }
         }
 
@@ -521,6 +612,153 @@ namespace {
 
                     tc.position = Math::Vec3f(position.GetX(), position.GetY(), position.GetZ());
                     tc.rotation = Math::Quatf(rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW());
+                }
+            }
+        }
+
+        if (isPlaying) {
+            auto joints = world.Query<JointComponent, TransformComponent>();
+            for (auto entity : joints) {
+                auto& jc = world.GetComponent<JointComponent>(entity);
+                
+                if (!jc.RuntimeJoint && jc.Settings.BodyA && jc.Settings.BodyB) {
+                    if (!world.HasComponent<Rigidbody3DComponent>(jc.Settings.BodyA) ||
+                        !world.HasComponent<Rigidbody3DComponent>(jc.Settings.BodyB)) {
+                        continue;
+                    }
+                    
+                    auto& rbA = world.GetComponent<Rigidbody3DComponent>(jc.Settings.BodyA);
+                    auto& rbB = world.GetComponent<Rigidbody3DComponent>(jc.Settings.BodyB);
+                    
+                    JPH::BodyID* bodyIDA = (JPH::BodyID*)rbA.RuntimeBody;
+                    JPH::BodyID* bodyIDB = (JPH::BodyID*)rbB.RuntimeBody;
+                    
+                    if (!bodyIDA || !bodyIDB) continue;
+                    
+                    JPH::Body* bodyA = bodyInterface.GetBody(*bodyIDA);
+                    JPH::Body* bodyB = bodyInterface.GetBody(*bodyIDB);
+                    
+                    if (!bodyA || !bodyB) continue;
+                    
+                    JPH::Vec3 anchorA(jc.Settings.LocalAnchorA.x, jc.Settings.LocalAnchorA.y, jc.Settings.LocalAnchorA.z);
+                    JPH::Vec3 anchorB(jc.Settings.LocalAnchorB.x, jc.Settings.LocalAnchorB.y, jc.Settings.LocalAnchorB.z);
+                    
+                    JPH::Constraint* constraint = nullptr;
+                    
+                    switch (jc.Settings.Type) {
+                        case JointType::Point: {
+                            JPH::PointConstraintSettings settings;
+                            settings.mPoint = anchorA;
+                            settings.mBody2 = bodyB;
+                            settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                            constraint = settings.Create(*bodyA, *bodyB);
+                            break;
+                        }
+                        case JointType::Fixed: {
+                            JPH::FixedConstraintSettings settings;
+                            settings.mBody2 = bodyB;
+                            settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                            constraint = settings.Create(*bodyA, *bodyB);
+                            break;
+                        }
+                        case JointType::Hinge: {
+                            JPH::HingeConstraintSettings settings;
+                            settings.mBody2 = bodyB;
+                            settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                            
+                            JPH::Vec3 axisA(0, 1, 0);
+                            if (jc.Settings.AxisA == JointAxis::X) axisA = JPH::Vec3(1, 0, 0);
+                            else if (jc.Settings.AxisA == JointAxis::Z) axisA = JPH::Vec3(0, 0, 1);
+                            
+                            settings.mAxis1 = axisA;
+                            settings.mAxis2 = axisA;
+                            
+                            if (jc.Settings.RotationLimits.Max > jc.Settings.RotationLimits.Min) {
+                                settings.mLimitsMin = jc.Settings.RotationLimits.Min;
+                                settings.mLimitsMax = jc.Settings.RotationLimits.Max;
+                            }
+                            
+                            if (jc.Settings.Motor.Enabled) {
+                                settings.mMotorSettings.mMode = JPH::EMotorMode::Velocity;
+                                settings.mMotorSettings.mTargetVelocity = jc.Settings.Motor.TargetVelocity;
+                                settings.mMotorSettings.mMaxForce = jc.Settings.Motor.MaxForce;
+                            }
+                            
+                            constraint = settings.Create(*bodyA, *bodyB);
+                            break;
+                        }
+                        case JointType::Slider: {
+                            JPH::SliderConstraintSettings settings;
+                            settings.mBody2 = bodyB;
+                            settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                            
+                            JPH::Vec3 axis(0, 1, 0);
+                            if (jc.Settings.AxisA == JointAxis::X) axis = JPH::Vec3(1, 0, 0);
+                            else if (jc.Settings.AxisA == JointAxis::Z) axis = JPH::Vec3(0, 0, 1);
+                            
+                            settings.mAxis1 = axis;
+                            settings.mAxis2 = axis;
+                            
+                            if (jc.Settings.PositionLimits.Max > jc.Settings.PositionLimits.Min) {
+                                settings.mLimitsMin = jc.Settings.PositionLimits.Min;
+                                settings.mLimitsMax = jc.Settings.PositionLimits.Max;
+                            }
+                            
+                            constraint = settings.Create(*bodyA, *bodyB);
+                            break;
+                        }
+                        case JointType::Distance: {
+                            JPH::DistanceConstraintSettings settings;
+                            settings.mBody2 = bodyB;
+                            settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                            settings.mPoint1 = anchorA;
+                            settings.mPoint2 = anchorB;
+                            constraint = settings.Create(*bodyA, *bodyB);
+                            break;
+                        }
+                        case JointType::Spring: {
+                            JPH::DistanceConstraintSettings settings;
+                            settings.mBody2 = bodyB;
+                            settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                            settings.mPoint1 = anchorA;
+                            settings.mPoint2 = anchorB;
+                            settings.mIsSpring = true;
+                            if (jc.Settings.LinearSpring.Enabled) {
+                                settings.mFrequency = jc.Settings.LinearSpring.Frequency;
+                                settings.mDamping = jc.Settings.LinearSpring.Damping;
+                            }
+                            constraint = settings.Create(*bodyA, *bodyB);
+                            break;
+                        }
+                    }
+                    
+                    if (constraint) {
+                        m_PhysicsSystem->AddConstraint(constraint);
+                        jc.RuntimeJoint = constraint;
+                        
+                        if (jc.Settings.EnableCollision) {
+                            constraint->SetCollisionEnabled(true);
+                        }
+                    }
+                }
+                
+                if (jc.RuntimeJoint && jc.Settings.BreakForce > 0.0f) {
+                    JPH::Constraint* constraint = (JPH::Constraint*)jc.RuntimeJoint;
+                    float totalForce = 0.0f;
+                    
+                    constraint->CalcConstraintError(totalForce);
+                    jc.CurrentStress = totalForce;
+                    
+                    if (totalForce > jc.Settings.BreakForce) {
+                        jc.IsBroken = true;
+                        m_PhysicsSystem->RemoveConstraint(constraint);
+                        constraint->Release();
+                        jc.RuntimeJoint = nullptr;
+                        
+                        if (jc.OnBreak) {
+                            jc.OnBreak(jc.Settings.BodyA, jc.Settings.BodyB);
+                        }
+                    }
                 }
             }
         }

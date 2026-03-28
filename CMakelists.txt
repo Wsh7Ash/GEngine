@@ -153,6 +153,12 @@ set(GE_CORE_HEADERS
     src/core/ecs/systems/ScriptSystem.h
     src/core/ecs/systems/Physics2DSystem.h
     src/core/ecs/systems/Physics3DSystem.h
+    src/core/ecs/systems/ClothSystem.h
+    src/core/ecs/components/SoftBodyComponent.h
+    src/core/ecs/components/ClothComponent.h
+    src/core/ecs/components/JointComponent.h
+    src/core/ecs/components/InputStateComponent.h
+    src/core/ecs/systems/DestructibleSystem.h
     src/core/ecs/systems/PostProcessSystem.h
     src/core/ecs/systems/AnimationSystem.h
     src/core/ecs/components/PostProcessComponent.h
@@ -231,6 +237,8 @@ set(GE_CORE_SOURCES
     src/core/ecs/SystemManager.cpp
     src/core/ecs/systems/Physics2DSystem.cpp
     src/core/ecs/systems/Physics3DSystem.cpp
+    src/core/ecs/systems/ClothSystem.cpp
+    src/core/ecs/systems/DestructibleSystem.cpp
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp
     src/core/assets/AssetCooker.cpp

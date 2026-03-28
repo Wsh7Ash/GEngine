@@ -12,6 +12,8 @@ namespace JPH {
     class ContactListener;
     class SoftBody;
     class SoftBodyInterface;
+    class Constraint;
+    class Body;
 }
 
 namespace ge {

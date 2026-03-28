@@ -3,15 +3,11 @@
 #include "Entity.h"
 #include "World.h"
 #include "../math/VecTypes.h"
+#include "components/InputStateComponent.h"
 
 namespace ge {
 namespace ecs {
 
-/**
- * @brief Base class for all native scripts.
- *
- * Users should inherit from this class to define custom entity behavior.
- */
 class ScriptableEntity {
 public:
   virtual ~ScriptableEntity() = default;
@@ -46,6 +42,22 @@ public:
   virtual void OnCollisionExit([[maybe_unused]] Entity other) {}
   virtual void OnTriggerEnter([[maybe_unused]] Entity other) {}
   virtual void OnTriggerExit([[maybe_unused]] Entity other) {}
+
+  // Input State Hooks
+  virtual void OnInputModeChanged([[maybe_unused]] InputMode mode) {}
+  virtual void OnMovementStateChanged([[maybe_unused]] MovementState newState, [[maybe_unused]] MovementState oldState) {}
+  virtual void OnMovementInput([[maybe_unused]] const InputAxis& moveAxis) {}
+  virtual void OnLookInput([[maybe_unused]] const InputAxis& lookAxis) {}
+  virtual void OnJumpPressed() {}
+  virtual void OnJumpReleased() {}
+  virtual void OnCrouchPressed() {}
+  virtual void OnCrouchReleased() {}
+  virtual void OnSprintPressed() {}
+  virtual void OnSprintReleased() {}
+  virtual void OnCustomAction([[maybe_unused]] int actionIndex, [[maybe_unused]] bool isPressed) {}
+
+  // Transform Interpolation Hook
+  virtual void OnTransformInterpolate([[maybe_unused]] const Math::Vec3f& interpolatedPos, [[maybe_unused]] float alpha) {}
 
 protected:
   virtual void OnCreate() {}
