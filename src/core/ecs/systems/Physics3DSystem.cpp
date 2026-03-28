@@ -14,6 +14,7 @@
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
@@ -297,6 +298,21 @@ namespace {
                                     }
                                 }
                             }
+                        }
+                    } else if (cc.ShapeType == Collider3DShapeType::HeightField) {
+                        if (!cc.HeightField.Heights.empty() && cc.HeightField.Width > 0 && cc.HeightField.Depth > 0) {
+                            JPH::HeightFieldShapeSettings settings(
+                                cc.HeightField.Heights.data(),
+                                cc.HeightField.Width,
+                                cc.HeightField.Depth,
+                                cc.HeightField.ScaleX,
+                                cc.HeightField.ScaleZ,
+                                cc.HeightField.HeightScale,
+                                cc.HeightField.OffsetY,
+                                JPH::Vec3(0, 1, 0)
+                            );
+                            JPH::Shape::ShapeResult result = settings.Create();
+                            if (result.IsValid()) shape = result.Get();
                         }
                     }
                 }

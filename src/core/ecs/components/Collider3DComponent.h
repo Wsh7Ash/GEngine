@@ -2,6 +2,7 @@
 
 #include "../../math/VecTypes.h"
 #include <variant>
+#include <vector>
 
 namespace ge {
 namespace ecs {
@@ -11,7 +12,8 @@ namespace ecs {
         Sphere,
         Capsule,
         TriangleMesh,
-        ConvexHull
+        ConvexHull,
+        HeightField
     };
 
     struct BoxShape {
@@ -27,23 +29,32 @@ namespace ecs {
         float HalfHeight = 0.5f;
     };
 
+    struct HeightFieldShape {
+        uint32_t Width = 0;
+        uint32_t Depth = 0;
+        float ScaleX = 1.0f;
+        float ScaleZ = 1.0f;
+        float HeightScale = 1.0f;
+        float OffsetY = 0.0f;
+        std::vector<float> Heights;
+    };
+
     /**
      * @brief Component for 3D physical colliders.
      */
     struct Collider3DComponent {
         Collider3DShapeType ShapeType = Collider3DShapeType::Box;
         
-        // Use a variant to store shape data? Or just fixed fields? 
-        // For simplicity in editor UI, fixed fields might be better.
         Math::Vec3f BoxHalfExtents = { 0.5f, 0.5f, 0.5f };
         float SphereRadius = 0.5f;
         float CapsuleRadius = 0.25f;
         float CapsuleHalfHeight = 0.5f;
+        
+        HeightFieldShape HeightField;
 
         Math::Vec3f Offset = { 0.0f, 0.0f, 0.0f };
         bool IsTrigger = false;
 
-        // Material properties
         float Friction = 0.5f;
         float Restitution = 0.0f;
     };

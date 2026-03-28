@@ -160,8 +160,10 @@ set(GE_CORE_HEADERS
     src/core/ecs/components/InputStateComponent.h
     src/core/ecs/components/VehicleComponent.h
     src/core/ecs/components/BuoyancyComponent.h
+    src/core/ecs/components/TerrainComponent.h
     src/core/ecs/systems/DestructibleSystem.h
     src/core/ecs/systems/BuoyancySystem.h
+    src/core/ecs/systems/TerrainSystem.h
     src/core/ecs/systems/VehicleSystem.h
     src/core/ecs/Physics3D_API.h
     src/core/ecs/systems/PostProcessSystem.h
@@ -245,6 +247,7 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/ClothSystem.cpp
     src/core/ecs/systems/DestructibleSystem.cpp
     src/core/ecs/systems/BuoyancySystem.cpp
+    src/core/ecs/systems/TerrainSystem.cpp
     src/core/ecs/systems/VehicleSystem.cpp
     src/core/ecs/Physics3D_API.cpp
     src/core/assets/AssetManager.cpp
