@@ -26,7 +26,12 @@ namespace ecs {
         float AngularDamping = 0.05f;
 
         bool AllowSleeping = true;
-        bool Sensor = false; // If true, it detects collisions but doesn't react physically
+        bool Sensor = false;
+        
+        bool CCD = false;
+        
+        int CollisionLayer = 1;
+        int CollisionMask = 1;
 
         // Runtime data (populated by Physics3DSystem)
         void* RuntimeBody = nullptr; 
