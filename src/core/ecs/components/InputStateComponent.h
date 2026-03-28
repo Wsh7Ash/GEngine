@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../math/VecTypes.h"
+#include "../../math/quaternion.h"
 #include <bitset>
 
 namespace ge {
