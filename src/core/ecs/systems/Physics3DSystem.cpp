@@ -18,6 +18,11 @@
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/SoftBody/SoftBody.h>
+#include <Jolt/Physics/SoftBody/SoftBodyCreationSettings.h>
+#include <Jolt/Physics/SoftBody/SoftBodySharedSettings.h>
+#include <Jolt/Physics/SoftBody/SoftBodySurface.h>
+#include <Jolt/Physics/SoftBody/SoftBodyVertex.h>
 
 #include "Physics3DSystem.h"
 #include "../World.h"
@@ -26,6 +31,7 @@
 #include "../components/CharacterController3DComponent.h"
 #include "../components/Collider3DComponent.h"
 #include "../components/MeshComponent.h"
+#include "../components/SoftBodyComponent.h"
 #include "../../renderer/Mesh.h"
 #include "../components/NativeScriptComponent.h"
 #include "../../debug/log.h"
@@ -188,10 +194,9 @@ namespace {
         // Create the physics system
         m_PhysicsSystem = new JPH::PhysicsSystem();
         m_PhysicsSystem->Init(1024, 0, 1024, 1024, broad_phase_layer_interface, object_vs_broadphase_layer_filter, object_vs_object_layer_filter);
-        
-        // Contact Listener
-        // Note: We'll initialize this with a world in Update or during first creation if possible.
-        // Actually, we need the World reference. For now, we'll defer registration to Update or pass it in.
+
+        // Initialize Soft Body Interface
+        m_SoftBodyInterface = m_PhysicsSystem->GetSoftBodyInterface();
         
         GE_LOG_INFO("Physics3DSystem initialized (Jolt v5.0.0)");
     }
@@ -330,7 +335,108 @@ namespace {
             }
         }
 
-        // 1.5 Update and Create Character Controllers
+        // 1.5 Update and Create Soft Bodies
+        if (isPlaying && m_SoftBodyInterface) {
+            auto softBodies = world.Query<SoftBodyComponent, MeshComponent, TransformComponent>();
+            for (auto entity : softBodies) {
+                auto& sbc = world.GetComponent<SoftBodyComponent>(entity);
+                auto& mc = world.GetComponent<MeshComponent>(entity);
+                auto& tc = world.GetComponent<TransformComponent>(entity);
+
+                JPH::SoftBody* softBody = (JPH::SoftBody*)sbc.RuntimeSoftBody;
+
+                if (!softBody && mc.MeshPtr) {
+                    const auto& vertices = mc.MeshPtr->GetVertices();
+                    const auto& indices = mc.MeshPtr->GetIndices();
+
+                    if (vertices.empty() || indices.empty()) continue;
+
+                    JPH::SoftBodySharedSettings* sharedSettings = new JPH::SoftBodySharedSettings();
+                    
+                    sharedSettings->mVertices.resize(vertices.size());
+                    for (size_t i = 0; i < vertices.size(); ++i) {
+                        JPH::SoftBodyVertex& v = sharedSettings->mVertices[i];
+                        v.mPosition = JPH::Vec3(vertices[i].Position[0], vertices[i].Position[1], vertices[i].Position[2]);
+                        v.mVelocity = JPH::Vec3::sZero();
+                        v.mNormal = JPH::Vec3(vertices[i].Normal[0], vertices[i].Normal[1], vertices[i].Normal[2]);
+                        v.mInvMass = sbc.Settings.Mass > 0.0f ? 1.0f / (sbc.Settings.Mass / vertices.size()) : 0.0f;
+                        v.mCollisionRadius = 0.01f;
+                    }
+
+                    std::vector<uint32_t> faces;
+                    faces.reserve(indices.size());
+                    for (size_t i = 0; i < indices.size(); ++i) {
+                        faces.push_back(indices[i]);
+                    }
+
+                    sharedSettings->SetFaces(faces);
+                    sharedSettings->CalculateGrams();
+                    sharedSettings->CalculateConstraints(sbc.Settings.Stiffness, sbc.Settings.Iterations);
+
+                    JPH::SoftBodyCreationSettings settings(sharedSettings);
+                    settings.mGravityFactor = sbc.Settings.GravityFactor;
+                    settings.mPressure = sbc.Settings.Pressure;
+                    
+                    JPH::Vec3 position(tc.position.x, tc.position.y, tc.position.z);
+                    settings.mPosition = position;
+
+                    softBody = m_SoftBodyInterface->CreateBody(settings);
+                    if (softBody) {
+                        softBody->SetUserData((JPH::uint64)entity.value);
+                        m_SoftBodyInterface->AddBody(softBody->GetID());
+                        sbc.RuntimeSoftBody = softBody;
+                    }
+                }
+
+                if (softBody && sbc.Settings.MotionType != SoftBodyMotionType::Static) {
+                    JPH::Vec3 gravity = m_PhysicsSystem->GetGravity() * sbc.Settings.GravityFactor;
+                    
+                    if (sbc.Settings.WindFactor > 0.0f) {
+                        JPH::Vec3 wind = JPH::Vec3(
+                            sbc.Settings.WindDirection.x * sbc.Settings.WindFactor,
+                            sbc.Settings.WindDirection.y * sbc.Settings.WindFactor,
+                            sbc.Settings.WindDirection.z * sbc.Settings.WindFactor
+                        );
+                        gravity += wind;
+                    }
+                    
+                    softBody->AddForce(gravity);
+                    
+                    if (sbc.Settings.Damping > 0.0f) {
+                        softBody->SetLinearDamping(sbc.Settings.Damping);
+                    }
+                }
+            }
+
+            for (auto entity : softBodies) {
+                auto& sbc = world.GetComponent<SoftBodyComponent>(entity);
+                auto& mc = world.GetComponent<MeshComponent>(entity);
+
+                JPH::SoftBody* softBody = (JPH::SoftBody*)sbc.RuntimeSoftBody;
+                if (!softBody || !mc.MeshPtr) continue;
+
+                auto& vertices = mc.MeshPtr->GetVertices();
+                
+                if (vertices.size() != softBody->GetVertices().size()) continue;
+
+                for (size_t i = 0; i < softBody->GetVertices().size(); ++i) {
+                    JPH::Vec3 pos = softBody->GetVertices()[i].mPosition;
+                    JPH::Vec3 norm = softBody->GetVertices()[i].mNormal;
+                    
+                    vertices[i].Position[0] = pos.GetX();
+                    vertices[i].Position[1] = pos.GetY();
+                    vertices[i].Position[2] = pos.GetZ();
+                    vertices[i].Normal[0] = norm.GetX();
+                    vertices[i].Normal[1] = norm.GetY();
+                    vertices[i].Normal[2] = norm.GetZ();
+                }
+
+                mc.MeshPtr->SetData(vertices.data(), (uint32_t)(vertices.size() * sizeof(renderer::Vertex)));
+                sbc.VerticesDirty = true;
+            }
+        }
+
+        // 1.75 Update and Create Character Controllers
         if (isPlaying) {
             auto characters = world.Query<CharacterController3DComponent, TransformComponent>();
             for (auto entity : characters) {

@@ -24,6 +24,7 @@ namespace renderer {
         virtual void SetIndexCount(uint32_t count) override { indexCount_ = count; }
 
         virtual const std::vector<Vertex>& GetVertices() const override { return vertices_; }
+        virtual std::vector<Vertex>& GetVertices() override { return vertices_; }
         virtual const std::vector<uint32_t>& GetIndices() const override { return indices_; }
         virtual const Math::AABB& GetAABB() const override { return aabb_; }
 

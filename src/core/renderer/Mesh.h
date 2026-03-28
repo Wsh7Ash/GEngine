@@ -48,6 +48,7 @@ public:
   virtual void SetIndices(const uint32_t *indices, uint32_t count) = 0;
 
   virtual const std::vector<Vertex>& GetVertices() const = 0;
+  virtual std::vector<Vertex>& GetVertices() = 0;
   virtual const std::vector<uint32_t>& GetIndices() const = 0;
 
   /**
