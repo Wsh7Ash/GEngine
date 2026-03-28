@@ -118,6 +118,7 @@ set(GE_CORE_HEADERS
     # Debug
     src/core/debug/log.h
     src/core/debug/assert.h
+    src/core/debug/Profiler.h
     # Containers
     src/core/containers/dynamic_array.h
     src/core/containers/hash_map.h

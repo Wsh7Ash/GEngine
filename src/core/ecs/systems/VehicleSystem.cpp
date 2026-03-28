@@ -6,6 +6,7 @@
 #include "../components/Collider3DComponent.h"
 #include "../components/MeshComponent.h"
 #include "../components/InputStateComponent.h"
+#include "../components/VelocityComponent.h"
 #include "../components/NativeScriptComponent.h"
 #include "../../debug/log.h"
 
@@ -75,17 +76,44 @@ void VehicleSystem::UpdateSuspension(VehicleComponent& vehicle, float dt) {
     for (auto& wheel : vehicle.Wheels) {
         wheel.SuspensionForce = 0.0f;
         wheel.CurrentCompression = 0.0f;
+        wheel.CurrentSlip = 0.0f;
         
-        float maxCompression = wheel.SuspensionLength;
-        float compression = maxCompression;
+        float rayLength = wheel.SuspensionLength + wheel.Radius;
+        
+        float suspensionCompression = 0.0f;
+        bool isGrounded = false;
+        
+        float springForce = 0.0f;
+        float damperForce = 0.0f;
+        
+        float groundHeight = -10.0f;
+        float terrainHeight = groundHeight + rayLength;
+        float compression = terrainHeight;
         
         if (compression > 0.0f) {
-            wheel.CurrentCompression = compression / maxCompression;
+            isGrounded = true;
+            suspensionCompression = std::min(compression, wheel.SuspensionLength);
+            wheel.CurrentCompression = suspensionCompression / wheel.SuspensionLength;
             
-            float springForce = wheel.SuspensionStiffness * compression;
-            float damperForce = wheel.DampingCompression * 0.0f;
+            springForce = wheel.SuspensionStiffness * suspensionCompression;
             
-            wheel.SuspensionForce = springForce + damperForce;
+            float wheelVelocity = vehicle.Velocity.y;
+            float contactVelocity = wheelVelocity;
+            float relativeVelocity = contactVelocity - wheelVelocity;
+            
+            if (relativeVelocity < 0.0f) {
+                damperForce = -wheel.DampingCompression * relativeVelocity;
+            } else {
+                damperForce = -wheel.DampingRelaxation * relativeVelocity;
+            }
+            
+            wheel.CurrentSlip = Math::Abs(relativeVelocity) * 0.1f;
+            wheel.CurrentSlip = Math::Clamp(wheel.CurrentSlip, 0.0f, 1.0f);
+        }
+        
+        wheel.SuspensionForce = springForce + damperForce;
+        
+        if (isGrounded) {
             vehicle.IsGrounded = true;
         }
     }
@@ -111,7 +139,7 @@ void VehicleSystem::UpdateEngine(VehicleComponent& vehicle, float dt) {
     
     if (vehicle.Engine.Compression > 0.0f) {
         vehicle.CurrentRPM -= vehicle.Engine.EngineBrake * vehicle.Engine.Compression * dt;
-        vehicle.CurrentRPM = Math::Max(vehicle.CurrentRPM, vehicle.Engine.MinRPM);
+        vehicle.CurrentRPM = std::max(vehicle.CurrentRPM, vehicle.Engine.MinRPM);
     }
 }
 
@@ -122,7 +150,7 @@ float VehicleSystem::CalculateEngineTorque(VehicleComponent& vehicle, float rpm)
     float torque = vehicle.Engine.PeakTorque * (1.0f - vehicle.Engine.Compression * 0.03f * (1.0f - normalizedRPM));
     torque *= vehicle.Engine.TorqueMultiplier;
     
-    return Math::Max(torque, 0.0f);
+    return std::max(torque, 0.0f);
 }
 
 void VehicleSystem::UpdateTransmission(VehicleComponent& vehicle, float dt) {
@@ -188,26 +216,29 @@ void VehicleSystem::ApplyForces(VehicleComponent& vehicle, float dt) {
         vehicle.Acceleration.z = driveForce / vehicle.ChassisMass * dt;
     }
     
-    float speed = Math::Length(vehicle.Velocity);
+    float speed = std::sqrt(vehicle.Velocity.x * vehicle.Velocity.x + vehicle.Velocity.y * vehicle.Velocity.y + vehicle.Velocity.z * vehicle.Velocity.z);
     if (speed > 0.1f) {
         Math::Vec3f dragForce = -vehicle.Velocity * vehicle.AirDrag * speed;
         vehicle.Acceleration += dragForce / vehicle.ChassisMass;
         
         float rollResistance = vehicle.RollingResistance * vehicle.ChassisMass * 9.81f;
-        Math::Vec3f rollForce = -Math::Normalize(vehicle.Velocity) * rollResistance;
+        Math::Vec3f normalizedVel = vehicle.Velocity / speed;
+        Math::Vec3f rollForce = -normalizedVel * rollResistance;
         vehicle.Acceleration += rollForce / vehicle.ChassisMass;
     }
     
     if (vehicle.Brakes.MaxBrakeForce > 0.0f) {
         float brakeDecel = vehicle.Brakes.MaxBrakeForce / vehicle.ChassisMass;
-        if (Math::Length(vehicle.Velocity) > brakeDecel * dt) {
-            vehicle.Velocity -= Math::Normalize(vehicle.Velocity) * brakeDecel * dt;
+        float currentSpeed = std::sqrt(vehicle.Velocity.x * vehicle.Velocity.x + vehicle.Velocity.y * vehicle.Velocity.y + vehicle.Velocity.z * vehicle.Velocity.z);
+        if (currentSpeed > brakeDecel * dt) {
+            Math::Vec3f normalizedVel = vehicle.Velocity / currentSpeed;
+            vehicle.Velocity -= normalizedVel * brakeDecel * dt;
         } else {
             vehicle.Velocity = Math::Vec3f(0.0f, 0.0f, 0.0f);
         }
     }
     
-    vehicle.CurrentSpeed = Math::Length(vehicle.Velocity);
+    vehicle.CurrentSpeed = std::sqrt(vehicle.Velocity.x * vehicle.Velocity.x + vehicle.Velocity.y * vehicle.Velocity.y + vehicle.Velocity.z * vehicle.Velocity.z);
 }
 
 void VehicleSystem::SyncWheelVisuals(World& world, Entity entity) {
@@ -224,8 +255,8 @@ void VehicleSystem::SyncWheelVisuals(World& world, Entity entity) {
             Math::Vec3f worldOffset = tc.rotation * wheelOffset;
             wheelTc.position = tc.position + worldOffset;
             
-            Math::Quatf steerQuat = Math::AngleAxis(wheel.SteeringAngle, Math::Vec3f(0.0f, 1.0f, 0.0f));
-            Math::Quatf rollQuat = Math::AngleAxis(wheel.RotationAngle, Math::Vec3f(1.0f, 0.0f, 0.0f));
+            Math::Quatf steerQuat = Math::Quatf::FromAxisAngle(Math::Vec3f(0.0f, 1.0f, 0.0f), wheel.SteeringAngle);
+            Math::Quatf rollQuat = Math::Quatf::FromAxisAngle(Math::Vec3f(1.0f, 0.0f, 0.0f), wheel.RotationAngle);
             
             wheelTc.rotation = tc.rotation * steerQuat * rollQuat;
         }
