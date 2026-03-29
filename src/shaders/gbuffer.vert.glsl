@@ -1,6 +1,12 @@
 #version 450 core
 layout (location = 0) in vec3 a_Position;
 layout (location = 1) in vec3 a_Normal;
+layout (location = 2) in vec2 a_TexCoord;
+
+// Material properties - in a real implementation these would come from a Material component
+// For now we'll pass them as uniforms or use default values
+uniform vec4 u_Albedo;    // RGB = albedo, A = metallic
+uniform vec2 u_Material;  // X = roughness, Y = unused (or AO)
 
 layout (std140, binding = 0) uniform CameraData {
     mat4 u_View;
@@ -14,6 +20,7 @@ uniform mat4 u_PrevViewProj;
 
 out vec3 FragPos;
 out vec3 Normal;
+out vec2 TexCoord;
 out vec4 PrevPos;
 out vec4 CurrentPos;
 
@@ -24,6 +31,8 @@ void main()
     
     mat3 normalMatrix = transpose(inverse(mat3(u_View * u_Model)));
     Normal = normalMatrix * a_Normal;
+    
+    TexCoord = a_TexCoord;
 
     CurrentPos = u_Projection * viewPos;
     PrevPos = u_PrevViewProj * u_PrevModel * vec4(a_Position, 1.0);

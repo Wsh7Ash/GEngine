@@ -7,6 +7,7 @@
 #include "../components/MeshComponent.h"
 #include "../components/SpriteComponent.h"
 #include "../components/TransformComponent.h"
+#include "../components/DecalComponent.h"
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
@@ -65,11 +66,14 @@ private:
   std::shared_ptr<renderer::Shader> shadowShader_;
   std::shared_ptr<renderer::Framebuffer> shadowMap_;
 
-  // SSAO
-  std::shared_ptr<renderer::Shader> ssaoShader_, ssaoBlurShader_, gBufferShader_;
-  std::shared_ptr<renderer::Framebuffer> gBuffer_, ssaoFBO_, ssaoBlurFBO_;
-  
-  // Volumetric Lighting
+   // SSAO
+   std::shared_ptr<renderer::Shader> ssaoShader_, ssaoBlurShader_, gBufferShader_;
+   std::shared_ptr<renderer::Framebuffer> gBuffer_, ssaoFBO_, ssaoBlurFBO_;
+
+   // Decal
+   std::shared_ptr<renderer::Shader> decalShader_;
+
+   // Volumetric Lighting
   std::shared_ptr<renderer::Shader> volumetricShader_;
   std::shared_ptr<renderer::Framebuffer> volumetricFBO_;
   std::vector<Math::Vec3f> ssaoKernel_;

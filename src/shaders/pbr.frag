@@ -13,6 +13,11 @@ uniform sampler2D u_MetallicMap;
 uniform sampler2D u_RoughnessMap;
 uniform sampler2D u_AOMap;
 uniform sampler2D u_SSAO;
+uniform sampler2D u_gPosition;    // G-Buffer position
+uniform sampler2D u_gAlbedo;      // G-Buffer albedo (RGB) + metallic (A)
+uniform sampler2D u_gNormal;      // G-Buffer normal (RGB) + roughness (A)
+uniform sampler2D u_gVelocity;    // G-Buffer velocity
+uniform bool u_UseGBufferMaterials;
 
 uniform vec3 u_AlbedoColor;
 uniform float u_Metallic;
@@ -127,31 +132,55 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 void main()
 {
-    // Fetch and prepare material properties
-    vec3 albedo     = texture(u_AlbedoMap, v_TexCoord).rgb * u_AlbedoColor;
-    float metallic  = texture(u_MetallicMap, v_TexCoord).r * u_Metallic;
-    float roughness = texture(u_RoughnessMap, v_TexCoord).r * u_Roughness;
-    float ao        = texture(u_AOMap, v_TexCoord).r;
+    // Fetch and prepare material properties - either from material textures or G-Buffer
+    vec3 albedo;
+    float metallic;
+    float roughness;
+    float ao;
+    vec3 normal;
+    
+    if (u_UseGBufferMaterials)
+    {
+        // Read from G-Buffer
+        vec4 gAlbedo = texture(u_gAlbedo, v_TexCoord);
+        vec4 gNormal = texture(u_gNormal, v_TexCoord);
+        
+        albedo = gAlbedo.rgb;
+        metallic = gAlbedo.a;
+        normal = gNormal.rgb * 2.0 - 1.0; // Convert from [0,1] to [-1,1]
+        roughness = gNormal.a;
+        
+        // For AO, we'll use a default value or could store it elsewhere
+        ao = 1.0; // Default AO
+    }
+    else
+    {
+        // Traditional material textures
+        albedo     = texture(u_AlbedoMap, v_TexCoord).rgb * u_AlbedoColor;
+        metallic  = texture(u_MetallicMap, v_TexCoord).r * u_Metallic;
+        roughness = texture(u_RoughnessMap, v_TexCoord).r * u_Roughness;
+        ao        = texture(u_AOMap, v_TexCoord).r;
+        normal = texture(u_NormalMap, v_TexCoord).rgb;
+    }
     
     // Scale screen-space ambient occlusion
     vec2 screenCoords = gl_FragCoord.xy / textureSize(u_SSAO, 0);
     float ssao = texture(u_SSAO, screenCoords).r;
     ao *= ssao;
-
+    
     // Normal mapping
-    vec3 normal = texture(u_NormalMap, v_TexCoord).rgb;
     normal = normal * 2.0 - 1.0;   
     vec3 N = normalize(v_TBN * normal); 
-
+    
     vec3 V = normalize(u_CameraPos - v_WorldPos);
-
+    
     // Calculate reflectance at normal incidence
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo, metallic);
-
+    
     // Reflectance equation
     vec3 Lo = vec3(0.0);
-
+    
     for(int i = 0; i < u_LightCount; ++i)
     {
         vec3 L;
@@ -171,15 +200,15 @@ void main()
             if (u_Lights[i].Range > 0.0)
                 attenuation *= clamp(1.0 - (distance / u_Lights[i].Range), 0.0, 1.0);
         }
-
+        
         vec3 H = normalize(V + L);
         vec3 radiance = u_Lights[i].Color * u_Lights[i].Intensity * attenuation;
-
+        
         // Cook-Torrance BRDF
         float NDF = DistributionGGX(N, H, roughness);   
         float G   = GeometrySmith(N, V, L, roughness);      
         vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
-           
+            
         vec3 numerator    = NDF * G * F; 
         float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; 
         vec3 specular = numerator / denominator;
@@ -187,7 +216,7 @@ void main()
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
         kD *= 1.0 - metallic;	  
-
+        
         float NdotL = max(dot(N, L), 0.0);        
         
         float shadow = 0.0;
@@ -196,10 +225,10 @@ void main()
             vec4 fragPosLightSpace = u_LightSpaceMatrix * vec4(v_WorldPos, 1.0);
             shadow = ShadowCalculation(fragPosLightSpace, N, L);
         }
-
+        
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * (1.0 - shadow);  
     }
-
+    
     // Ambient lighting (IBL or fallback)
     vec3 ambient;
     if (u_UseIBL)
@@ -228,10 +257,10 @@ void main()
     }
     
     vec3 result = ambient + Lo;
-
+    
     // HDR tonemapping (Reinhard) and Gamma correction
     result = result / (result + vec3(1.0));
     result = pow(result, vec3(1.0/2.2)); 
-
+    
     color = vec4(result, 1.0);
 }

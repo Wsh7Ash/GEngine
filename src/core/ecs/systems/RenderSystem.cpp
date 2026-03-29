@@ -6,6 +6,7 @@
 #include "../components/TransformComponent.h"
 #include "../components/SpriteComponent.h"
 #include "../components/MeshComponent.h"
+#include "../components/DecalComponent.h"
 #include "../components/ModelComponent.h"
 #include "../components/AnimatorComponent.h"
 #include "../components/LightComponent.h"
@@ -23,6 +24,10 @@
 #include "../../renderer/Cubemap.h"
 #include "../../renderer/PostProcessingPass.h"
 #include "../../math/BoundingVolumes.h"
+
+// Decal shaders
+#include "../../../shaders/decal.vert.glsl"
+#include "../../../shaders/decal.frag.glsl"
 #include "../components/SkyboxComponent.h"
 #include <vector>
 #include <random>
@@ -104,16 +109,17 @@ struct ScopedProfileTimer {
         intermediateA_ = renderer::Framebuffer::Create(spec);
         intermediateB_ = renderer::Framebuffer::Create(spec);
 
-        // SSAO G-Buffer
-        renderer::FramebufferSpecification gSpec;
-        gSpec.Width = spec.Width;
-        gSpec.Height = spec.Height;
-        gSpec.Attachments = {
-            renderer::FramebufferTextureFormat::RGBA16F, // Position
-            renderer::FramebufferTextureFormat::RGBA16F, // Normal
-            renderer::FramebufferTextureFormat::RG16F,   // Velocity
-            renderer::FramebufferTextureFormat::Depth
-        };
+         // SSAO G-Buffer - Modified for decals
+         renderer::FramebufferSpecification gSpec;
+         gSpec.Width = spec.Width;
+         gSpec.Height = spec.Height;
+         gSpec.Attachments = {
+             renderer::FramebufferTextureFormat::RGBA16F, // Position
+             renderer::FramebufferTextureFormat::RGBA16F, // Albedo (RGB) + Metallic (A)
+             renderer::FramebufferTextureFormat::RGBA16F, // Normal (RGB) + Roughness (A)
+             renderer::FramebufferTextureFormat::RG16F,   // Velocity
+             renderer::FramebufferTextureFormat::Depth
+         };
         gBuffer_ = renderer::Framebuffer::Create(gSpec);
         
         // TAA FBOs
@@ -168,14 +174,17 @@ struct ScopedProfileTimer {
         // TAA
         taaShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/taa.glsl");
         
-        // Volumetric
-        volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_lighting.glsl");
-        
-        renderer::FramebufferSpecification volSpec;
-        volSpec.Width = spec.Width / 2; // Half-res for performance
-        volSpec.Height = spec.Height / 2;
-        volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
-        volumetricFBO_ = renderer::Framebuffer::Create(volSpec);
+         // Volumetric
+         volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_lighting.glsl");
+         
+         // Decal
+         decalShader_ = renderer::Shader::Create("./src/shaders/decal.vert.glsl", "./src/shaders/decal.frag.glsl");
+         
+         renderer::FramebufferSpecification volSpec;
+         volSpec.Width = spec.Width / 2; // Half-res for performance
+         volSpec.Height = spec.Height / 2;
+         volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
+         volumetricFBO_ = renderer::Framebuffer::Create(volSpec);
     }
 
     // --- IBL & Skybox Setup ---
@@ -204,21 +213,25 @@ struct ScopedProfileTimer {
         shadowShader_ = renderer::Shader::Create("./src/shaders/shadow.vert", "./src/shaders/shadow.frag");
     }
 
-    // --- Collect 3D Entities ---
-    std::vector<::ge::ecs::Entity> meshEntities;
-    std::vector<::ge::ecs::Entity> modelEntities;
-    std::vector<::ge::ecs::Entity> lightEntities;
-    for (auto const& entity : allEntities) {
-        if (world.HasMesh(entity) && !world.HasSprite(entity)) {
-            meshEntities.push_back(entity);
-        }
-        if (world.HasModel(entity)) {
-            modelEntities.push_back(entity);
-        }
-        if (world.HasLight(entity)) {
-            lightEntities.push_back(entity);
-        }
-    }
+     // --- Collect 3D Entities ---
+     std::vector<::ge::ecs::Entity> meshEntities;
+     std::vector<::ge::ecs::Entity> modelEntities;
+     std::vector<::ge::ecs::Entity> lightEntities;
+     std::vector<::ge::ecs::Entity> decalEntities;
+     for (auto const& entity : allEntities) {
+         if (world.HasMesh(entity) && !world.HasSprite(entity)) {
+             meshEntities.push_back(entity);
+         }
+         if (world.HasModel(entity)) {
+             modelEntities.push_back(entity);
+         }
+         if (world.HasLight(entity)) {
+             lightEntities.push_back(entity);
+         }
+         if (world.HasDecal(entity)) {
+             decalEntities.push_back(entity);
+         }
+     }
 
     // 4. Shadow Pass (Directional)
     Math::Mat4f lightSpaceMatrix = Math::Mat4f::Identity();
@@ -368,57 +381,78 @@ struct ScopedProfileTimer {
                 }
             }
 
-            meshComp.MaterialPtr->Bind();
-            auto shader = meshComp.MaterialPtr->GetShader();
-
-            shader->SetMat4("u_Model", model);
-
-            if (camera3D_) {
-                shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
-                shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
-            }
-
-            int lightCount = (int)lightEntities.size();
-            if (lightCount > 8) lightCount = 8;
-            shader->SetInt("u_LightCount", lightCount);
-
-            for (int i = 0; i < lightCount; ++i) {
-                auto& lc = world.GetLight(lightEntities[i]);
-                auto& lt = world.GetTransform(lightEntities[i]);
-
-                std::string base = "u_Lights[" + std::to_string(i) + "].";
-                shader->SetInt(base + "Type", (int)lc.Type);
-                shader->SetVec3(base + "Position", lt.position);
-                
-                Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
-                Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
-                shader->SetVec3(base + "Direction", direction);
-                
-                shader->SetFloat(base + "Intensity", lc.Intensity);
-                shader->SetFloat(base + "Range", lc.Range);
-            }
-
-            // Bind SSAO texture (Slot 5)
-            if (settings_.EnableSSAO) {
-                glActiveTexture(GL_TEXTURE5);
-                glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
-                shader->SetInt("u_SSAO", 5);
-            } else {
-                shader->SetInt("u_SSAO", -1); // Or handle in shader
-            }
-
-            if (primaryLight != ecs::INVALID_ENTITY) {
-                shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
-                uint32_t shadowSlot = 10;
-                glActiveTexture(GL_TEXTURE0 + shadowSlot);
-                glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
-                shader->SetInt("u_ShadowMap", (int)shadowSlot);
-            }
-
-            shader->SetVec3("u_AlbedoColor", meshComp.AlbedoColor);
-            shader->SetFloat("u_Metallic", meshComp.Metallic);
-            shader->SetFloat("u_Roughness", meshComp.Roughness);
-            shader->SetBool("u_IsAnimated", false);
+             meshComp.MaterialPtr->Bind();
+             auto shader = meshComp.MaterialPtr->GetShader();
+ 
+             shader->SetMat4("u_Model", model);
+ 
+             if (camera3D_) {
+                 shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
+                 shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
+             }
+ 
+             int lightCount = (int)lightEntities.size();
+             if (lightCount > 8) lightCount = 8;
+             shader->SetInt("u_LightCount", lightCount);
+ 
+             for (int i = 0; i < lightCount; ++i) {
+                 auto& lc = world.GetLight(lightEntities[i]);
+                 auto& lt = world.GetTransform(lightEntities[i]);
+ 
+                 std::string base = "u_Lights[" + std::to_string(i) + "].";
+                 shader->SetInt(base + "Type", (int)lc.Type);
+                 shader->SetVec3(base + "Position", lt.position);
+                 
+                 Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+                 Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
+                 shader->SetVec3(base + "Direction", direction);
+                 
+                 shader->SetFloat(base + "Intensity", lc.Intensity);
+                 shader->SetFloat(base + "Range", lc.Range);
+             }
+ 
+             if (primaryLight != ecs::INVALID_ENTITY) {
+                 shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+                 uint32_t shadowSlot = 10;
+                 glActiveTexture(GL_TEXTURE0 + shadowSlot);
+                 glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
+                 shader->SetInt("u_ShadowMap", (int)shadowSlot);
+             }
+ 
+             // Bind SSAO texture (Slot 5)
+             if (settings_.EnableSSAO) {
+                 glActiveTexture(GL_TEXTURE5);
+                 glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
+                 shader->SetInt("u_SSAO", 5);
+             } else {
+                 shader->SetInt("u_SSAO", -1); // Or handle in shader
+             }
+             
+             // Bind G-Buffer textures for decal support
+             glActiveTexture(GL_TEXTURE6);
+             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+             shader->SetInt("u_gPosition", 6);
+             
+             glActiveTexture(GL_TEXTURE7);
+             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
+             shader->SetInt("u_gAlbedo", 7);
+             
+             glActiveTexture(GL_TEXTURE8);
+             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal
+             shader->SetInt("u_gNormal", 8);
+             
+             glActiveTexture(GL_TEXTURE9);
+             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3)); // Velocity
+             shader->SetInt("u_gVelocity", 9);
+             
+             // Indicate we're using G-Buffer materials
+             shader->SetBool("u_UseGBufferMaterials", true);
+ 
+             // Set default material values (will be overridden by G-Buffer when used)
+             shader->SetVec3("u_AlbedoColor", meshComp.AlbedoColor);
+             shader->SetFloat("u_Metallic", meshComp.Metallic);
+             shader->SetFloat("u_Roughness", meshComp.Roughness);
+             shader->SetBool("u_IsAnimated", false);
 
             // IBL Bindings
             if (skyboxEntity != ecs::INVALID_ENTITY) {
@@ -462,44 +496,62 @@ struct ScopedProfileTimer {
                 Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
                 if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
 
-                shader->SetMat4("u_Model", model);
-
-                if (camera3D_) {
-                    shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
-                    shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
-                }
-
-                int lightCount = (int)lightEntities.size();
-                if (lightCount > 8) lightCount = 8;
-                shader->SetInt("u_LightCount", lightCount);
-
-                for (int i = 0; i < lightCount; ++i) {
-                    auto& lc = world.GetLight(lightEntities[i]);
-                    auto& lt = world.GetTransform(lightEntities[i]);
-                    std::string base = "u_Lights[" + std::to_string(i) + "].";
-                    shader->SetInt(base + "Type", (int)lc.Type);
-                    shader->SetVec3(base + "Position", lt.position);
-                    Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
-                    Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
-                    shader->SetVec3(base + "Direction", direction);
-                    shader->SetVec3(base + "Color", lc.Color);
-                    shader->SetFloat(base + "Intensity", lc.Intensity);
-                    shader->SetFloat(base + "Range", lc.Range);
-                }
-
-                if (primaryLight != ecs::INVALID_ENTITY) {
-                    shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
-                    uint32_t shadowSlot = 10;
-                    glActiveTexture(GL_TEXTURE0 + shadowSlot);
-                    glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
-                    shader->SetInt("u_ShadowMap", (int)shadowSlot);
-                }
-
-                shader->SetVec3("u_AlbedoColor", modelComp.AlbedoColor);
-                shader->SetFloat("u_Metallic", modelComp.Metallic);
-                shader->SetFloat("u_Roughness", modelComp.Roughness);
-
-                // IBL Bindings
+                 shader->SetMat4("u_Model", model);
+ 
+                 if (camera3D_) {
+                     shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
+                     shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
+                 }
+ 
+                 int lightCount = (int)lightEntities.size();
+                 if (lightCount > 8) lightCount = 8;
+                 shader->SetInt("u_LightCount", lightCount);
+ 
+                 for (int i = 0; i < lightCount; ++i) {
+                     auto& lc = world.GetLight(lightEntities[i]);
+                     auto& lt = world.GetTransform(lightEntities[i]);
+                     std::string base = "u_Lights[" + std::to_string(i) + "].";
+                     shader->SetInt(base + "Type", (int)lc.Type);
+                     shader->SetVec3(base + "Position", lt.position);
+                     Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+                     Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
+                     shader->SetVec3(base + "Direction", direction);
+                     shader->SetVec3(base + "Color", lc.Color);
+                     shader->SetFloat(base + "Intensity", lc.Intensity);
+                     shader->SetFloat(base + "Range", lc.Range);
+                 }
+ 
+                 if (primaryLight != ecs::INVALID_ENTITY) {
+                     shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+                     uint32_t shadowSlot = 10;
+                     glActiveTexture(GL_TEXTURE0 + shadowSlot);
+                     glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
+                     shader->SetInt("u_ShadowMap", (int)shadowSlot);
+                 }
+ 
+                 // Bind G-Buffer textures for decal support
+                 glActiveTexture(GL_TEXTURE6);
+                 glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+                 shader->SetInt("u_gPosition", 6);
+                 
+                 glActiveTexture(GL_TEXTURE7);
+                 glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
+                 shader->SetInt("u_gAlbedo", 7);
+                 
+                 glActiveTexture(GL_TEXTURE8);
+                 glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal
+                 shader->SetInt("u_gNormal", 8);
+                 
+                 glActiveTexture(GL_TEXTURE9);
+                 glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3)); // Velocity
+                 shader->SetInt("u_gVelocity", 9);
+                 
+                 // In the decal implementation, we read material properties from the G-Buffer
+                 // So we don't need to set these as uniforms - they'll be sampled in the shader
+                 // However, we still need to indicate that we're using the G-Buffer for materials
+                 shader->SetBool("u_UseGBufferMaterials", true);
+ 
+                 // IBL Bindings
                 if (skyboxEntity != ecs::INVALID_ENTITY) {
                     auto& skybox = world.GetSkybox(skyboxEntity);
                     if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
@@ -740,41 +792,120 @@ struct ScopedProfileTimer {
     if (!camera3D_ || !gBuffer_ || !ssaoShader_) return;
     ScopedProfileTimer ssaoTimer(&renderer::Renderer2D::GetStats().PassSSAO);
 
-    // 1. G-Buffer Pass
-    gBuffer_->Bind();
-    glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+     // 1. G-Buffer Pass
+     gBuffer_->Bind();
+     glClearColor(0, 0, 0, 0);
+     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    renderer::RendererAPI::GetAPI(); // Keep reference to avoid unused warning if needed, but we use direct GL here
-    glEnable(GL_DEPTH_TEST);
-    gBufferShader_->Bind();
-    
-    // Render all meshes to G-Buffer
-    auto meshEntities = world.Query<ge::ecs::TagComponent>(); // Temporary query for all renderables
-    for (auto entity : meshEntities) {
-        if (!world.HasMesh(entity) || !world.HasComponent<ge::ecs::TransformComponent>(entity)) continue;
-        
-        auto& tc = world.GetTransform(entity);
-        gBufferShader_->SetMat4("u_Model", tc.GetTransform());
-        
-        // Pass TAA temporal data
-        gBufferShader_->SetMat4("u_PrevViewProj", prevViewProj_);
-        
-        Math::Mat4f prevModel = tc.GetTransform(); // Default to current
-        if (prevModelMatrices_.find(entity) != prevModelMatrices_.end()) {
-            prevModel = prevModelMatrices_[entity];
-        }
-        gBufferShader_->SetMat4("u_PrevModel", prevModel);
-        
-        // Store current for next frame
-        prevModelMatrices_[entity] = tc.GetTransform();
-        
-        auto& mc = world.GetMesh(entity);
-        if (mc.MeshPtr) {
-            mc.MeshPtr->Draw();
-        }
-    }
-    gBuffer_->Unbind();
+     renderer::RendererAPI::GetAPI(); // Keep reference to avoid unused warning if needed, but we use direct GL here
+     glEnable(GL_DEPTH_TEST);
+     gBufferShader_->Bind();
+     
+     // Render all meshes to G-Buffer
+     auto meshEntities = world.Query<ge::ecs::TagComponent>(); // Temporary query for all renderables
+     for (auto entity : meshEntities) {
+         if (!world.HasMesh(entity) || !world.HasComponent<ge::ecs::TransformComponent>(entity)) continue;
+         
+         auto& tc = world.GetTransform(entity);
+         gBufferShader_->SetMat4("u_Model", tc.GetTransform());
+         
+         // Pass TAA temporal data
+         gBufferShader_->SetMat4("u_PrevViewProj", prevViewProj_);
+         
+         Math::Mat4f prevModel = tc.GetTransform(); // Default to current
+         if (prevModelMatrices_.find(entity) != prevModelMatrices_.end()) {
+             prevModel = prevModelMatrices_[entity];
+         }
+         gBufferShader_->SetMat4("u_PrevModel", prevModel);
+         
+         // Store current for next frame
+         prevModelMatrices_[entity] = tc.GetTransform();
+         
+         // Set material properties for G-Buffer
+         auto& mc = world.GetMesh(entity);
+         if (mc.MaterialPtr) {
+             gBufferShader_->SetVec4("u_Albedo", vec4(mc.AlbedoColor, mc.Metallic));
+             gBufferShader_->SetVec2("u_Material", vec2(mc.Roughness, 0.0f)); // Roughness in X, AO in Y (unused)
+         } else {
+             gBufferShader_->SetVec4("u_Albedo", vec4(1.0f, 1.0f, 1.0f, 0.0f)); // Default white, no metallic
+             gBufferShader_->SetVec2("u_Material", vec2(0.5f, 0.0f)); // Default roughness
+         }
+         
+         if (mc.MeshPtr) {
+             mc.MeshPtr->Draw();
+         }
+     }
+     
+     // 1.5 Decal Pass - Apply decals to G-Buffer
+     if (!decalEntities.empty() && decalShader_) {
+         // Bind to G-Buffer for read/write
+         gBuffer_->Bind();
+         
+         // Disable depth test for decal projection but keep depth writes off
+         glDisable(GL_DEPTH_TEST);
+         glDepthMask(GL_FALSE);
+         
+         // Use blending for decals
+         glEnable(GL_BLEND);
+         glBlendEquation(GL_FUNC_ADD);
+         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+         
+         decalShader_->Bind();
+         
+         // Set up common uniforms
+         decalShader_->SetMat4("u_Projection", camera3D_->GetProjectionMatrix());
+         decalShader_->SetFloat("u_FadeStart", 0.0f); // These would come from decal component
+         decalShader_->SetFloat("u_FadeEnd", 1.0f);
+         
+         // Bind G-Buffer textures for reading
+         glActiveTexture(GL_TEXTURE0);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+         glActiveTexture(GL_TEXTURE1);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
+         glActiveTexture(GL_TEXTURE2);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal
+         glActiveTexture(GL_TEXTURE3);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3)); // Velocity
+         
+         decalShader_->SetInt("gPosition", 0);
+         decalShader_->SetInt("gAlbedo", 1);
+         decalShader_->SetInt("gNormal", 2);
+         decalShader_->SetInt("gVelocity", 3);
+         
+         // Render each decal as a fullscreen quad (in a real implementation, we'd render bounding volumes)
+         for (auto const& entity : decalEntities) {
+             if (!world.HasDecal(entity)) continue;
+             
+             auto& decal = world.GetDecal(entity);
+             if (!decal.Enabled || !decal.Albedo) continue;
+             
+             // Set decal-specific uniforms
+             decalShader_->SetMat4("u_Model", Math::Mat4f::Identity()); // Simplified
+             decalShader_->SetVec4("u_DecalAlbedoColor", vec4(1.0f)); // Would use decal.Albedo color
+             decalShader_->SetVec2("u_DecalMaterial", vec2(0.5f, 0.0f)); // Would use decal material
+             
+             // Bind decal textures
+             glActiveTexture(GL_TEXTURE4);
+             glBindTexture(GL_TEXTURE_2D, decal.Albedo->GetID());
+             decalShader_->SetInt("u_DecalAlbedo", 4);
+             
+             glActiveTexture(GL_TEXTURE5);
+             glBindTexture(GL_TEXTURE_2D, decal.Normal ? decal.Normal->GetID() : 0);
+             decalShader_->SetInt("u_DecalNormal", 5);
+             
+             // Render fullscreen quad
+             RenderQuad();
+         }
+         
+         // Restore depth state
+         glDisable(GL_BLEND);
+         glDepthMask(GL_TRUE);
+         glEnable(GL_DEPTH_TEST);
+         
+         gBuffer_->Unbind();
+     }
+     
+     gBuffer_->Unbind();
 
     // 2. SSAO Pass
     ssaoFBO_->Bind();
