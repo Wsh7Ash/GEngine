@@ -118,6 +118,7 @@ struct ScopedProfileTimer {
              renderer::FramebufferTextureFormat::RGBA16F, // Albedo (RGB) + Metallic (A)
              renderer::FramebufferTextureFormat::RGBA16F, // Normal (RGB) + Roughness (A)
              renderer::FramebufferTextureFormat::RG16F,   // Velocity
+             renderer::FramebufferTextureFormat::RGBA16F, // Subsurface (RGB) + Thickness (A)
              renderer::FramebufferTextureFormat::Depth
          };
         gBuffer_ = renderer::Framebuffer::Create(gSpec);
@@ -203,11 +204,31 @@ struct ScopedProfileTimer {
            // Plasma
            plasmaShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/plasma.glsl");
            
+           // SSS (Subsurface Scattering)
+           ssssShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssss.glsl");
+           
+           // Refraction
+           refractionShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/refraction.glsl");
+           
           renderer::FramebufferSpecification volSpec;
          volSpec.Width = spec.Width / 2; // Half-res for performance
          volSpec.Height = spec.Height / 2;
          volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
          volumetricFBO_ = renderer::Framebuffer::Create(volSpec);
+
+         // SSS FBO
+         renderer::FramebufferSpecification ssssSpec;
+         ssssSpec.Width = spec.Width;
+         ssssSpec.Height = spec.Height;
+         ssssSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
+         ssssFBO_ = renderer::Framebuffer::Create(ssssSpec);
+
+         // Refraction FBO
+         renderer::FramebufferSpecification refractSpec;
+         refractSpec.Width = spec.Width;
+         refractSpec.Height = spec.Height;
+         refractSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
+         refractionFBO_ = renderer::Framebuffer::Create(refractSpec);
     }
 
     // --- IBL & Skybox Setup ---
@@ -689,6 +710,16 @@ struct ScopedProfileTimer {
         ExecuteVolumetricPass(world);
     }
 
+    // SSS (Subsurface Scattering) Pass
+    if (settings_.EnableSSSS) {
+        ExecuteSSSSPass(world);
+    }
+
+    // Refraction Pass
+    if (settings_.EnableRefraction) {
+        ExecuteRefractionPass(world);
+    }
+
     // Plasma Pass
     if (settings_.EnablePlasma) {
         ExecutePlasmaPass(world);
@@ -898,6 +929,120 @@ struct ScopedProfileTimer {
       plasmaShader_->SetVec3("u_ColorB", settings_.PlasmaColorB);
       plasmaShader_->SetVec3("u_ColorC", settings_.PlasmaColorC);
       plasmaShader_->SetBool("u_Enable", settings_.EnablePlasma);
+
+      RenderQuad();
+      intermediateA_->Unbind();
+  }
+
+  void RenderSystem::ExecuteSSSSPass(World& world) {
+      (void)world;
+      if (!ssssShader_ || !ssssFBO_ || !gBuffer_ || !intermediateA_) return;
+
+      ssssFBO_->Bind();
+      glClear(GL_COLOR_BUFFER_BIT);
+
+      ssssShader_->Bind();
+
+      // Bind G-Buffer textures
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal + Roughness
+      glActiveTexture(GL_TEXTURE2);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
+      glActiveTexture(GL_TEXTURE3);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(4)); // Subsurface
+
+      ssssShader_->SetInt("gPosition", 0);
+      ssssShader_->SetInt("gNormal", 1);
+      ssssShader_->SetInt("gAlbedo", 2);
+      ssssShader_->SetInt("gSubsurface", 3);
+
+      ssssShader_->SetMat4("projection", camera3D_->GetProjectionMatrix());
+      ssssShader_->SetMat4("view", camera3D_->GetViewMatrix());
+      ssssShader_->SetVec3("cameraPos", camera3D_->GetPosition());
+      ssssShader_->SetVec2("viewportSize", Math::Vec2f(
+          (float)ssssFBO_->GetSpecification().Width,
+          (float)ssssFBO_->GetSpecification().Height));
+
+      ssssShader_->SetFloat("u_Power", settings_.SSSSPower);
+      ssssShader_->SetFloat("u_Scale", 1.0f);
+      ssssShader_->SetFloat("u_Radius", settings_.SSSSRadius);
+      ssssShader_->SetFloat("u_Intensity", settings_.SSSSIntensity);
+      ssssShader_->SetInt("u_SampleCount", settings_.SSSSSampleCount);
+
+      RenderQuad();
+      ssssFBO_->Unbind();
+
+      // Blend SSS result back into intermediateA_
+      intermediateA_->Bind();
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_ONE, GL_ONE); // Additive blending
+
+      static std::shared_ptr<renderer::Shader> blendShader = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/postprocess.frag.glsl");
+      blendShader->Bind();
+
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, ssssFBO_->GetColorAttachmentRendererID(0));
+      blendShader->SetInt("tex", 0);
+
+      RenderQuad();
+
+      glDisable(GL_BLEND);
+      intermediateA_->Unbind();
+  }
+
+  void RenderSystem::ExecuteRefractionPass(World& world) {
+      (void)world;
+      if (!refractionShader_ || !refractionFBO_ || !gBuffer_ || !intermediateA_) return;
+
+      refractionFBO_->Bind();
+      glClear(GL_COLOR_BUFFER_BIT);
+
+      refractionShader_->Bind();
+
+      // Bind G-Buffer textures
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal + Roughness
+      glActiveTexture(GL_TEXTURE3);
+      glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(4)); // Subsurface
+
+      refractionShader_->SetInt("gPosition", 0);
+      refractionShader_->SetInt("gNormal", 1);
+      refractionShader_->SetInt("gSubsurface", 3);
+
+      // Bind scene color
+      glActiveTexture(GL_TEXTURE4);
+      glBindTexture(GL_TEXTURE_2D, intermediateA_->GetColorAttachmentRendererID(0));
+      refractionShader_->SetInt("u_SceneColor", 4);
+
+      refractionShader_->SetMat4("projection", camera3D_->GetProjectionMatrix());
+      refractionShader_->SetMat4("view", camera3D_->GetViewMatrix());
+      refractionShader_->SetMat4("invView", camera3D_->GetViewMatrix().Inverse());
+      refractionShader_->SetMat4("invProj", camera3D_->GetProjectionMatrix().Inverse());
+      refractionShader_->SetVec3("cameraPos", camera3D_->GetPosition());
+      refractionShader_->SetVec2("viewportSize", Math::Vec2f(
+          (float)refractionFBO_->GetSpecification().Width,
+          (float)refractionFBO_->GetSpecification().Height));
+
+      refractionShader_->SetFloat("u_IOR", 1.5f);
+      refractionShader_->SetFloat("u_Thickness", 1.0f);
+      refractionShader_->SetVec3("u_TintColor", Math::Vec3f(1.0f, 1.0f, 1.0f));
+      refractionShader_->SetFloat("u_Intensity", settings_.RefractionIntensity);
+
+      RenderQuad();
+      refractionFBO_->Unbind();
+
+      // Copy refraction result back to intermediateA_
+      intermediateA_->Bind();
+      static std::shared_ptr<renderer::Shader> copyShader = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/postprocess.frag.glsl");
+      copyShader->Bind();
+
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, refractionFBO_->GetColorAttachmentRendererID(0));
+      copyShader->SetInt("tex", 0);
 
       RenderQuad();
       intermediateA_->Unbind();

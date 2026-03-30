@@ -23,6 +23,16 @@ uniform bool u_UseGBufferMaterials;
 uniform float u_SSGIIntensity;    // SSGI intensity multiplier
 uniform float u_SSRIntensity;     // SSR intensity multiplier
 
+// Subsurface Scattering
+uniform float u_IOR;
+uniform float u_Thickness;
+uniform vec3 u_TintColor;
+uniform vec3 u_SubsurfaceColor;
+uniform float u_SubsurfacePower;
+uniform float u_Translucency;
+uniform float u_SSSIntensity;
+uniform sampler2D u_SSSS;         // Screen-space SSS result
+
 uniform vec3 u_AlbedoColor;
 uniform float u_Metallic;
 uniform float u_Roughness;
@@ -274,7 +284,47 @@ void main()
     vec3 ssgiContribution = texture(u_SSGI, ssgiCoords).rgb * u_SSGIIntensity;
     ambient += ssgiContribution;
     
-    vec3 result = ambient + Lo;
+    // Subsurface Scattering - texture-based (light wrap)
+    vec3 sssContribution = vec3(0.0);
+    if (u_Translucency > 0.0 && u_SSSIntensity > 0.0) {
+        for(int i = 0; i < u_LightCount; ++i) {
+            vec3 L;
+            float attenuation = 1.0;
+            
+            if (u_Lights[i].Type == 0) {
+                L = normalize(-u_Lights[i].Direction);
+            } else {
+                L = normalize(u_Lights[i].Position - v_WorldPos);
+                float distance = length(u_Lights[i].Position - v_WorldPos);
+                attenuation = 1.0 / (distance * distance);
+                if (u_Lights[i].Range > 0.0)
+                    attenuation *= clamp(1.0 - (distance / u_Lights[i].Range), 0.0, 1.0);
+            }
+            
+            vec3 H = normalize(V + L);
+            
+            // Translucency - light passing through the material
+            float translucency = pow(max(0.0, dot(-L, V)), u_SubsurfacePower);
+            translucency *= u_Translucency;
+            
+            // Thickness-based absorption (Beer-Lambert)
+            float absorption = exp(-u_Thickness * 2.0);
+            translucency *= absorption;
+            
+            vec3 radiance = u_Lights[i].Color * u_Lights[i].Intensity * attenuation;
+            sssContribution += u_SubsurfaceColor * radiance * translucency;
+        }
+        sssContribution *= u_SSSIntensity;
+    }
+    
+    // Screen-space SSS if available
+    if (u_SSSIntensity > 0.0) {
+        vec2 ssssCoords = gl_FragCoord.xy / textureSize(u_SSSS, 0);
+        vec3 ssssResult = texture(u_SSSS, ssssCoords).rgb;
+        sssContribution += ssssResult * u_SSSIntensity;
+    }
+    
+    vec3 result = ambient + Lo + sssContribution;
     
     // HDR tonemapping (Reinhard) and Gamma correction
     result = result / (result + vec3(1.0));

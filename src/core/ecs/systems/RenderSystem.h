@@ -58,6 +58,17 @@ struct PostProcessingSettings {
     Math::Vec3f PlasmaColorA = {1.0f, 0.5f, 0.0f};  // Orange
     Math::Vec3f PlasmaColorB = {0.0f, 0.5f, 1.0f};  // Blue
     Math::Vec3f PlasmaColorC = {1.0f, 0.0f, 1.0f};  // Magenta
+
+    // SSS (Subsurface Scattering) Settings
+    bool EnableSSSS = false;
+    float SSSSPower = 12.0f;
+    float SSSSRadius = 0.5f;
+    float SSSSIntensity = 1.0f;
+    int SSSSampleCount = 16;
+
+    // Refraction Settings
+    bool EnableRefraction = false;
+    float RefractionIntensity = 1.0f;
 };
 
 namespace ecs {
@@ -72,6 +83,8 @@ public:
   void ExecuteSSAOPass(World& world);
   void ExecuteVolumetricPass(World& world);
   void ExecutePlasmaPass(World& world);
+  void ExecuteSSSSPass(World& world);
+  void ExecuteRefractionPass(World& world);
 
   void
   Set2DCamera(const std::shared_ptr<renderer::OrthographicCamera> &camera) {
@@ -106,6 +119,14 @@ private:
 
     // Plasma
     std::shared_ptr<renderer::Shader> plasmaShader_;
+
+    // SSS (Subsurface Scattering)
+    std::shared_ptr<renderer::Shader> ssssShader_;
+    std::shared_ptr<renderer::Framebuffer> ssssFBO_;
+
+    // Refraction
+    std::shared_ptr<renderer::Shader> refractionShader_;
+    std::shared_ptr<renderer::Framebuffer> refractionFBO_;
 
    // Decal
    std::shared_ptr<renderer::Shader> decalShader_;

@@ -3,6 +3,7 @@ layout (location = 0) out vec3 gPosition;
 layout (location = 1) out vec4 gAlbedo;   // RGB = albedo, A = metallic
 layout (location = 2) out vec4 gNormal;   // RGB = normal, A = roughness
 layout (location = 3) out vec2 gVelocity;
+layout (location = 4) out vec4 gSubsurface; // RGB = subsurface color, A = thickness/translucency
 
 in vec3 FragPos;
 in vec3 Normal;
@@ -14,6 +15,10 @@ in vec4 CurrentPos;
 uniform vec4 u_Albedo;    // RGB = albedo color, A = metallic
 uniform vec2 u_Material;  // X = roughness, Y = AO (unused for now)
 
+// Subsurface/Glass uniforms
+uniform vec4 u_Subsurface; // RGB = subsurface color, A = thickness
+uniform float u_Translucency;
+
 void main()
 {    
     gPosition = FragPos;
@@ -23,4 +28,7 @@ void main()
     vec2 currentNDC = CurrentPos.xy / CurrentPos.w;
     vec2 prevNDC = PrevPos.xy / PrevPos.w;
     gVelocity = (currentNDC - prevNDC) * 0.5; // NDC to [0,1] velocity
+    
+    // Subsurface: RGB = subsurface color, A = thickness * translucency
+    gSubsurface = vec4(u_Subsurface.rgb, u_Subsurface.a * max(u_Translucency, 0.01));
 }
