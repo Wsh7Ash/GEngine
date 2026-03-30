@@ -1,7 +1,7 @@
 #include "PostProcessSystem.h"
 #include "../components/PostProcessComponent.h"
 #include "../../renderer/Renderer2D.h"
-#include <glad/glad.h>
+#include "../../../../deps/glad/include/glad/glad.h"
 
 namespace ge {
 namespace ecs {
@@ -10,12 +10,13 @@ namespace ecs {
         m_ThresholdShader = renderer::Shader::Create("assets/shaders/PostProcessThreshold.glsl");
         m_BlurShader = renderer::Shader::Create("assets/shaders/PostProcessBlur.glsl");
         m_CompositeShader = renderer::Shader::Create("assets/shaders/PostProcessComposite.glsl");
+        m_SSGIPass = std::make_shared<renderer::SSGIPass>();
     }
 
     void PostProcessSystem::Init(uint32_t width, uint32_t height) {
         m_Width = width;
         m_Height = height;
-
+        
         renderer::FramebufferSpecification spec;
         spec.Width = width;
         spec.Height = height;
@@ -25,6 +26,7 @@ namespace ecs {
         m_BlurFBs[0] = renderer::Framebuffer::Create(spec);
         m_BlurFBs[1] = renderer::Framebuffer::Create(spec);
         m_FinalFB = renderer::Framebuffer::Create(spec);
+        m_SSGIFB = renderer::Framebuffer::Create(spec); // SSGI pass output
     }
 
     void PostProcessSystem::Resize(uint32_t width, uint32_t height) {
@@ -41,10 +43,16 @@ namespace ecs {
     uint32_t PostProcessSystem::Process(World& world, std::shared_ptr<renderer::Framebuffer> inputFB) {
         auto entities = world.Query<PostProcessComponent>();
         if (entities.begin() == entities.end()) return inputFB->GetColorAttachmentRendererID(0);
-
+        
         auto& ppc = world.GetComponent<PostProcessComponent>(*entities.begin());
         if (!ppc.Enabled) return inputFB->GetColorAttachmentRendererID(0);
-
+        
+        // 0. SSGI Pass (Screen Space Global Illumination)
+        // This needs the G-buffer from the rendering system
+        // For now, we'll skip this as we don't have direct access to G-buffer
+        // In a full implementation, this would come after G-buffer generation
+        // We would need to modify the rendering pipeline to provide G-buffer to post-processing
+        
         // 1. Threshold Pass (Extract bright parts)
         m_ThresholdFB->Bind();
         glClear(GL_COLOR_BUFFER_BIT);
@@ -54,7 +62,7 @@ namespace ecs {
         glBindTexture(GL_TEXTURE_2D, inputFB->GetColorAttachmentRendererID(0));
         renderer::Renderer2D::DrawFullscreenQuad();
         m_ThresholdFB->Unbind();
-
+        
         // 2. Blur Passes (Gaussian)
         bool horizontal = true, first_iteration = true;
         int amount = 10;
@@ -68,7 +76,7 @@ namespace ecs {
             if (first_iteration) first_iteration = false;
         }
         m_BlurFBs[0]->Unbind();
-
+        
         // 3. Final Composite Pass
         m_FinalFB->Bind();
         glClear(GL_COLOR_BUFFER_BIT);
@@ -80,14 +88,14 @@ namespace ecs {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, inputFB->GetColorAttachmentRendererID(0));
         m_CompositeShader->SetInt("u_SceneTexture", 0);
-
+        
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, m_BlurFBs[!horizontal]->GetColorAttachmentRendererID(0));
         m_CompositeShader->SetInt("u_BloomTexture", 1);
-
+        
         renderer::Renderer2D::DrawFullscreenQuad();
         m_FinalFB->Unbind();
-
+        
         return m_FinalFB->GetColorAttachmentRendererID(0);
     }
 
