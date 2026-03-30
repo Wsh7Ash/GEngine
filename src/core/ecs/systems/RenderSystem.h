@@ -33,6 +33,13 @@ struct PostProcessingSettings {
     int VolumetricSamples = 32;
 
     bool EnableTAA = true;
+    
+    // SSGI Settings
+    bool EnableSSGI = false;  // Disabled by default for performance
+    float SSGIRadius = 0.5f;
+    int SSGISampleCount = 16;
+    float SSGIIntensity = 1.0f;
+    float SSGIBounceIntensity = 0.5f; // For approximating multiple bounces
 };
 
 namespace ecs {
@@ -66,9 +73,13 @@ private:
   std::shared_ptr<renderer::Shader> shadowShader_;
   std::shared_ptr<renderer::Framebuffer> shadowMap_;
 
-   // SSAO
-   std::shared_ptr<renderer::Shader> ssaoShader_, ssaoBlurShader_, gBufferShader_;
-   std::shared_ptr<renderer::Framebuffer> gBuffer_, ssaoFBO_, ssaoBlurFBO_;
+    // SSAO
+    std::shared_ptr<renderer::Shader> ssaoShader_, ssaoBlurShader_, gBufferShader_;
+    std::shared_ptr<renderer::Framebuffer> gBuffer_, ssaoFBO_, ssaoBlurFBO_;
+    
+    // SSGI
+    std::shared_ptr<renderer::Shader> ssgiShader_;
+    std::shared_ptr<renderer::Framebuffer> ssgiFBO_;
 
    // Decal
    std::shared_ptr<renderer::Shader> decalShader_;

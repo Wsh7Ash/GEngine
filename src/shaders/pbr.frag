@@ -13,11 +13,13 @@ uniform sampler2D u_MetallicMap;
 uniform sampler2D u_RoughnessMap;
 uniform sampler2D u_AOMap;
 uniform sampler2D u_SSAO;
+uniform sampler2D u_SSGI;         // Screen Space Global Illumination
 uniform sampler2D u_gPosition;    // G-Buffer position
 uniform sampler2D u_gAlbedo;      // G-Buffer albedo (RGB) + metallic (A)
 uniform sampler2D u_gNormal;      // G-Buffer normal (RGB) + roughness (A)
 uniform sampler2D u_gVelocity;    // G-Buffer velocity
 uniform bool u_UseGBufferMaterials;
+uniform float u_SSGIIntensity;    // SSGI intensity multiplier
 
 uniform vec3 u_AlbedoColor;
 uniform float u_Metallic;
@@ -255,6 +257,11 @@ void main()
     {
         ambient = vec3(0.03) * albedo * ao;
     }
+    
+    // Add screen-space global illumination
+    vec2 ssgiCoords = gl_FragCoord.xy / textureSize(u_SSGI, 0);
+    vec3 ssgiContribution = texture(u_SSGI, ssgiCoords).rgb * u_SSGIIntensity;
+    ambient += ssgiContribution;
     
     vec3 result = ambient + Lo;
     

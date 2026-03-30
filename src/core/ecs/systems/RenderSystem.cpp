@@ -138,6 +138,13 @@ struct ScopedProfileTimer {
         ssaoFBO_ = renderer::Framebuffer::Create(ssaoSpec);
         ssaoBlurFBO_ = renderer::Framebuffer::Create(ssaoSpec);
 
+        // SSGI FBO
+        renderer::FramebufferSpecification ssgiSpec;
+        ssgiSpec.Width = spec.Width;
+        ssgiSpec.Height = spec.Height;
+        ssgiSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR for indirect lighting
+        ssgiFBO_ = renderer::Framebuffer::Create(ssgiSpec);
+
         // Sample Kernel
         // Sample Kernel
         std::uniform_real_distribution<float> randomFloats(0.0f, 1.0f);
@@ -175,10 +182,13 @@ struct ScopedProfileTimer {
         taaShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/taa.glsl");
         
          // Volumetric
-         volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_lighting.glsl");
-         
-         // Decal
-         decalShader_ = renderer::Shader::Create("./src/shaders/decal.vert.glsl", "./src/shaders/decal.frag.glsl");
+          volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_lighting.glsl");
+          
+          // Decal
+          decalShader_ = renderer::Shader::Create("./src/shaders/decal.vert.glsl", "./src/shaders/decal.frag.glsl");
+          
+          // SSGI
+          ssgiShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssgi.glsl");
          
          renderer::FramebufferSpecification volSpec;
          volSpec.Width = spec.Width / 2; // Half-res for performance
@@ -938,17 +948,54 @@ struct ScopedProfileTimer {
     RenderQuad();
     ssaoFBO_->Unbind();
 
-    // 3. SSAO Blur Pass
-    ssaoBlurFBO_->Bind();
-    glClear(GL_COLOR_BUFFER_BIT);
-    ssaoBlurShader_->Bind();
-    
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, ssaoFBO_->GetColorAttachmentRendererID(0));
-    ssaoBlurShader_->SetInt("ssaoInput", 0);
-    
-    RenderQuad();
-    ssaoBlurFBO_->Unbind();
+     // 3. SSAO Blur Pass
+     ssaoBlurFBO_->Bind();
+     glClear(GL_COLOR_BUFFER_BIT);
+     ssaoBlurShader_->Bind();
+     
+     glActiveTexture(GL_TEXTURE0);
+     glBindTexture(GL_TEXTURE_2D, ssaoFBO_->GetColorAttachmentRendererID(0));
+     ssaoBlurShader_->SetInt("ssaoInput", 0);
+     
+     RenderQuad();
+     ssaoBlurFBO_->Unbind();
+     
+     // 4. SSGI Pass (Screen Space Global Illumination)
+     if (settings_.EnableSSGI && ssgiFBO_ && ssgiShader_) {
+         ScopedProfileTimer ssgiTimer(&renderer::Renderer2D::GetStats().PassSSGI);
+         
+         ssgiFBO_->Bind();
+         glClear(GL_COLOR_BUFFER_BIT);
+         
+         ssgiShader_->Bind();
+         
+         // Bind G-Buffer textures
+         glActiveTexture(GL_TEXTURE0);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
+         glActiveTexture(GL_TEXTURE1);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Normal
+         glActiveTexture(GL_TEXTURE2);
+         glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Albedo
+         glActiveTexture(GL_TEXTURE3);
+         glBindTexture(GL_TEXTURE_2D, ssaoNoiseTexture_); // Noise for sampling
+         
+         ssgiShader_->SetInt("gPosition", 0);
+         ssgiShader_->SetInt("gNormal", 1);
+         ssgiShader_->SetInt("gAlbedo", 2);
+         ssgiShader_->SetInt("texNoise", 3);
+         ssgiShader_->SetMat4("projection", camera3D_->GetProjectionMatrix());
+         ssgiShader_->SetMat4("view", camera3D_->GetViewMatrix());
+         ssgiShader_->SetVec3("cameraPos", camera3D_->GetPosition());
+         
+         // SSGI parameters
+         ssgiShader_->SetInt("sampleCount", settings_.SSGISampleCount);
+         ssgiShader_->SetFloat("radius", settings_.SSGIRadius);
+         ssgiShader_->SetFloat("intensity", settings_.SSGIIntensity);
+         ssgiShader_->SetFloat("bounceIntensity", settings_.SSGIBounceIntensity);
+         
+         RenderQuad();
+         ssgiFBO_->Unbind();
+     }
   }
 
   // --- IBL Helper Methods ---
