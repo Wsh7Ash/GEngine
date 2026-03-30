@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "../math/BoundingVolumes.h"
+#include "../math/Mat4x4.h"
 
 
 namespace ge {
@@ -40,6 +41,7 @@ public:
   virtual void Unbind() const = 0;
 
   virtual void Draw() const = 0;
+  virtual void DrawInstanced(const std::vector<Math::Mat4f>& instances) = 0;
 
   virtual uint32_t GetIndexCount() const = 0;
   virtual void SetIndexCount(uint32_t count) = 0;

@@ -7,7 +7,7 @@ namespace renderer {
 
 OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
                        const std::vector<uint32_t> &indices)
-    : indexCount_((uint32_t)indices.size()), vertices_(vertices), indices_(indices) {
+    : indexCount_((uint32_t)indices.size()), vertices_(vertices), indices_(indices), instanceVBO_(0) {
   
   for (const auto& v : vertices) {
       aabb_.Expand({ v.Position[0], v.Position[1], v.Position[2] });
@@ -85,7 +85,7 @@ OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
 }
 
 OpenGLMesh::OpenGLMesh(uint32_t maxVertices, uint32_t maxIndices)
-    : indexCount_(0) {
+    : indexCount_(0), instanceVBO_(0) {
   glCreateVertexArrays(1, &vao_);
   glBindVertexArray(vao_);
 
@@ -125,6 +125,9 @@ OpenGLMesh::~OpenGLMesh() {
   glDeleteVertexArrays(1, &vao_);
   glDeleteBuffers(1, &vbo_);
   glDeleteBuffers(1, &ebo_);
+  if (instanceVBO_) {
+    glDeleteBuffers(1, &instanceVBO_);
+  }
 }
 
 void OpenGLMesh::Bind() const { glBindVertexArray(vao_); }
@@ -161,6 +164,34 @@ void OpenGLMesh::SetData(const void* vertices, uint32_t size) {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo_);
     glBufferSubData(GL_ARRAY_BUFFER, 0, size, vertices);
+}
+
+void OpenGLMesh::DrawInstanced(const std::vector<Math::Mat4f>& instances) {
+    if (instances.empty()) return;
+
+    uint32_t instanceCount = static_cast<uint32_t>(instances.size());
+
+    if (instanceVBO_ == 0) {
+        glGenBuffers(1, &instanceVBO_);
+    }
+
+    Bind();
+
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO_);
+    glBufferData(GL_ARRAY_BUFFER, instances.size() * sizeof(Math::Mat4f),
+                 instances.data(), GL_DYNAMIC_DRAW);
+
+    for (int i = 0; i < 4; ++i) {
+        glEnableVertexAttribArray(11 + i);
+        glVertexAttribPointer(11 + i, 4, GL_FLOAT, GL_FALSE, sizeof(Math::Mat4f),
+                              (const void*)(i * sizeof(Math::Vec4f)));
+        glVertexAttribDivisor(11 + i, 1);
+    }
+
+    glDrawElementsInstanced(GL_TRIANGLES, indexCount_, GL_UNSIGNED_INT, nullptr, instanceCount);
+
+    Renderer2D::GetStats().InstancedDrawCalls++;
+    Renderer2D::GetStats().TotalInstances += instanceCount;
 }
 
 } // namespace renderer

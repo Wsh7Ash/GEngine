@@ -30,7 +30,9 @@ struct MeshComponent
     };
     std::vector<LODLevel> LODLevels;
     
-    bool IsVisible = true; // Manual culling/occlusion hint
+    bool IsVisible = true;
+    float MaxDrawDistance = 1000.0f; // Distance-based culling threshold
+    float MinDrawDistance = 0.1f;    // Near plane culling threshold
     
     // PBR Properties
     Math::Vec3f AlbedoColor = {1.0f, 1.0f, 1.0f};

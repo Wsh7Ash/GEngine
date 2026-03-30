@@ -26,6 +26,13 @@ struct Renderer2DStatistics {
   float PassLighting = 0.0f;
   float PassVolumetric = 0.0f;
   float PassPostProcess = 0.0f;
+
+  uint32_t InstancedDrawCalls = 0;
+  uint32_t TotalInstances = 0;
+  uint32_t CulledCount = 0;
+  uint32_t VisibleCount = 0;
+  float PassCulling = 0.0f;
+  uint32_t InstancesPerBatch = 0;
 };
 
 class Renderer2D {

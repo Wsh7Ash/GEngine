@@ -346,6 +346,31 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::Text("Quads:       %d", stats.QuadCount);
   ImGui::Text("Vertices:    %d", stats.GetTotalVertexCount());
   ImGui::Text("Indices:     %d", stats.GetTotalIndexCount());
+  
+  // ── Instancing ──
+  ImGui::Spacing();
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.60f, 0.40f, 0.80f, 1.00f));
+  ImGui::Text("Instancing");
+  ImGui::PopStyleColor();
+  ImGui::Separator();
+  ImGui::Spacing();
+  ImGui::Text("Instanced Draws: %d", stats.InstancedDrawCalls);
+  ImGui::Text("Total Instances: %d", stats.TotalInstances);
+  
+  // ── Culling ──
+  ImGui::Spacing();
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.90f, 0.50f, 0.20f, 1.00f));
+  ImGui::Text("Culling");
+  ImGui::PopStyleColor();
+  ImGui::Separator();
+  ImGui::Spacing();
+  ImGui::Text("Visible:     %d", stats.VisibleCount);
+  ImGui::Text("Culled:      %d", stats.CulledCount);
+  float totalObjects = stats.VisibleCount + stats.CulledCount;
+  if (totalObjects > 0) {
+      float cullRate = (float)stats.CulledCount / totalObjects * 100.0f;
+      ImGui::Text("Cull Rate:   %.1f%%", cullRate);
+  }
   ImGui::End();
 
   if (s_HierarchyPanel)

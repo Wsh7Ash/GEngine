@@ -52,6 +52,11 @@ struct ScopedProfileTimer {
   void RenderSystem::Render(World &world, float dt) {
     (void)dt;
 
+    renderer::Renderer2D::GetStats().CulledCount = 0;
+    renderer::Renderer2D::GetStats().VisibleCount = 0;
+    renderer::Renderer2D::GetStats().InstancedDrawCalls = 0;
+    renderer::Renderer2D::GetStats().TotalInstances = 0;
+
     // Fetch Viewport for jitter and post-processing setup
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
@@ -344,17 +349,31 @@ struct ScopedProfileTimer {
             auto& transform = world.GetTransform(me);
             auto& meshComp = world.GetMesh(me);
             
-            if (!meshComp.IsVisible) continue;
+            if (!meshComp.IsVisible) {
+                renderer::Renderer2D::GetStats().CulledCount++;
+                continue;
+            }
 
             if (meshComp.MeshPtr) {
                 Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
                 
-                // Culling Test
                 Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
-                if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
-
+                
+                if (camera3D_) {
+                    float dist = (transform.position - camera3D_->GetPosition()).Length();
+                    if (dist > meshComp.MaxDrawDistance || dist < meshComp.MinDrawDistance) {
+                        renderer::Renderer2D::GetStats().CulledCount++;
+                        continue;
+                    }
+                    if (!frustum.Intersect(worldAABB)) {
+                        renderer::Renderer2D::GetStats().CulledCount++;
+                        continue;
+                    }
+                }
+                
+                renderer::Renderer2D::GetStats().VisibleCount++;
                 shadowShader_->SetMat4("u_Model", model);
                 shadowShader_->SetBool("u_IsAnimated", false);
                 meshComp.MeshPtr->Draw();
@@ -369,9 +388,16 @@ struct ScopedProfileTimer {
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
                 
-                // Culling Test
                 Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
-                if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
+                
+                if (camera3D_) {
+                    float dist = (transform.position - camera3D_->GetPosition()).Length();
+                    if (!frustum.Intersect(worldAABB) || dist > 1000.0f) {
+                        renderer::Renderer2D::GetStats().CulledCount++;
+                        continue;
+                    }
+                }
+                renderer::Renderer2D::GetStats().VisibleCount++;
 
                 shadowShader_->SetMat4("u_Model", model);
                 
@@ -425,16 +451,30 @@ struct ScopedProfileTimer {
         auto& meshComp = world.GetMesh(entity);
 
         if (!meshComp.MeshPtr) continue;
-        if (!meshComp.IsVisible) continue;
+        if (!meshComp.IsVisible) {
+            renderer::Renderer2D::GetStats().CulledCount++;
+            continue;
+        }
 
         if (meshComp.MeshPtr && meshComp.MaterialPtr) {
             Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
                                 transform.rotation.ToMat4x4() *
                                 Math::Mat4f::Scale(transform.scale);
             
-            // Culling Test
             Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
-            if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
+            
+            if (camera3D_) {
+                float dist = (transform.position - camera3D_->GetPosition()).Length();
+                if (dist > meshComp.MaxDrawDistance || dist < meshComp.MinDrawDistance) {
+                    renderer::Renderer2D::GetStats().CulledCount++;
+                    continue;
+                }
+                if (!frustum.Intersect(worldAABB)) {
+                    renderer::Renderer2D::GetStats().CulledCount++;
+                    continue;
+                }
+            }
+            renderer::Renderer2D::GetStats().VisibleCount++;
 
             // LOD Selection
             std::shared_ptr<renderer::Mesh> activeMesh = meshComp.MeshPtr;
@@ -594,9 +634,16 @@ struct ScopedProfileTimer {
                                     transform.rotation.ToMat4x4() *
                                     Math::Mat4f::Scale(transform.scale);
 
-                // Culling Test
                 Math::AABB worldAABB = modelComp.ModelPtr->GetAABB().Transform(model);
-                if (camera3D_ && !frustum.Intersect(worldAABB)) continue;
+                
+                if (camera3D_) {
+                    float dist = (transform.position - camera3D_->GetPosition()).Length();
+                    if (!frustum.Intersect(worldAABB) || dist > meshComp.MaxDrawDistance) {
+                        renderer::Renderer2D::GetStats().CulledCount++;
+                        continue;
+                    }
+                }
+                renderer::Renderer2D::GetStats().VisibleCount++;
 
                  shader->SetMat4("u_Model", model);
  

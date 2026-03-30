@@ -30,6 +30,7 @@ namespace renderer {
 
     private:
         uint32_t vao_, vbo_, ebo_;
+        uint32_t instanceVBO_;
         uint32_t indexCount_;
         std::vector<Vertex> vertices_;
         std::vector<uint32_t> indices_;
