@@ -130,7 +130,7 @@ struct ScopedProfileTimer {
         prevFrameFBO_ = renderer::Framebuffer::Create(taaSpec);
         resolveFBO_ = renderer::Framebuffer::Create(taaSpec);
 
-        // SSAO FBOs
+         // SSAO FBOs
         renderer::FramebufferSpecification ssaoSpec;
         ssaoSpec.Width = spec.Width;
         ssaoSpec.Height = spec.Height;
@@ -144,6 +144,13 @@ struct ScopedProfileTimer {
         ssgiSpec.Height = spec.Height;
         ssgiSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR for indirect lighting
         ssgiFBO_ = renderer::Framebuffer::Create(ssgiSpec);
+
+        // SSR FBO
+        renderer::FramebufferSpecification ssrSpec;
+        ssrSpec.Width = spec.Width;
+        ssrSpec.Height = spec.Height;
+        ssrSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR for reflection
+        ssrFBO_ = renderer::Framebuffer::Create(ssrSpec);
 
         // Sample Kernel
         // Sample Kernel
@@ -187,10 +194,13 @@ struct ScopedProfileTimer {
           // Decal
           decalShader_ = renderer::Shader::Create("./src/shaders/decal.vert.glsl", "./src/shaders/decal.frag.glsl");
           
-          // SSGI
-          ssgiShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssgi.glsl");
-         
-         renderer::FramebufferSpecification volSpec;
+           // SSGI
+           ssgiShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssgi.glsl");
+           
+           // SSR
+           ssrShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssr.glsl");
+           
+          renderer::FramebufferSpecification volSpec;
          volSpec.Width = spec.Width / 2; // Half-res for performance
          volSpec.Height = spec.Height / 2;
          volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR

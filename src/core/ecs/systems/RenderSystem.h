@@ -40,6 +40,14 @@ struct PostProcessingSettings {
     int SSGISampleCount = 16;
     float SSGIIntensity = 1.0f;
     float SSGIBounceIntensity = 0.5f; // For approximating multiple bounces
+
+    // SSR Settings
+    bool EnableSSR = false;   // Disabled by default for performance
+    int SSRSteps = 32;
+    float SSRStepSize = 0.5;
+    float SSRFadeDistance = 10.0;
+    float SSRThickness = 0.01;
+    float SSRRoughnessFade = 1.0;
 };
 
 namespace ecs {
@@ -80,6 +88,10 @@ private:
     // SSGI
     std::shared_ptr<renderer::Shader> ssgiShader_;
     std::shared_ptr<renderer::Framebuffer> ssgiFBO_;
+    
+    // SSR
+    std::shared_ptr<renderer::Shader> ssrShader_;
+    std::shared_ptr<renderer::Framebuffer> ssrFBO_;
 
    // Decal
    std::shared_ptr<renderer::Shader> decalShader_;
