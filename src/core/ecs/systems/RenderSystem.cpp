@@ -272,10 +272,16 @@ struct ScopedProfileTimer {
          if (world.HasLight(entity)) {
              lightEntities.push_back(entity);
          }
-         if (world.HasDecal(entity)) {
-             decalEntities.push_back(entity);
-         }
-     }
+          if (world.HasDecal(entity)) {
+              decalEntities.push_back(entity);
+          }
+      }
+
+    // 3.5 Forward+ Cluster Setup
+    if (settings_.EnableForwardPlus) {
+        BuildForwardPlusClusters();
+        AssignLightsToClusters(lightEntities, world);
+    }
 
     // 4. Shadow Pass (Directional)
     Math::Mat4f lightSpaceMatrix = Math::Mat4f::Identity();
@@ -500,18 +506,33 @@ struct ScopedProfileTimer {
                  shader->SetFloat("u_SSGIIntensity", 0.0);
              }
 
-             // Bind SSR texture (Slot 14)
-             if (settings_.EnableSSR && ssrFBO_) {
-                 glActiveTexture(GL_TEXTURE14);
-                 glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
-                 shader->SetInt("u_SSR", 14);
-                 shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
-             } else {
-                 shader->SetInt("u_SSR", -1);
-                 shader->SetFloat("u_SSRIntensity", 0.0);
-             }
-             
-             // Indicate we're using G-Buffer materials
+              // Bind SSR texture (Slot 14)
+              if (settings_.EnableSSR && ssrFBO_) {
+                  glActiveTexture(GL_TEXTURE14);
+                  glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
+                  shader->SetInt("u_SSR", 14);
+                  shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
+              } else {
+                  shader->SetInt("u_SSR", -1);
+                  shader->SetFloat("u_SSRIntensity", 0.0);
+              }
+
+              // Forward+ Clustered Lighting
+              shader->SetBool("u_UseForwardPlus", settings_.EnableForwardPlus);
+              if (settings_.EnableForwardPlus && lightBuffer_ != 0) {
+                  shader->SetInt("u_ClusterCountX", clusterCountX_);
+                  shader->SetInt("u_ClusterCountY", clusterCountY_);
+                  shader->SetInt("u_ClusterCountZ", clusterCountZ_);
+                  shader->SetFloat("u_NearPlane", camera3D_->GetNearPlane());
+                  shader->SetFloat("u_FarPlane", camera3D_->GetFarPlane());
+
+                  // Bind SSBOs
+                  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, lightBuffer_);
+                  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, clusterLightIndicesBuffer_);
+                  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, clusterLightCountsBuffer_);
+              }
+              
+              // Indicate we're using G-Buffer materials
              shader->SetBool("u_UseGBufferMaterials", true);
  
              // Set default material values (will be overridden by G-Buffer when used)
@@ -624,17 +645,31 @@ struct ScopedProfileTimer {
                  }
 
                  // Bind SSR texture (Slot 14)
-                 if (settings_.EnableSSR && ssrFBO_) {
-                     glActiveTexture(GL_TEXTURE14);
-                     glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
-                     shader->SetInt("u_SSR", 14);
-                     shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
-                 } else {
-                     shader->SetInt("u_SSR", -1);
-                     shader->SetFloat("u_SSRIntensity", 0.0);
-                 }
-                 
-                 // In the decal implementation, we read material properties from the G-Buffer
+                  if (settings_.EnableSSR && ssrFBO_) {
+                      glActiveTexture(GL_TEXTURE14);
+                      glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
+                      shader->SetInt("u_SSR", 14);
+                      shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
+                  } else {
+                      shader->SetInt("u_SSR", -1);
+                      shader->SetFloat("u_SSRIntensity", 0.0);
+                  }
+
+                  // Forward+ Clustered Lighting
+                  shader->SetBool("u_UseForwardPlus", settings_.EnableForwardPlus);
+                  if (settings_.EnableForwardPlus && lightBuffer_ != 0) {
+                      shader->SetInt("u_ClusterCountX", clusterCountX_);
+                      shader->SetInt("u_ClusterCountY", clusterCountY_);
+                      shader->SetInt("u_ClusterCountZ", clusterCountZ_);
+                      shader->SetFloat("u_NearPlane", camera3D_->GetNearPlane());
+                      shader->SetFloat("u_FarPlane", camera3D_->GetFarPlane());
+
+                      glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, lightBuffer_);
+                      glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, clusterLightIndicesBuffer_);
+                      glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, clusterLightCountsBuffer_);
+                  }
+                  
+                  // In the decal implementation, we read material properties from the G-Buffer
                  // So we don't need to set these as uniforms - they'll be sampled in the shader
                  // However, we still need to indicate that we're using the G-Buffer for materials
                  shader->SetBool("u_UseGBufferMaterials", true);
@@ -1438,6 +1473,175 @@ struct ScopedProfileTimer {
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
       
       env.IsComputed = true;
+  }
+
+  // ============================================================================
+  // Forward+ Clustered Lighting Implementation
+  // ============================================================================
+
+  void RenderSystem::BuildForwardPlusClusters() {
+      if (!camera3D_) return;
+
+      clusterCountX_ = settings_.ClusterSizeX;
+      clusterCountY_ = settings_.ClusterSizeY;
+      clusterCountZ_ = settings_.ClusterSizeZ;
+      maxLightsPerCluster_ = settings_.MaxLightsPerCluster;
+      maxLights_ = settings_.MaxLights;
+
+      // Initialize GPU buffers if needed
+      if (lightBuffer_ == 0) {
+          glGenBuffers(1, &lightBuffer_);
+      }
+      if (clusterLightIndicesBuffer_ == 0) {
+          glGenBuffers(1, &clusterLightIndicesBuffer_);
+      }
+
+      // Allocate cluster data
+      int totalClusters = clusterCountX_ * clusterCountY_ * clusterCountZ_;
+      
+      fpData_.lightPositions = new Math::Vec3f[maxLights_];
+      fpData_.lightColors = new Math::Vec3f[maxLights_];
+      fpData_.lightIntensities = new float[maxLights_];
+      fpData_.lightRanges = new float[maxLights_];
+      fpData_.lightTypes = new int[maxLights_];
+      fpData_.lightDirections = new Math::Vec3f[maxLights_];
+      fpData_.lightSpotOuter = new float[maxLights_];
+      fpData_.lightSpotInner = new float[maxLights_];
+      fpData_.lightIndicesPerCluster = new int[totalClusters * maxLightsPerCluster_];
+      fpData_.lightCountPerCluster = new int[totalClusters];
+      fpData_.clusterBounds = new Math::Vec4f[totalClusters * 2];
+
+      // Initialize light counts to 0
+      memset(fpData_.lightCountPerCluster, 0, sizeof(int) * totalClusters);
+      memset(fpData_.lightIndicesPerCluster, -1, sizeof(int) * totalClusters * maxLightsPerCluster_);
+  }
+
+  void RenderSystem::AssignLightsToClusters(const std::vector<ecs::Entity>& lightEntities, World& world) {
+      if (!camera3D_ || lightEntities.empty()) return;
+
+      int totalClusters = clusterCountX_ * clusterCountY_ * clusterCountZ_;
+      float nearPlane = camera3D_->GetNearPlane();
+      float farPlane = camera3D_->GetFarPlane();
+
+      // Get camera matrices
+      Math::Mat4f view = camera3D_->GetViewMatrix();
+      Math::Mat4f proj = camera3D_->GetProjectionMatrix();
+      Math::Mat4f viewProj = proj * view;
+      Math::Vec3f camPos = camera3D_->GetPosition();
+
+      // Collect light data
+      int lightCount = std::min((int)lightEntities.size(), maxLights_);
+      
+      for (int i = 0; i < lightCount; ++i) {
+          auto& lc = world.GetLight(lightEntities[i]);
+          auto& lt = world.GetTransform(lightEntities[i]);
+
+          fpData_.lightPositions[i] = lt.position;
+          fpData_.lightColors[i] = lc.Color;
+          fpData_.lightIntensities[i] = lc.Intensity;
+          fpData_.lightRanges[i] = lc.Range;
+          fpData_.lightTypes[i] = (int)lc.Type;
+
+          Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+          fpData_.lightDirections[i] = { dir4.x, dir4.y, dir4.z };
+          fpData_.lightSpotOuter[i] = lc.SpotOuterCone;
+          fpData_.lightSpotInner[i] = lc.SpotInnerCone;
+
+          // Assign light to clusters based on its position and range
+          float lightRange = lc.Range;
+          if (lc.Type == LightType::Directional) {
+              lightRange = farPlane * 2.0f; // Directional lights affect everything
+          }
+
+          // Determine which clusters this light affects
+          Math::Vec3f lightPos = lt.position;
+
+          // Simple bounding sphere to cluster assignment
+          for (int z = 0; z < clusterCountZ_; ++z) {
+              for (int y = 0; y < clusterCountY_; ++y) {
+                  for (int x = 0; x < clusterCountX_; ++x) {
+                      int clusterIdx = z * clusterCountX_ * clusterCountY_ + y * clusterCountX_ + x;
+
+                      // Calculate cluster bounds in view space (simplified)
+                      float zNear = nearPlane + (float(z) / clusterCountZ_) * (farPlane - nearPlane);
+                      float zFar = nearPlane + (float(z + 1) / clusterCountZ_) * (farPlane - nearPlane);
+                      
+                      // Check if light affects this cluster
+                      bool affects = false;
+                      if (lc.Type == LightType::Directional) {
+                          affects = true; // Directional lights affect all clusters
+                      } else {
+                          // Point/Spot lights - check distance to cluster center
+                          float clusterZ = (zNear + zFar) * 0.5f;
+                          Math::Vec3f clusterCenter = camPos + Math::Vec3f(0, 0, -clusterZ);
+                          float dist = (lightPos - clusterCenter).Length();
+                          if (dist < lightRange) {
+                              affects = true;
+                          }
+                      }
+
+                      if (affects && fpData_.lightCountPerCluster[clusterIdx] < maxLightsPerCluster_) {
+                          fpData_.lightIndicesPerCluster[clusterIdx * maxLightsPerCluster_ + fpData_.lightCountPerCluster[clusterIdx]] = i;
+                          fpData_.lightCountPerCluster[clusterIdx]++;
+                      }
+                  }
+              }
+          }
+      }
+
+      // Upload light data to GPU
+      UploadLightDataToGPU(lightCount);
+  }
+
+  void RenderSystem::UploadLightDataToGPU(int lightCount) {
+      if (lightBuffer_ == 0 || lightCount <= 0) return;
+
+      // Pack light data into struct matching shader
+      struct PackedLight {
+          Math::Vec3f Position;
+          float Range;
+          Math::Vec3f Color;
+          float Intensity;
+          Math::Vec3f Direction;
+          float SpotOuterCone;
+          float SpotInnerCone;
+          int Type;
+          float Padding;
+      };
+
+      std::vector<PackedLight> packedLights(lightCount);
+      for (int i = 0; i < lightCount; ++i) {
+          packedLights[i].Position = fpData_.lightPositions[i];
+          packedLights[i].Range = fpData_.lightRanges[i];
+          packedLights[i].Color = fpData_.lightColors[i];
+          packedLights[i].Intensity = fpData_.lightIntensities[i];
+          packedLights[i].Direction = fpData_.lightDirections[i];
+          packedLights[i].SpotOuterCone = fpData_.lightSpotOuter[i];
+          packedLights[i].SpotInnerCone = fpData_.lightSpotInner[i];
+          packedLights[i].Type = fpData_.lightTypes[i];
+          packedLights[i].Padding = 0.0f;
+      }
+
+      // Upload light buffer
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightBuffer_);
+      glBufferData(GL_SHADER_STORAGE_BUFFER, packedLights.size() * sizeof(PackedLight), packedLights.data(), GL_DYNAMIC_DRAW);
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+      // Upload cluster light indices
+      int totalClusters = clusterCountX_ * clusterCountY_ * clusterCountZ_;
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, clusterLightIndicesBuffer_);
+      glBufferData(GL_SHADER_STORAGE_BUFFER, totalClusters * maxLightsPerCluster_ * sizeof(int), 
+                   fpData_.lightIndicesPerCluster, GL_DYNAMIC_DRAW);
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+      // Upload cluster light counts
+      if (clusterLightCountsBuffer_ == 0) {
+          glGenBuffers(1, &clusterLightCountsBuffer_);
+      }
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, clusterLightCountsBuffer_);
+      glBufferData(GL_SHADER_STORAGE_BUFFER, totalClusters * sizeof(int), 
+                   fpData_.lightCountPerCluster, GL_DYNAMIC_DRAW);
+      glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
   }
 
 } // namespace ecs

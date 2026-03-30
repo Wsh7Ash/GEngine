@@ -69,6 +69,14 @@ struct PostProcessingSettings {
     // Refraction Settings
     bool EnableRefraction = false;
     float RefractionIntensity = 1.0f;
+
+    // Forward+ Settings
+    bool EnableForwardPlus = false;
+    int ClusterSizeX = 16;
+    int ClusterSizeY = 8;
+    int ClusterSizeZ = 16;
+    int MaxLightsPerCluster = 16;
+    int MaxLights = 256;
 };
 
 namespace ecs {
@@ -127,6 +135,38 @@ private:
     // Refraction
     std::shared_ptr<renderer::Shader> refractionShader_;
     std::shared_ptr<renderer::Framebuffer> refractionFBO_;
+
+    // Forward+ Lighting
+    std::shared_ptr<renderer::Shader> forwardPlusShader_;
+    unsigned int lightBuffer_ = 0;          // SSBO for light data
+    unsigned int clusterLightIndicesBuffer_ = 0;  // SSBO for cluster light indices
+    unsigned int clusterLightCountsBuffer_ = 0;   // SSBO for light count per cluster
+    unsigned int clusterDataTexture_ = 0;  // 3D texture for cluster bounds
+    unsigned int lightIndicesTexture_ = 0; // 2D texture for light indices per cluster
+    int clusterCountX_ = 16;
+    int clusterCountY_ = 8;
+    int clusterCountZ_ = 16;
+    int maxLightsPerCluster_ = 16;
+    int maxLights_ = 256;
+
+    struct ForwardPlusData {
+        Math::Vec3f* lightPositions;
+        Math::Vec3f* lightColors;
+        float* lightIntensities;
+        float* lightRanges;
+        int* lightTypes;
+        Math::Vec3f* lightDirections;
+        float* lightSpotOuter;
+        float* lightSpotInner;
+        int* lightIndicesPerCluster;
+        int* lightCountPerCluster;
+        Math::Vec4f* clusterBounds;
+    };
+    ForwardPlusData fpData_;
+
+    void BuildForwardPlusClusters();
+    void AssignLightsToClusters(const std::vector<ecs::Entity>& lightEntities, World& world);
+    void UploadLightDataToGPU(int lightCount);
 
    // Decal
    std::shared_ptr<renderer::Shader> decalShader_;

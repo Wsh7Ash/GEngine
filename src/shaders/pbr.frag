@@ -45,6 +45,45 @@ uniform bool        u_UseIBL;
 
 // Lighting
 #define MAX_LIGHTS 8
+#define MAX_LIGHTS_FP 256
+#define MAX_LIGHTS_PER_CLUSTER 16
+
+// Forward+ settings
+uniform bool u_UseForwardPlus;
+uniform int u_ClusterCountX;
+uniform int u_ClusterCountY;
+uniform int u_ClusterCountZ;
+uniform float u_NearPlane;
+uniform float u_FarPlane;
+
+// Forward+ buffers
+#define LIGHT_BUFFER_BINDING 0
+#define CLUSTER_INDICES_BINDING 1
+#define CLUSTER_COUNTS_BINDING 2
+
+struct FPClusteredLight {
+    vec3 Position;
+    float Range;
+    vec3 Color;
+    float Intensity;
+    vec3 Direction;
+    float SpotOuterCone;
+    float SpotInnerCone;
+    int Type;
+    float padding;
+};
+
+layout(std430, binding = LIGHT_BUFFER_BINDING) buffer FP_LightBuffer {
+    FPClusteredLight fpLights[];
+};
+
+layout(std430, binding = CLUSTER_INDICES_BINDING) buffer FP_ClusterLightIndices {
+    int fpLightIndices[];
+};
+
+layout(std430, binding = CLUSTER_COUNTS_BINDING) buffer FP_ClusterLightCounts {
+    int fpLightCountPerCluster[];
+};
 
 struct Light {
     int Type; // 0: Directional, 1: Point
@@ -143,6 +182,128 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 // ----------------------------------------------------------------------------
+// Forward+ Clustered Lighting Functions
+// ----------------------------------------------------------------------------
+
+int getFPClusterIndex(ivec3 clusterCoord) {
+    return clusterCoord.z * u_ClusterCountX * u_ClusterCountY + 
+           clusterCoord.y * u_ClusterCountX + 
+           clusterCoord.x;
+}
+
+ivec3 getFPClusterCoord(vec2 screenCoord, float linearDepth) {
+    float zNorm = (linearDepth - u_NearPlane) / (u_FarPlane - u_NearPlane);
+    
+    int z = int(zNorm * u_ClusterCountZ);
+    z = clamp(z, 0, u_ClusterCountZ - 1);
+    
+    int x = int(screenCoord.x * u_ClusterCountX);
+    int y = int(screenCoord.y * u_ClusterCountY);
+    x = clamp(x, 0, u_ClusterCountX - 1);
+    y = clamp(y, 0, u_ClusterCountY - 1);
+    
+    return ivec3(x, y, z);
+}
+
+float getLinearDepth(float depth) {
+    float z = depth * 2.0 - 1.0;
+    return (2.0 * u_NearPlane * u_FarPlane) / (u_FarPlane + u_NearPlane - z * (u_FarPlane - u_NearPlane));
+}
+
+int getFPClusterLightCount(int clusterIndex) {
+    if (clusterIndex < 0 || clusterIndex >= u_ClusterCountX * u_ClusterCountY * u_ClusterCountZ) {
+        return 0;
+    }
+    return fpLightCountPerCluster[clusterIndex];
+}
+
+int getFPClusterLightIndex(int clusterIndex, int offset) {
+    if (offset < 0 || offset >= MAX_LIGHTS_PER_CLUSTER) return -1;
+    int index = clusterIndex * MAX_LIGHTS_PER_CLUSTER + offset;
+    if (index >= fpLightIndices.length()) return -1;
+    return fpLightIndices[index];
+}
+
+float calculateFPAttenuation(vec3 worldPos, FPClusteredLight light) {
+    float distance = length(light.Position - worldPos);
+    float attenuation = 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance);
+    
+    if (light.Range > 0.0) {
+        attenuation *= clamp(1.0 - (distance / light.Range), 0.0, 1.0);
+    }
+    return attenuation;
+}
+
+float calculateFPSpotFactor(vec3 lightToPos, FPClusteredLight light) {
+    float theta = dot(normalize(lightToPos), normalize(-light.Direction));
+    float outerCone = cos(radians(light.SpotOuterCone));
+    float innerCone = cos(radians(light.SpotInnerCone));
+    
+    float epsilon = innerCone - outerCone;
+    return clamp((theta - outerCone) / epsilon, 0.0, 1.0);
+}
+
+vec3 computeFPClusteredLight(vec3 worldPos, vec3 normal, vec3 viewDir, 
+                             vec3 albedo, float metallic, float roughness, FPClusteredLight light, vec3 F0) {
+    vec3 L;
+    float attenuation = 1.0;
+    
+    if (light.Type == 0) { // Directional
+        L = normalize(-light.Direction);
+    } else if (light.Type == 1) { // Point
+        L = normalize(light.Position - worldPos);
+        attenuation = calculateFPAttenuation(worldPos, light);
+    } else if (light.Type == 2) { // Spot
+        L = normalize(light.Position - worldPos);
+        attenuation = calculateFPAttenuation(worldPos, light);
+        attenuation *= calculateFPSpotFactor(light.Position - worldPos, light);
+    }
+    
+    if (attenuation <= 0.0) return vec3(0.0);
+    
+    vec3 H = normalize(viewDir + L);
+    vec3 radiance = light.Color * light.Intensity * attenuation;
+    
+    float NDF = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    vec3 F = fresnelSchlick(max(dot(H, viewDir), 0.0), F0);
+    
+    vec3 numerator = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, viewDir), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+    
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic;
+    
+    float NdotL = max(dot(N, L), 0.0);
+    
+    return (kD * albedo / PI + specular) * radiance * NdotL;
+}
+
+vec3 computeForwardPlusLighting(vec3 worldPos, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec2 screenCoord, float depth) {
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, albedo, metallic);
+    
+    float linearDepth = getLinearDepth(depth);
+    ivec3 clusterCoord = getFPClusterCoord(screenCoord, linearDepth);
+    int clusterIndex = getFPClusterIndex(clusterCoord);
+    int lightCount = getFPClusterLightCount(clusterIndex);
+    
+    vec3 Lo = vec3(0.0);
+    
+    for (int i = 0; i < lightCount && i < MAX_LIGHTS_PER_CLUSTER; i++) {
+        int lightIndex = getFPClusterLightIndex(clusterIndex, i);
+        if (lightIndex < 0 || lightIndex >= fpLights.length()) continue;
+        
+        FPClusteredLight light = fpLights[lightIndex];
+        Lo += computeFPClusteredLight(worldPos, N, V, albedo, metallic, roughness, light, F0);
+    }
+    
+    return Lo;
+}
+
+// ----------------------------------------------------------------------------
 
 void main()
 {
@@ -195,6 +356,17 @@ void main()
     // Reflectance equation
     vec3 Lo = vec3(0.0);
     
+    // Forward+ Clustered Lighting Path
+    if (u_UseForwardPlus && u_ClusterCountX > 0) {
+        vec2 screenCoord = gl_FragCoord.xy;
+        float screenW = float(textureSize(u_gPosition, 0).x);
+        float screenH = float(textureSize(u_gPosition, 0).y);
+        screenCoord /= vec2(screenW, screenH);
+        
+        float depth = gl_FragCoord.z;
+        Lo = computeForwardPlusLighting(v_WorldPos, N, V, albedo, metallic, roughness, screenCoord, depth);
+    } else {
+    // Traditional per-object lighting (limited to 8 lights)
     for(int i = 0; i < u_LightCount; ++i)
     {
         vec3 L;
@@ -242,6 +414,7 @@ void main()
         
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * (1.0 - shadow);  
     }
+    } // End Forward+ / Traditional lighting split
     
     // Ambient lighting (IBL or fallback)
     vec3 ambient;
