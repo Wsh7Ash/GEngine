@@ -49,6 +49,15 @@ struct PostProcessingSettings {
     float SSRThickness = 0.01;
     float SSRRoughnessFade = 1.0;
     float SSRIntensity = 1.0;  // SSR intensity multiplier
+
+    // Plasma/Glow Settings
+    bool EnablePlasma = false;
+    float PlasmaSpeed = 1.0f;
+    float PlasmaIntensity = 0.5f;
+    float PlasmaScale = 2.0f;
+    Math::Vec3f PlasmaColorA = {1.0f, 0.5f, 0.0f};  // Orange
+    Math::Vec3f PlasmaColorB = {0.0f, 0.5f, 1.0f};  // Blue
+    Math::Vec3f PlasmaColorC = {1.0f, 0.0f, 1.0f};  // Magenta
 };
 
 namespace ecs {
@@ -62,6 +71,7 @@ public:
   void Render(World &world, float dt = 0.0f);
   void ExecuteSSAOPass(World& world);
   void ExecuteVolumetricPass(World& world);
+  void ExecutePlasmaPass(World& world);
 
   void
   Set2DCamera(const std::shared_ptr<renderer::OrthographicCamera> &camera) {
@@ -93,6 +103,9 @@ private:
     // SSR
     std::shared_ptr<renderer::Shader> ssrShader_;
     std::shared_ptr<renderer::Framebuffer> ssrFBO_;
+
+    // Plasma
+    std::shared_ptr<renderer::Shader> plasmaShader_;
 
    // Decal
    std::shared_ptr<renderer::Shader> decalShader_;

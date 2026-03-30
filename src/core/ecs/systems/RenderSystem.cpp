@@ -199,6 +199,9 @@ struct ScopedProfileTimer {
            
            // SSR
            ssrShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/ssr.glsl");
+
+           // Plasma
+           plasmaShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/plasma.glsl");
            
           renderer::FramebufferSpecification volSpec;
          volSpec.Width = spec.Width / 2; // Half-res for performance
@@ -685,6 +688,11 @@ struct ScopedProfileTimer {
     if (settings_.EnableVolumetric) {
         ExecuteVolumetricPass(world);
     }
+
+    // Plasma Pass
+    if (settings_.EnablePlasma) {
+        ExecutePlasmaPass(world);
+    }
     
     if (camera3D_ && postProcessingStack_) {
         ScopedProfileTimer ppTimer(&renderer::Renderer2D::GetStats().PassPostProcess);
@@ -849,6 +857,50 @@ struct ScopedProfileTimer {
     
     RenderQuad();
     volumetricFBO_->Unbind();
+  }
+
+  void RenderSystem::ExecutePlasmaPass(World& world) {
+      (void)world;
+      if (!plasmaShader_ || !intermediateA_) return;
+
+      intermediateB_->Bind();
+      glClear(GL_COLOR_BUFFER_BIT);
+
+      plasmaShader_->Bind();
+
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, intermediateA_->GetColorAttachmentRendererID(0));
+      plasmaShader_->SetInt("u_Texture", 0);
+      plasmaShader_->SetFloat("u_Time", (float)frameIndex_ * 0.016f);
+      plasmaShader_->SetFloat("u_Intensity", settings_.PlasmaIntensity);
+      plasmaShader_->SetFloat("u_Speed", settings_.PlasmaSpeed);
+      plasmaShader_->SetFloat("u_Scale", settings_.PlasmaScale);
+      plasmaShader_->SetVec3("u_ColorA", settings_.PlasmaColorA);
+      plasmaShader_->SetVec3("u_ColorB", settings_.PlasmaColorB);
+      plasmaShader_->SetVec3("u_ColorC", settings_.PlasmaColorC);
+      plasmaShader_->SetBool("u_Enable", settings_.EnablePlasma);
+
+      RenderQuad();
+      intermediateB_->Unbind();
+
+      intermediateA_->Bind();
+      glClear(GL_COLOR_BUFFER_BIT);
+      plasmaShader_->Bind();
+
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, intermediateB_->GetColorAttachmentRendererID(0));
+      plasmaShader_->SetInt("u_Texture", 0);
+      plasmaShader_->SetFloat("u_Time", (float)frameIndex_ * 0.016f);
+      plasmaShader_->SetFloat("u_Intensity", settings_.PlasmaIntensity);
+      plasmaShader_->SetFloat("u_Speed", settings_.PlasmaSpeed);
+      plasmaShader_->SetFloat("u_Scale", settings_.PlasmaScale);
+      plasmaShader_->SetVec3("u_ColorA", settings_.PlasmaColorA);
+      plasmaShader_->SetVec3("u_ColorB", settings_.PlasmaColorB);
+      plasmaShader_->SetVec3("u_ColorC", settings_.PlasmaColorC);
+      plasmaShader_->SetBool("u_Enable", settings_.EnablePlasma);
+
+      RenderQuad();
+      intermediateA_->Unbind();
   }
 
 
