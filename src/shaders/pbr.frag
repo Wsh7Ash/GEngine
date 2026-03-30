@@ -14,12 +14,14 @@ uniform sampler2D u_RoughnessMap;
 uniform sampler2D u_AOMap;
 uniform sampler2D u_SSAO;
 uniform sampler2D u_SSGI;         // Screen Space Global Illumination
+uniform sampler2D u_SSR;          // Screen Space Reflections
 uniform sampler2D u_gPosition;    // G-Buffer position
 uniform sampler2D u_gAlbedo;      // G-Buffer albedo (RGB) + metallic (A)
 uniform sampler2D u_gNormal;      // G-Buffer normal (RGB) + roughness (A)
 uniform sampler2D u_gVelocity;    // G-Buffer velocity
 uniform bool u_UseGBufferMaterials;
 uniform float u_SSGIIntensity;    // SSGI intensity multiplier
+uniform float u_SSRIntensity;     // SSR intensity multiplier
 
 uniform vec3 u_AlbedoColor;
 uniform float u_Metallic;
@@ -249,7 +251,16 @@ void main()
         vec3 R = reflect(-V, N); 
         vec3 prefilteredColor = textureLod(u_PrefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
         vec2 brdf  = texture(u_BRDFLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-        vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+        vec3 iblSpecular = prefilteredColor * (F * brdf.x + brdf.y);
+        
+        // Screen Space Reflections - blend with IBL based on roughness
+        // Smooth surfaces (low roughness) favor SSR, rough surfaces favor IBL
+        vec2 ssrCoords = gl_FragCoord.xy / textureSize(u_SSR, 0);
+        vec3 ssrContribution = texture(u_SSR, ssrCoords).rgb * u_SSRIntensity;
+        
+        // Roughness-based blend: smooth -> SSR, rough -> IBL
+        float reflectionBlend = 1.0 - roughness * roughness; // Squared for smoother falloff
+        vec3 specular = mix(iblSpecular, ssrContribution, reflectionBlend);
         
         ambient = (kD * diffuse + specular) * ao;
     }

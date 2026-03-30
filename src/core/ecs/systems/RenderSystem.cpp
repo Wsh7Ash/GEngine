@@ -452,18 +452,40 @@ struct ScopedProfileTimer {
              glActiveTexture(GL_TEXTURE6);
              glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
              shader->SetInt("u_gPosition", 6);
-             
+
              glActiveTexture(GL_TEXTURE7);
              glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
              shader->SetInt("u_gAlbedo", 7);
-             
+
              glActiveTexture(GL_TEXTURE8);
              glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal
              shader->SetInt("u_gNormal", 8);
-             
+
              glActiveTexture(GL_TEXTURE9);
              glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3)); // Velocity
              shader->SetInt("u_gVelocity", 9);
+
+             // Bind SSGI texture (Slot 13)
+             if (settings_.EnableSSGI && ssgiFBO_) {
+                 glActiveTexture(GL_TEXTURE13);
+                 glBindTexture(GL_TEXTURE_2D, ssgiFBO_->GetColorAttachmentRendererID(0));
+                 shader->SetInt("u_SSGI", 13);
+                 shader->SetFloat("u_SSGIIntensity", settings_.SSGIIntensity);
+             } else {
+                 shader->SetInt("u_SSGI", -1);
+                 shader->SetFloat("u_SSGIIntensity", 0.0);
+             }
+
+             // Bind SSR texture (Slot 14)
+             if (settings_.EnableSSR && ssrFBO_) {
+                 glActiveTexture(GL_TEXTURE14);
+                 glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
+                 shader->SetInt("u_SSR", 14);
+                 shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
+             } else {
+                 shader->SetInt("u_SSR", -1);
+                 shader->SetFloat("u_SSRIntensity", 0.0);
+             }
              
              // Indicate we're using G-Buffer materials
              shader->SetBool("u_UseGBufferMaterials", true);
@@ -553,18 +575,40 @@ struct ScopedProfileTimer {
                  glActiveTexture(GL_TEXTURE6);
                  glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
                  shader->SetInt("u_gPosition", 6);
-                 
+
                  glActiveTexture(GL_TEXTURE7);
                  glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
                  shader->SetInt("u_gAlbedo", 7);
-                 
+
                  glActiveTexture(GL_TEXTURE8);
                  glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal
                  shader->SetInt("u_gNormal", 8);
-                 
+
                  glActiveTexture(GL_TEXTURE9);
                  glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3)); // Velocity
                  shader->SetInt("u_gVelocity", 9);
+
+                 // Bind SSGI texture (Slot 13)
+                 if (settings_.EnableSSGI && ssgiFBO_) {
+                     glActiveTexture(GL_TEXTURE13);
+                     glBindTexture(GL_TEXTURE_2D, ssgiFBO_->GetColorAttachmentRendererID(0));
+                     shader->SetInt("u_SSGI", 13);
+                     shader->SetFloat("u_SSGIIntensity", settings_.SSGIIntensity);
+                 } else {
+                     shader->SetInt("u_SSGI", -1);
+                     shader->SetFloat("u_SSGIIntensity", 0.0);
+                 }
+
+                 // Bind SSR texture (Slot 14)
+                 if (settings_.EnableSSR && ssrFBO_) {
+                     glActiveTexture(GL_TEXTURE14);
+                     glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
+                     shader->SetInt("u_SSR", 14);
+                     shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
+                 } else {
+                     shader->SetInt("u_SSR", -1);
+                     shader->SetFloat("u_SSRIntensity", 0.0);
+                 }
                  
                  // In the decal implementation, we read material properties from the G-Buffer
                  // So we don't need to set these as uniforms - they'll be sampled in the shader
@@ -1003,9 +1047,49 @@ struct ScopedProfileTimer {
          ssgiShader_->SetFloat("intensity", settings_.SSGIIntensity);
          ssgiShader_->SetFloat("bounceIntensity", settings_.SSGIBounceIntensity);
          
-         RenderQuad();
-         ssgiFBO_->Unbind();
-     }
+          RenderQuad();
+          ssgiFBO_->Unbind();
+      }
+
+      // 5. SSR Pass (Screen Space Reflections)
+      if (settings_.EnableSSR && ssrFBO_ && ssrShader_) {
+          ScopedProfileTimer ssrTimer(&renderer::Renderer2D::GetStats().PassSSR);
+          
+          ssrFBO_->Bind();
+          glClear(GL_COLOR_BUFFER_BIT);
+          
+          ssrShader_->Bind();
+          
+          // Bind G-Buffer textures
+          glActiveTexture(GL_TEXTURE0);
+          glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position (view space)
+          glActiveTexture(GL_TEXTURE1);
+          glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal (RGB) + Roughness (A)
+          glActiveTexture(GL_TEXTURE2);
+          glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
+          
+          ssrShader_->SetInt("gPosition", 0);
+          ssrShader_->SetInt("gNormal", 1);
+          ssrShader_->SetInt("gAlbedo", 2);
+          
+          // Camera and projection matrices
+          ssrShader_->SetMat4("projection", camera3D_->GetProjectionMatrix());
+          ssrShader_->SetMat4("view", camera3D_->GetViewMatrix());
+          ssrShader_->SetMat4("invView", camera3D_->GetViewMatrix().Inverse());
+          ssrShader_->SetMat4("invProj", camera3D_->GetProjectionMatrix().Inverse());
+          ssrShader_->SetVec3("cameraPos", camera3D_->GetPosition());
+          ssrShader_->SetVec2("viewportSize", Math::Vec2f(width, height));
+          
+          // SSR parameters
+          ssrShader_->SetInt("steps", settings_.SSRSteps);
+          ssrShader_->SetFloat("stepSize", settings_.SSRStepSize);
+          ssrShader_->SetFloat("fadeDistance", settings_.SSRFadeDistance);
+          ssrShader_->SetFloat("thickness", settings_.SSRThickness);
+          ssrShader_->SetFloat("roughnessFade", settings_.SSRRoughnessFade);
+          
+          RenderQuad();
+          ssrFBO_->Unbind();
+      }
   }
 
   // --- IBL Helper Methods ---

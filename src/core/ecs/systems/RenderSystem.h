@@ -48,6 +48,7 @@ struct PostProcessingSettings {
     float SSRFadeDistance = 10.0;
     float SSRThickness = 0.01;
     float SSRRoughnessFade = 1.0;
+    float SSRIntensity = 1.0;  // SSR intensity multiplier
 };
 
 namespace ecs {
