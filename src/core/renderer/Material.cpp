@@ -1,6 +1,8 @@
 #include "Material.h"
 #include "opengl/OpenGLShader.h"
 #include "../debug/log.h"
+#include <filesystem>
+#include <fstream>
 
 namespace ge {
 namespace renderer {
@@ -56,6 +58,27 @@ namespace renderer {
                 slot++;
             }
         }
+    }
+
+    std::shared_ptr<Material> Material::CreateFromGeneratedGraph(const std::string& vertexShader, const std::string& fragmentShader) {
+        std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "ge_generated_shaders";
+        std::filesystem::create_directories(tempDir);
+        
+        static int shaderCounter = 0;
+        std::string shaderName = "generated_" + std::to_string(shaderCounter++);
+        std::filesystem::path vertPath = tempDir / (shaderName + ".vert");
+        std::filesystem::path fragPath = tempDir / (shaderName + ".frag");
+        
+        std::ofstream vertFile(vertPath.c_str());
+        vertFile << vertexShader;
+        vertFile.close();
+        
+        std::ofstream fragFile(fragPath.c_str());
+        fragFile << fragmentShader;
+        fragFile.close();
+        
+        auto shader = Shader::Create(vertPath.string(), fragPath.string());
+        return std::make_shared<Material>(shader);
     }
 
 } // namespace renderer

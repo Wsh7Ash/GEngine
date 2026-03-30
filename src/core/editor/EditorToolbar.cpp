@@ -29,6 +29,7 @@ std::shared_ptr<ViewportPanel> EditorToolbar::s_GameViewportPanel = nullptr;
 std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel =
     nullptr;
 std::shared_ptr<ConsolePanel> EditorToolbar::s_ConsolePanel = nullptr;
+std::shared_ptr<MaterialEditorPanel> EditorToolbar::s_MaterialEditorPanel = nullptr;
 static bool s_ShowPostProcessingPanel = true;
 SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
@@ -53,6 +54,7 @@ void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
   s_SceneViewportPanel->SetContext(world);
   s_GameViewportPanel = std::make_shared<ViewportPanel>("Game", true);
   s_GameViewportPanel->SetContext(world);
+  s_MaterialEditorPanel = std::make_shared<MaterialEditorPanel>();
 
   ImGuiLayer::Init(windowHandle);
   InitNativeMenuBar(windowHandle);
@@ -140,6 +142,7 @@ void EditorToolbar::OnImGuiRender() {
       ImGui::DockBuilderDockWindow("Content Browser", dock_id_bottom);
       ImGui::DockBuilderDockWindow("Console", dock_id_console);
       ImGui::DockBuilderDockWindow("Main Tools", dock_id_top);
+      ImGui::DockBuilderDockWindow("Material Editor", dock_id_right);
 
       ImGui::DockBuilderFinish(dockspace_id);
     }
@@ -226,6 +229,10 @@ void EditorToolbar::OnImGuiRender() {
       }
       if (ImGui::MenuItem("Post-Processing Settings", nullptr, s_ShowPostProcessingPanel)) {
           s_ShowPostProcessingPanel = !s_ShowPostProcessingPanel;
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem("Material Editor")) {
+          ImGui::SetWindowFocus("Material Editor");
       }
       ImGui::EndMenu();
     }
@@ -355,6 +362,9 @@ void EditorToolbar::OnImGuiRender() {
 
   if (s_ConsolePanel)
     s_ConsolePanel->OnImGuiRender();
+
+  if (s_MaterialEditorPanel)
+    s_MaterialEditorPanel->OnImGuiRender();
 
   // 4. Post-Processing Settings Panel
   if (s_ShowPostProcessingPanel && s_ActiveWorld) {

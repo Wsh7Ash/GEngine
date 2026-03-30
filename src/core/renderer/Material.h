@@ -30,6 +30,8 @@ namespace renderer {
         void SetVariant(const std::unordered_map<std::string, bool>& defines);
         std::string GetCurrentVariantKey() const { return currentVariantKey_; }
 
+        static std::shared_ptr<Material> CreateFromGeneratedGraph(const std::string& vertexShader, const std::string& fragmentShader);
+
     private:
         std::shared_ptr<Shader> shader_;
 

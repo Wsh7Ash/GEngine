@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../math/VecTypes.h"
+#include "../../assets/MaterialGraphAsset.h"
 #include <string>
 
 namespace ge {
@@ -18,6 +19,7 @@ struct MeshComponent
 {
     std::shared_ptr<renderer::Mesh>     MeshPtr     = nullptr;
     std::shared_ptr<renderer::Material> MaterialPtr = nullptr;
+    std::shared_ptr<assets::MaterialGraphAsset> MaterialGraphAsset = nullptr;
 
     std::string MeshPath = "";
 
