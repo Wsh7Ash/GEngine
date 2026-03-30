@@ -189,8 +189,8 @@ struct ScopedProfileTimer {
         // TAA
         taaShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/taa.glsl");
         
-         // Volumetric
-          volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_lighting.glsl");
+         // Volumetric Fog
+          volumetricShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/volumetric_fog.glsl");
           
           // Decal
           decalShader_ = renderer::Shader::Create("./src/shaders/decal.vert.glsl", "./src/shaders/decal.frag.glsl");
@@ -211,10 +211,25 @@ struct ScopedProfileTimer {
            refractionShader_ = renderer::Shader::Create("./src/shaders/postprocess.vert.glsl", "./src/shaders/refraction.glsl");
            
           renderer::FramebufferSpecification volSpec;
-         volSpec.Width = spec.Width / 2; // Half-res for performance
-         volSpec.Height = spec.Height / 2;
-         volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F }; // HDR
-         volumetricFBO_ = renderer::Framebuffer::Create(volSpec);
+          volSpec.Width = spec.Width / 2;
+          volSpec.Height = spec.Height / 2;
+          volSpec.Attachments = { renderer::FramebufferTextureFormat::RGBA16F };
+          volumetricFBO_ = renderer::Framebuffer::Create(volSpec);
+
+          // CSM Framebuffers (one per cascade)
+          csmFramebuffers_.clear();
+          csmFramebuffers_.reserve(MAX_CSM_CASCADES);
+          csmLightSpaceMatrices_.resize(MAX_CSM_CASCADES);
+          csmSplitDepths_.resize(MAX_CSM_CASCADES);
+          
+          renderer::FramebufferSpecification csmSpec;
+          csmSpec.Width = csmShadowMapSize_;
+          csmSpec.Height = csmShadowMapSize_;
+          csmSpec.Attachments = { renderer::FramebufferTextureFormat::DEPTH32F };
+          
+          for (int i = 0; i < MAX_CSM_CASCADES; i++) {
+              csmFramebuffers_.push_back(renderer::Framebuffer::Create(csmSpec));
+          }
 
          // SSS FBO
          renderer::FramebufferSpecification ssssSpec;
@@ -739,6 +754,11 @@ struct ScopedProfileTimer {
 
     // Post-Process Initialization moved to the top of Render function.
     
+    // 7. CSM Shadow Pass (for volumetric fog)
+    if (settings_.EnableVolumetric) {
+        ExecuteCSMPass(world);
+    }
+    
     // 8. Resolve and Post-Processing ---
     // Volumetric Pass
     if (settings_.EnableVolumetric) {
@@ -785,12 +805,14 @@ struct ScopedProfileTimer {
         taaShader_->SetInt("u_HistoryColor", 1);
         taaShader_->SetInt("u_VelocityBlock", 2);
         
-        if (settings_.EnableVolumetric) {
+        if (settings_.EnableVolumetric && volumetricFBO_) {
             glActiveTexture(GL_TEXTURE3);
             glBindTexture(GL_TEXTURE_2D, volumetricFBO_->GetColorAttachmentRendererID(0));
             taaShader_->SetInt("u_Volumetric", 3);
         } else {
-            taaShader_->SetInt("u_Volumetric", -1);
+            glActiveTexture(GL_TEXTURE3);
+            glBindTexture(GL_TEXTURE_2D, intermediateA_->GetColorAttachmentRendererID(0));
+            taaShader_->SetInt("u_Volumetric", 3);
         }
         
         RenderQuad();
@@ -873,6 +895,119 @@ struct ScopedProfileTimer {
     }
   }
 
+  void RenderSystem::ExecuteCSMPass(World& world) {
+      if (!camera3D_ || csmFramebuffers_.empty()) return;
+
+      auto lightEntities = world.Query<ge::ecs::LightComponent, ge::ecs::TransformComponent>();
+      ge::ecs::Entity primaryLight = ge::ecs::INVALID_ENTITY;
+      for (auto e : lightEntities) {
+          if (world.GetLight(e).Type == ge::ecs::LightType::Directional && world.GetLight(e).CastShadows) {
+              primaryLight = e;
+              break;
+          }
+      }
+
+      if (primaryLight == ge::ecs::INVALID_ENTITY) return;
+
+      auto& lt = world.GetTransform(primaryLight);
+      auto& lc = world.GetLight(primaryLight);
+
+      Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+      Math::Vec3f lightDir = { dir4.x, dir4.y, dir4.z };
+
+      float camNear = camera3D_->GetNearPlane();
+      float camFar = camera3D_->GetFarPlane();
+      float frustumSize = 20.0f;
+
+      float lastSplitDist = camNear;
+      for (int i = 0; i < csmCount_; i++) {
+          float uniformSplit = (float)(i + 1) / (float)csmCount_;
+          float logSplit = camNear * std::pow(camFar / camNear, uniformSplit);
+          float splitDist = logSplit;
+
+          if (i == csmCount_ - 1) splitDist = camFar;
+
+          float scale = splitDist / camFar;
+          float orthoSize = frustumSize * scale * 2.0f;
+
+          Math::Vec3f eye = camera3D_->GetPosition() - lightDir * 100.0f;
+          Math::Vec3f center = camera3D_->GetPosition();
+          Math::Mat4f lightView = Math::Mat4f::LookAt(eye, center, { 0, 1, 0 });
+          Math::Mat4f lightProj = Math::Mat4f::Orthographic(-orthoSize, orthoSize, -orthoSize, orthoSize, 0.1f, 200.0f);
+
+          csmLightSpaceMatrices_[i] = lightProj * lightView;
+          csmSplitDepths_[i] = splitDist;
+
+          GLint oldViewport[4];
+          glGetIntegerv(GL_VIEWPORT, oldViewport);
+
+          csmFramebuffers_[i]->Bind();
+          glViewport(0, 0, csmShadowMapSize_, csmShadowMapSize_);
+          glClear(GL_DEPTH_BUFFER_BIT);
+
+          shadowShader_->Bind();
+          shadowShader_->SetMat4("u_LightSpaceMatrix", csmLightSpaceMatrices_[i]);
+
+          auto meshEntities = world.Query<ge::ecs::MeshComponent, ge::ecs::TransformComponent>();
+          for (auto const& me : meshEntities) {
+              if (!world.HasComponent<ge::ecs::TransformComponent>(me)) continue;
+              auto& transform = world.GetTransform(me);
+              auto& meshComp = world.GetMesh(me);
+
+              if (!meshComp.IsVisible || !meshComp.MeshPtr) continue;
+
+              Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                  transform.rotation.ToMat4x4() *
+                                  Math::Mat4f::Scale(transform.scale);
+
+              shadowShader_->SetMat4("u_Model", model);
+              shadowShader_->SetBool("u_IsAnimated", false);
+              meshComp.MeshPtr->Draw();
+          }
+
+          auto modelEntities = world.Query<ge::ecs::ModelComponent, ge::ecs::TransformComponent>();
+          for (auto const& me : modelEntities) {
+              if (!world.HasComponent<ge::ecs::TransformComponent>(me)) continue;
+              auto& transform = world.GetTransform(me);
+              auto& modelComp = world.GetModel(me);
+              if (!modelComp.ModelPtr) continue;
+
+              Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                  transform.rotation.ToMat4x4() *
+                                  Math::Mat4f::Scale(transform.scale);
+
+              shadowShader_->SetMat4("u_Model", model);
+
+              bool isAnimated = false;
+              if (world.HasAnimator(me)) {
+                  auto& animator = world.GetAnimator(me);
+                  if (animator.Is3D) {
+                      isAnimated = true;
+                      shadowShader_->SetMat4Array("u_BoneMatrices", animator.FinalBoneMatrices.data(), (uint32_t)animator.FinalBoneMatrices.size());
+                  }
+              }
+              shadowShader_->SetBool("u_IsAnimated", isAnimated);
+
+              for (auto& node : modelComp.ModelPtr->GetMeshes())
+                  node.MeshPtr->Draw();
+          }
+
+          csmFramebuffers_[i]->Unbind();
+          glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+
+          lastSplitDist = splitDist;
+      }
+
+      volumetricFogEnabled_ = lc.VolumetricFog;
+      fogDensity_ = lc.FogDensity;
+      fogHeight_ = lc.FogHeight;
+      fogHeightFalloff_ = lc.FogHeightFalloff;
+      fogAnisotropy_ = lc.FogAnisotropy;
+      fogMultiScattering_ = lc.FogMultiScattering;
+      fogColor_ = lc.FogColor;
+      fogStartDistance_ = lc.FogStartDistance;
+  }
+
   void RenderSystem::ExecuteVolumetricPass(World& world) {
     if (!camera3D_ || !volumetricFBO_ || !shadowMap_) return;
     ScopedProfileTimer volTimer(&renderer::Renderer2D::GetStats().PassVolumetric);
@@ -882,17 +1017,20 @@ struct ScopedProfileTimer {
     
     volumetricShader_->Bind();
     
-    // Bind Depth and Shadow Maps
+    // Bind Depth and G-Buffer Position
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gBuffer_->GetDepthAttachmentRendererID());
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
+    glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0));
     
     volumetricShader_->SetInt("u_DepthMap", 0);
-    volumetricShader_->SetInt("u_ShadowMap", 1);
+    volumetricShader_->SetInt("u_gPosition", 1);
     
     volumetricShader_->SetMat4("u_InverseViewProj", camera3D_->GetViewProjectionMatrix().Inverse());
-    // Find primary light
+    volumetricShader_->SetMat4("u_View", camera3D_->GetViewMatrix());
+    volumetricShader_->SetMat4("u_Projection", camera3D_->GetProjectionMatrix());
+    
+    // Find primary directional light
     auto lightEntities = world.Query<ge::ecs::LightComponent, ge::ecs::TransformComponent>();
     ge::ecs::Entity primaryLight = ge::ecs::INVALID_ENTITY;
     for (auto e : lightEntities) {
@@ -905,20 +1043,39 @@ struct ScopedProfileTimer {
     if (primaryLight != ge::ecs::INVALID_ENTITY) {
         auto& lt = world.GetTransform(primaryLight);
         auto& lc = world.GetLight(primaryLight);
-        volumetricShader_->SetVec3("u_LightPos", lt.position);
         
-        // Use the same light space matrix as shadows
-        Math::Mat4f lightProjection = Math::Mat4f::Orthographic(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.0f);
-        Math::Mat4f lightView = lt.rotation.ToMat4x4().Inverse() * Math::Mat4f::Translate(-lt.position);
-        Math::Mat4f res = lightProjection * lightView;
-        volumetricShader_->SetMat4("u_LightSpaceMatrix", res);
-
-        // Pass Volumetric Settings
-        volumetricShader_->SetFloat("u_Scattering", settings_.VolumetricScattering);
-        volumetricShader_->SetFloat("u_Intensity", settings_.VolumetricIntensity);
-        volumetricShader_->SetInt("u_Samples", settings_.VolumetricSamples);
+        Math::Vec3f lightDir = lt.rotation * Math::Vec3f(0, 0, 1);
+        volumetricShader_->SetVec3("u_LightDir", lightDir);
+        volumetricShader_->SetVec3("u_LightColor", lc.Color);
+        volumetricShader_->SetFloat("u_LightIntensity", lc.Intensity);
+        
+        // CSM settings
+        volumetricShader_->SetInt("u_CSMCount", csmCount_);
+        volumetricShader_->SetFloat("u_CSMShadowBias", lc.ShadowBias);
+        volumetricShader_->SetFloat("u_CSMBlendWidth", csmBlendWidth_);
+        
+        // Bind CSM shadow maps
+        for (int i = 0; i < csmCount_ && i < MAX_CSM_CASCADES; i++) {
+            glActiveTexture(GL_TEXTURE2 + i);
+            glBindTexture(GL_TEXTURE_2D, csmFramebuffers_[i]->GetDepthAttachmentRendererID());
+            volumetricShader_->SetInt(("u_CSMaps[" + std::to_string(i) + "]").c_str(), 2 + i);
+            volumetricShader_->SetMat4(("u_CSMLightSpaceMatrices[" + std::to_string(i) + "]").c_str(), csmLightSpaceMatrices_[i]);
+            volumetricShader_->SetFloat(("u_CSMSplitDepths[" + std::to_string(i) + "]").c_str(), csmSplitDepths_[i]);
+        }
     }
-
+    
+    // Fog settings
+    volumetricShader_->SetBool("u_FogEnabled", volumetricFogEnabled_);
+    volumetricShader_->SetFloat("u_FogDensity", fogDensity_);
+    volumetricShader_->SetFloat("u_FogHeight", fogHeight_);
+    volumetricShader_->SetFloat("u_FogHeightFalloff", fogHeightFalloff_);
+    volumetricShader_->SetFloat("u_FogAnisotropy", fogAnisotropy_);
+    volumetricShader_->SetFloat("u_FogMultiScattering", fogMultiScattering_);
+    volumetricShader_->SetVec3("u_FogColor", fogColor_);
+    volumetricShader_->SetFloat("u_FogStartDistance", fogStartDistance_);
+    volumetricShader_->SetInt("u_Samples", settings_.VolumetricSamples);
+    volumetricShader_->SetFloat("u_Jitter", static_cast<float>(frameIndex_) * 0.1f);
+    
     volumetricShader_->SetVec3("u_CameraPos", camera3D_->GetPosition());
     
     RenderQuad();

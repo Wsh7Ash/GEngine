@@ -89,6 +89,7 @@ class RenderSystem : public System {
 public:
   void Render(World &world, float dt = 0.0f);
   void ExecuteSSAOPass(World& world);
+  void ExecuteCSMPass(World& world);
   void ExecuteVolumetricPass(World& world);
   void ExecutePlasmaPass(World& world);
   void ExecuteSSSSPass(World& world);
@@ -110,8 +111,28 @@ private:
   std::shared_ptr<renderer::OrthographicCamera> camera2D_;
   std::shared_ptr<renderer::PerspectiveCamera> camera3D_;
   
-  std::shared_ptr<renderer::Shader> shadowShader_;
+    std::shared_ptr<renderer::Shader> shadowShader_;
   std::shared_ptr<renderer::Framebuffer> shadowMap_;
+  
+  // CSM (Cascaded Shadow Maps)
+  static constexpr int MAX_CSM_CASCADES = 4;
+  std::vector<std::shared_ptr<renderer::Framebuffer>> csmFramebuffers_;
+  std::vector<Math::Mat4f> csmLightSpaceMatrices_;
+  std::vector<float> csmSplitDepths_;
+  int csmCount_ = 4;
+  int csmShadowMapSize_ = 2048;
+  float csmShadowBias_ = 0.001f;
+  float csmBlendWidth_ = 0.1f;
+  
+  // Volumetric Fog
+  bool volumetricFogEnabled_ = false;
+  float fogDensity_ = 0.05f;
+  float fogHeight_ = 0.0f;
+  float fogHeightFalloff_ = 1.0f;
+  float fogAnisotropy_ = 0.5f;
+  float fogMultiScattering_ = 0.5f;
+  Math::Vec3f fogColor_ = { 0.7f, 0.8f, 0.9f };
+  float fogStartDistance_ = 1.0f;
 
     // SSAO
     std::shared_ptr<renderer::Shader> ssaoShader_, ssaoBlurShader_, gBufferShader_;
