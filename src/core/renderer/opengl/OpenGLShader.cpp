@@ -1,25 +1,48 @@
 #include "OpenGLShader.h"
+#include "../ShaderCompiler.h"
+#include "../ShaderVariantManager.h"
 #include "../../debug/log.h"
 #include "../../debug/assert.h"
 #include "../../platform/VFS.h"
+#include <glad/glad.h>
 #include <vector>
+#include <regex>
 
 namespace ge {
 namespace renderer {
 
-    OpenGLShader::OpenGLShader(const std::string& filepath)
-    {
-        std::string source = ReadFile(filepath);
-        auto shaderSources = PreProcess(source);
-        rendererID_ = CreateProgram(shaderSources[GL_VERTEX_SHADER], shaderSources[GL_FRAGMENT_SHADER]);
+OpenGLShader::OpenGLShader(const std::string& filepath)
+    : filepath_(filepath)
+{
+    std::string source = ReadFile(filepath);
+    auto shaderSources = PreProcess(source);
+    vertexSource_ = shaderSources[GL_VERTEX_SHADER];
+    fragmentSource_ = shaderSources[GL_FRAGMENT_SHADER];
+    
+    ExtractVariantDefines(source);
+    
+    useSPIRV_ = true;
+    if (variantDefines_.empty()) {
+        rendererID_ = CreateProgram(vertexSource_, fragmentSource_);
+    } else {
+        CompileVariants();
+        std::unordered_map<std::string, bool> defaultDefines;
+        for (const auto& def : variantDefines_) {
+            defaultDefines[def.name] = def.defaultValue;
+        }
+        UseVariant(defaultDefines);
     }
+}
 
-    OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fragmentPath)
-    {
-        std::string vertexSource = ReadFile(vertexPath);
-        std::string fragmentSource = ReadFile(fragmentPath);
-        rendererID_ = CreateProgram(vertexSource, fragmentSource);
-    }
+OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fragmentPath)
+    : filepath_(vertexPath)
+{
+    std::string vertexSource = ReadFile(vertexPath);
+    std::string fragmentSource = ReadFile(fragmentPath);
+    vertexSource_ = vertexSource;
+    fragmentSource_ = fragmentSource;
+    rendererID_ = CreateProgram(vertexSource, fragmentSource);
+}
 
     std::unordered_map<unsigned int, std::string> OpenGLShader::PreProcess(const std::string& source)
     {
@@ -150,6 +173,158 @@ namespace renderer {
 
         uniformLocationCache_[name] = location;
         return location;
+    }
+
+    void OpenGLShader::AddVariantDefine(const std::string& name, bool defaultValue) {
+        if (processedDefines_.count(name) == 0) {
+            ShaderVariantDefine def;
+            def.name = name;
+            def.defaultValue = defaultValue;
+            def.allowVariant = true;
+            variantDefines_.push_back(def);
+            processedDefines_.insert(name);
+        }
+    }
+
+    void OpenGLShader::SetVariantDefines(const std::vector<ShaderVariantDefine>& defines) {
+        variantDefines_ = defines;
+        for (const auto& def : defines) {
+            processedDefines_.insert(def.name);
+        }
+    }
+
+    void OpenGLShader::CompileVariants() {
+        if (variantDefines_.empty()) return;
+        
+        auto& compiler = ShaderCompiler::Get();
+        
+        for (const auto& def : variantDefines_) {
+            variantProgramCache_[def.name] = 0;
+        }
+        
+        std::vector<std::string> variantNames;
+        for (const auto& def : variantDefines_) {
+            if (def.allowVariant) {
+                variantNames.push_back(def.name);
+            }
+        }
+        
+        size_t numVariants = 1ULL << variantNames.size();
+        numVariants = std::min(numVariants, size_t(64));
+        
+        for (size_t i = 0; i < numVariants; ++i) {
+            std::unordered_map<std::string, bool> defines;
+            
+            for (size_t j = 0; j < variantNames.size(); ++j) {
+                bool value = (i >> j) & 1;
+                defines[variantNames[j]] = value;
+            }
+            
+            std::string key = ShaderVariantManager::Get().GetVariantKey(defines);
+            
+            uint32_t vsSpirv = CompileShaderSPIRV(GL_VERTEX_SHADER, vertexSource_, defines);
+            uint32_t fsSpirv = CompileShaderSPIRV(GL_FRAGMENT_SHADER, fragmentSource_, defines);
+            
+            if (vsSpirv && fsSpirv) {
+                uint32_t program = CreateProgramSPIRV(
+                    std::as_const(std::vector<uint32_t>()),
+                    std::as_const(std::vector<uint32_t>())
+                );
+                variantProgramCache_[key] = program;
+            }
+        }
+        
+        GE_LOG_INFO("Compiled %zu shader variants", numVariants);
+    }
+
+    void OpenGLShader::UseVariant(const std::unordered_map<std::string, bool>& defines) {
+        std::string key = ShaderVariantManager::Get().GetVariantKey(defines);
+        UseVariant(key);
+    }
+
+    void OpenGLShader::UseVariant(const std::string& variantKey) {
+        auto it = variantProgramCache_.find(variantKey);
+        if (it != variantProgramCache_.end() && it->second != 0) {
+            glDeleteProgram(rendererID_);
+            rendererID_ = it->second;
+            currentVariantKey_ = variantKey;
+            uniformLocationCache_.clear();
+            GE_LOG_DEBUG("Switched to shader variant: %s", variantKey.c_str());
+        } else {
+            GE_LOG_WARNING("Shader variant not found: %s", variantKey.c_str());
+        }
+    }
+
+    uint32_t OpenGLShader::CreateProgramSPIRV(std::span<const uint32_t> vertexSpirv, std::span<const uint32_t> fragmentSpirv) {
+        uint32_t program = glCreateProgram();
+        
+        if (!vertexSpirv.empty()) {
+            glShaderBinary(1, &program, GL_SPIR_V_BINARY, vertexSpirv.data(), static_cast<GLsizei>(vertexSpirv.size() * 4));
+        }
+        if (!fragmentSpirv.empty()) {
+            glShaderBinary(1, &program, GL_SPIR_V_BINARY, fragmentSpirv.data(), static_cast<GLsizei>(fragmentSpirv.size() * 4));
+        }
+        
+        glLinkProgram(program);
+        
+        int result;
+        glGetProgramiv(program, GL_LINK_STATUS, &result);
+        if (result == GL_FALSE) {
+            int length;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
+            std::vector<char> message(length);
+            glGetProgramInfoLog(program, length, &length, message.data());
+            GE_LOG_ERROR("Failed to link SPIR-V shader program!");
+            GE_LOG_ERROR("%s", message.data());
+            glDeleteProgram(program);
+            return 0;
+        }
+        
+        return program;
+    }
+
+    uint32_t OpenGLShader::CompileShaderSPIRV(uint32_t type, const std::string& source, 
+                                               const std::unordered_map<std::string, bool>& defines) {
+        auto& compiler = ShaderCompiler::Get();
+        auto result = compiler.CompileWithDefines(source, type, defines);
+        
+        if (!result.success) {
+            GE_LOG_ERROR("Failed to compile SPIR-V shader: %s", result.errorLog.c_str());
+            return 0;
+        }
+        
+        uint32_t shader = glCreateShader(type);
+        glShaderBinary(1, &shader, GL_SPIR_V_BINARY, result.spirv.data(), 
+                       static_cast<GLsizei>(result.spirv.size() * 4));
+        
+        glCompileShader(shader);
+        
+        int result2;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &result2);
+        if (result2 == GL_FALSE) {
+            int length;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
+            std::vector<char> message(length);
+            glGetShaderInfoLog(shader, length, &length, message.data());
+            GE_LOG_ERROR("Failed to compile SPIR-V shader!");
+            GE_LOG_ERROR("%s", message.data());
+            glDeleteShader(shader);
+            return 0;
+        }
+        
+        return shader;
+    }
+
+    void OpenGLShader::ExtractVariantDefines(const std::string& source) {
+        std::regex defineRegex(R"(#pragma\s+variant\s+(\w+))");
+        std::smatch match;
+        std::string::const_iterator searchStart(source.cbegin());
+        
+        while (std::regex_search(searchStart, source.cend(), match, defineRegex)) {
+            std::string defineName = match[1].str();
+            AddVariantDefine(defineName, false);
+            searchStart = match.suffix().first;
+        }
     }
 
 } // namespace renderer

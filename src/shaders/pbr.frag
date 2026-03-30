@@ -1,5 +1,13 @@
 #version 450 core
 
+// Shader Variants - these can be enabled/disabled at runtime
+#pragma variant USE_IBL
+#pragma variant USE_GLOBAL_ILLUMINATION
+#pragma variant USE_SCREEN_SPACE_REFLECTIONS
+#pragma variant USE_SSS
+#pragma variant USE_REFRACTION
+#pragma variant USE_FORWARD_PLUS
+
 layout (location = 0) out vec4 color;
 
 in vec3 v_WorldPos;
@@ -357,6 +365,7 @@ void main()
     vec3 Lo = vec3(0.0);
     
     // Forward+ Clustered Lighting Path
+#if defined(USE_FORWARD_PLUS)
     if (u_UseForwardPlus && u_ClusterCountX > 0) {
         vec2 screenCoord = gl_FragCoord.xy;
         float screenW = float(textureSize(u_gPosition, 0).x);
@@ -366,6 +375,7 @@ void main()
         float depth = gl_FragCoord.z;
         Lo = computeForwardPlusLighting(v_WorldPos, N, V, albedo, metallic, roughness, screenCoord, depth);
     } else {
+#endif
     // Traditional per-object lighting (limited to 8 lights)
     for(int i = 0; i < u_LightCount; ++i)
     {
@@ -414,10 +424,13 @@ void main()
         
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * (1.0 - shadow);  
     }
+#if defined(USE_FORWARD_PLUS)
     } // End Forward+ / Traditional lighting split
+#endif
     
     // Ambient lighting (IBL or fallback)
     vec3 ambient;
+#if defined(USE_IBL)
     if (u_UseIBL)
     {
         vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -436,6 +449,7 @@ void main()
         vec2 brdf  = texture(u_BRDFLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
         vec3 iblSpecular = prefilteredColor * (F * brdf.x + brdf.y);
         
+#if defined(USE_SCREEN_SPACE_REFLECTIONS)
         // Screen Space Reflections - blend with IBL based on roughness
         // Smooth surfaces (low roughness) favor SSR, rough surfaces favor IBL
         vec2 ssrCoords = gl_FragCoord.xy / textureSize(u_SSR, 0);
@@ -444,19 +458,26 @@ void main()
         // Roughness-based blend: smooth -> SSR, rough -> IBL
         float reflectionBlend = 1.0 - roughness * roughness; // Squared for smoother falloff
         vec3 specular = mix(iblSpecular, ssrContribution, reflectionBlend);
+#else
+        vec3 specular = iblSpecular;
+#endif
         
         ambient = (kD * diffuse + specular) * ao;
     }
     else
+#endif
     {
         ambient = vec3(0.03) * albedo * ao;
     }
     
+#if defined(USE_GLOBAL_ILLUMINATION)
     // Add screen-space global illumination
     vec2 ssgiCoords = gl_FragCoord.xy / textureSize(u_SSGI, 0);
     vec3 ssgiContribution = texture(u_SSGI, ssgiCoords).rgb * u_SSGIIntensity;
     ambient += ssgiContribution;
+#endif
     
+#if defined(USE_SSS)
     // Subsurface Scattering - texture-based (light wrap)
     vec3 sssContribution = vec3(0.0);
     if (u_Translucency > 0.0 && u_SSSIntensity > 0.0) {
@@ -496,6 +517,9 @@ void main()
         vec3 ssssResult = texture(u_SSSS, ssssCoords).rgb;
         sssContribution += ssssResult * u_SSSIntensity;
     }
+#else
+    vec3 sssContribution = vec3(0.0);
+#endif
     
     vec3 result = ambient + Lo + sssContribution;
     

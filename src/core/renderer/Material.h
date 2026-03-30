@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <unordered_map>
 #include "Shader.h"
 #include "Texture.h"
 #include "../math/VecTypes.h"
@@ -10,18 +11,12 @@
 namespace ge {
 namespace renderer {
 
-    /**
-     * @brief High-level Material class that manages shader parameters and textures.
-     */
     class Material
     {
     public:
         Material(const std::shared_ptr<Shader>& shader);
         ~Material() = default;
 
-        /**
-         * @brief Binds the shader and uploads all stored properties as uniforms.
-         */
         void Bind();
 
         void SetFloat(const std::string& name, float value) { floats_[name] = value; }
@@ -31,6 +26,10 @@ namespace renderer {
 
         std::shared_ptr<Shader> GetShader() const { return shader_; }
 
+        void SetVariant(const std::string& key);
+        void SetVariant(const std::unordered_map<std::string, bool>& defines);
+        std::string GetCurrentVariantKey() const { return currentVariantKey_; }
+
     private:
         std::shared_ptr<Shader> shader_;
 
@@ -38,6 +37,8 @@ namespace renderer {
         std::map<std::string, Math::Vec3f> vec3s_;
         std::map<std::string, Math::Vec4f> vec4s_;
         std::map<std::string, std::shared_ptr<Texture>> textures_;
+        
+        std::string currentVariantKey_;
     };
 
 } // namespace renderer
