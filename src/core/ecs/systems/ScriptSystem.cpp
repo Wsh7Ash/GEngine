@@ -3,6 +3,8 @@
 #include "../World.h"
 #include "../components/NativeScriptComponent.h"
 #include "../ScriptRegistry.h"
+#include "../../scripting/ScriptEngine.h"
+#include "../../scripting/ManagedWorldBridge.h"
 
 
 namespace ge {
@@ -19,9 +21,7 @@ void ScriptSystem::Update(World &world, float ts) {
 
     auto &nsc = world.GetComponent<NativeScriptComponent>(entity);
 
-    // 1. Instantiate if needed
     if (!nsc.instance) {
-      // Skip if InstantiateScript is not bound (e.g. after deserialization)
       if (!nsc.InstantiateScript) {
         continue;
       }
@@ -32,9 +32,36 @@ void ScriptSystem::Update(World &world, float ts) {
       nsc.instance->OnCreate();
     }
 
-    // 2. Update
     nsc.instance->OnUpdate(ts);
   }
+
+  UpdateManagedScripts(world, ts);
+}
+
+void ScriptSystem::UpdateManagedScripts(World& world, float ts) {
+    auto managedEntities = world.Query<scripting::ManagedScriptComponent, TransformComponent>();
+    
+    for (auto entity : managedEntities) {
+        auto& msc = world.GetComponent<scripting::ManagedScriptComponent>(entity);
+        
+        if (!msc.instance) {
+            InstantiateManagedScript(world, entity, msc);
+        }
+        
+        if (msc.instance) {
+            msc.instance->OnUpdate(ts);
+        }
+    }
+}
+
+void ScriptSystem::InstantiateManagedScript(World& world, Entity entity, scripting::ManagedScriptComponent& msc) {
+    msc.entity = entity;
+    msc.world = &world;
+    
+    if (msc.instance) {
+        msc.instance->OnCreate();
+        GE_LOG_INFO("Managed script instantiated: %s", msc.className.c_str());
+    }
 }
 
 void ScriptSystem::ReloadScripts(World& world) {

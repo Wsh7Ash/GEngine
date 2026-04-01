@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>GameEngine.SDK</AssemblyName>
+    <RootNamespace>GameEngine.SDK</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\core\scripting\generated\*.cs" />
+    <Compile Include="Entity.cs" />
+    <Compile Include="ScriptBase.cs" />
+  </ItemGroup>
+
+</Project>
