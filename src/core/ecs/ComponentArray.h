@@ -32,6 +32,8 @@ public:
     virtual ~IComponentArray() = default;
     virtual void EntityDestroyed(Entity e) = 0;
     virtual void RemoveData(Entity e) = 0;
+    virtual bool HasData(Entity e) const = 0;
+    virtual void* GetDataPtr(Entity e) = 0;
 };
 
 /**
@@ -105,9 +107,20 @@ public:
     }
 
     /// Check if entity has this component.
-    [[nodiscard]] bool HasData(Entity e) const
+    bool HasData(Entity e) const override
     {
         return entityToComponentMap_.find(e.GetIndex()) != entityToComponentMap_.end();
+    }
+
+    /// Get pointer to component data.
+    void* GetDataPtr(Entity e) override
+    {
+        const std::uint32_t entityIdx = e.GetIndex();
+        auto it = entityToComponentMap_.find(entityIdx);
+        if (it == entityToComponentMap_.end()) {
+            return nullptr;
+        }
+        return &components_[it->second];
     }
 
     /// Notification from EntityManager that an entity was destroyed.

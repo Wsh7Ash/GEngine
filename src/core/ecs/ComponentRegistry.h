@@ -10,6 +10,8 @@
 
 #include <cstdint>
 #include <atomic>
+#include <unordered_map>
+#include <string>
 
 namespace ge {
 namespace ecs
@@ -28,6 +30,23 @@ namespace internal
         static std::atomic<ComponentTypeID> s_counter{0};
         return s_counter.fetch_add(1);
     }
+
+    inline std::unordered_map<std::string, ComponentTypeID>& GetTypeNameMap() {
+        static std::unordered_map<std::string, ComponentTypeID> map;
+        return map;
+    }
+
+    inline void RegisterComponentName(const char* name, ComponentTypeID id) {
+        GetTypeNameMap()[name] = id;
+    }
+
+    inline ComponentTypeID GetComponentTypeIDByName(const char* name) {
+        auto it = GetTypeNameMap().find(name);
+        if (it != GetTypeNameMap().end()) {
+            return it->second;
+        }
+        return INVALID_COMPONENT_ID;
+    }
 }
 
 /**
@@ -41,6 +60,12 @@ inline ComponentTypeID GetComponentTypeID() noexcept
 {
     static const ComponentTypeID s_typeID = internal::NextComponentID();
     return s_typeID;
+}
+
+template <typename T>
+inline const char* GetComponentTypeName() noexcept
+{
+    return typeid(T).name();
 }
 
 } // namespace ecs

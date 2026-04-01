@@ -13,6 +13,8 @@
 #include "../ecs/systems/Physics2DSystem.h"
 #include "../ecs/systems/Physics3DSystem.h"
 #include "../ecs/systems/UISystem.h"
+#include "../ecs/systems/ScriptSystem.h"
+#include "../ecs/systems/AudioSystem.h"
 #include "../ecs/systems/AudioSystem.h"
 #include "../ecs/systems/ParticleSystem.h"
 #include "../ecs/systems/AnimationSystem.h"
@@ -105,6 +107,15 @@ Application::Application(const ApplicationProps& props) {
     }
 
     auto postProcessSystem = world_->RegisterSystem<ecs::PostProcessSystem>();
+
+    auto scriptSystem = world_->RegisterSystem<ecs::ScriptSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::NativeScriptComponent>());
+        signature.set(ecs::GetComponentTypeID<scripting::ManagedScriptComponent>());
+        signature.set(ecs::GetComponentTypeID<ecs::TransformComponent>());
+        world_->SetSystemSignature<ecs::ScriptSystem>(signature);
+    }
 
     renderer::Renderer2D::Init();
     audioSystem->Init();

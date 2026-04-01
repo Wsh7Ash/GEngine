@@ -125,6 +125,15 @@ public:
   bool HasSkybox(Entity e) const;
   bool HasRelationship(Entity e) const;
 
+  // Component lookup by name (for managed script interop)
+  bool HasComponentByName(Entity e, const char* componentName) const;
+  void* GetComponentPointerByName(Entity e, const char* componentName);
+  void AddComponentByName(Entity e, const char* componentName);
+  void RemoveComponentByName(Entity e, const char* componentName);
+  const char* GetComponentTypeName(ComponentTypeID id) const;
+
+  static const char* GetComponentTypeNameStatic(ComponentTypeID id);
+
   template <typename T> [[nodiscard]] bool HasComponent(Entity e) const {
     const auto id = GetComponentTypeID<T>();
     if (id >= componentArrays_.size() || !componentArrays_[id])

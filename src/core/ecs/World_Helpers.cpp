@@ -1,4 +1,5 @@
 #include "World.h"
+#include "ComponentRegistry.h"
 #include "components/TransformComponent.h"
 #include "components/MeshComponent.h"
 #include "components/AnimatorComponent.h"
@@ -13,6 +14,7 @@
 #include "SystemManager.h"
 #include <algorithm>
 #include <vector>
+#include <cstring>
 
 namespace ge {
 namespace ecs {
@@ -36,6 +38,53 @@ bool World::HasLight(Entity e) const { return HasComponent<LightComponent>(e); }
 bool World::HasSprite(Entity e) const { return HasComponent<SpriteComponent>(e); }
 bool World::HasSkybox(Entity e) const { return HasComponent<SkyboxComponent>(e); }
 bool World::HasRelationship(Entity e) const { return HasComponent<RelationshipComponent>(e); }
+
+bool World::HasComponentByName(Entity e, const char* componentName) const {
+    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (id >= componentArrays_.size() || !componentArrays_[id]) {
+        return false;
+    }
+    return componentArrays_[id]->HasData(e);
+}
+
+void* World::GetComponentPointerByName(Entity e, const char* componentName) {
+    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (id >= componentArrays_.size() || !componentArrays_[id]) {
+        return nullptr;
+    }
+    return componentArrays_[id]->GetDataPtr(e);
+}
+
+void World::AddComponentByName(Entity e, const char* componentName) {
+    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (id >= componentArrays_.size()) {
+        return;
+    }
+    // This is a placeholder - actual implementation would need to instantiate the component
+    (void)e;
+}
+
+void World::RemoveComponentByName(Entity e, const char* componentName) {
+    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (id >= componentArrays_.size() || !componentArrays_[id]) {
+        return;
+    }
+    componentArrays_[id]->RemoveData(e);
+    
+    auto signature = entitySignatures_[e.GetIndex()];
+    signature.set(id, false);
+    entitySignatures_[e.GetIndex()] = signature;
+    isDirty_ = true;
+    systemManager_->EntitySignatureChanged(e, signature);
+}
+
+const char* World::GetComponentTypeName(ComponentTypeID id) const {
+    return "Unknown";
+}
+
+const char* World::GetComponentTypeNameStatic(ComponentTypeID id) {
+    return "Unknown";
+}
 
 Entity World::CreateEntity() {
     Entity e = entityManager_.CreateEntity();
