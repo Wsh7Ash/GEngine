@@ -2,6 +2,7 @@
 #include "ManagedWorldBridge.h"
 #include "../debug/log.h"
 #include "../platform/Input.h"
+#include "../ecs/components/TagComponent.h"
 
 namespace ge {
 namespace scripting {
@@ -90,6 +91,23 @@ void ShutdownInterop() {
     ManagedWorldBridge::Shutdown();
     g_World = nullptr;
     GE_LOG_INFO("NativeInterop shutdown");
+}
+
+void* GetWorldPtr() {
+    return static_cast<void*>(g_World);
+}
+
+uint64_t GetEntityByName(const char* name) {
+    if (!g_World || !name) return 0;
+    
+    auto entities = g_World->Query<ecs::TagComponent, ecs::TransformComponent>();
+    for (auto entity : entities) {
+        auto& tag = g_World->GetComponent<ecs::TagComponent>(entity);
+        if (tag.tag == name) {
+            return entity.value;
+        }
+    }
+    return 0;
 }
 
 }

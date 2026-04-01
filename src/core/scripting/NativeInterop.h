@@ -28,6 +28,9 @@ bool IsMouseButtonPressed(int button);
 void InitializeInterop(void* worldPtr);
 void ShutdownInterop();
 
+void* GetWorldPtr();
+uint64_t GetEntityByName(const char* name);
+
 }
 
 }

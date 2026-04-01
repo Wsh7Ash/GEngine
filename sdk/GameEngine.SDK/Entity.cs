@@ -16,22 +16,30 @@ namespace GameEngine.SDK
         
         public bool IsValid => _id != 0;
         
-        public bool HasComponent<T>() where T : new()
+        public bool HasComponent<T>() where T : IComponentWrapper, new()
         {
             return Interop.HasComponent(_id, typeof(T).Name);
         }
         
-        public T GetComponent<T>() where T : new()
+        public T GetComponent<T>() where T : IComponentWrapper, new()
         {
-            return Interop.GetComponent<T>(_id);
+            IntPtr ptr = Interop.GetComponentPtr(_id, typeof(T).Name);
+            if (ptr == IntPtr.Zero)
+            {
+                return default;
+            }
+            
+            var component = new T();
+            component.SetNativePtr(ptr);
+            return component;
         }
         
-        public void AddComponent<T>() where T : new()
+        public void AddComponent<T>() where T : IComponentWrapper, new()
         {
-            Interop.AddComponent<T>(_id);
+            Interop.AddComponent(_id, typeof(T).Name);
         }
         
-        public void RemoveComponent<T>()
+        public void RemoveComponent<T>() where T : IComponentWrapper
         {
             Interop.RemoveComponent(_id, typeof(T).Name);
         }
@@ -93,5 +101,11 @@ namespace GameEngine.SDK
         
         [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern bool IsMouseButtonPressed(int button);
+
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr GetEntityByName([MarshalAs(UnmanagedType.LPStr)] string name);
+
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr GetWorldPtr();
     }
 }
