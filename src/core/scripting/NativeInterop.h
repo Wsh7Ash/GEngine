@@ -31,6 +31,16 @@ void ShutdownInterop();
 void* GetWorldPtr();
 uint64_t GetEntityByName(const char* name);
 
+void ScriptManager_OnCreate(uint64_t entityId, const char* scriptTypeName);
+void ScriptManager_OnUpdate(float deltaTime);
+void ScriptManager_OnDestroy(uint64_t entityId);
+void ScriptManager_OnCollisionEnter(uint64_t entityId, uint64_t otherId);
+void ScriptManager_OnCollisionExit(uint64_t entityId, uint64_t otherId);
+void ScriptManager_OnTriggerEnter(uint64_t entityId, uint64_t otherId);
+void ScriptManager_OnTriggerExit(uint64_t entityId, uint64_t otherId);
+void ScriptManager_OnTransformInterpolate(uint64_t entityId, float x, float y, float z, float alpha);
+void ScriptManager_RegisterScript(const char* scriptTypeName);
+
 }
 
 }

@@ -110,6 +110,46 @@ uint64_t GetEntityByName(const char* name) {
     return 0;
 }
 
+void ScriptManager_OnCreate(uint64_t entityId, const char* scriptTypeName) {
+    GE_LOG_INFO("ScriptManager_OnCreate: Entity %llu, Script %s", entityId, scriptTypeName);
+}
+
+void ScriptManager_OnUpdate(float deltaTime) {
+    GE_LOG_DEBUG("ScriptManager_OnUpdate: %f", deltaTime);
+}
+
+void ScriptManager_OnDestroy(uint64_t entityId) {
+    GE_LOG_INFO("ScriptManager_OnDestroy: Entity %llu", entityId);
+}
+
+void ScriptManager_OnCollisionEnter(uint64_t entityId, uint64_t otherId) {
+    GE_LOG_INFO("ScriptManager_OnCollisionEnter: Entity %llu hit %llu", entityId, otherId);
+}
+
+void ScriptManager_OnCollisionExit(uint64_t entityId, uint64_t otherId) {
+    GE_LOG_INFO("ScriptManager_OnCollisionExit: Entity %llu stopped hitting %llu", entityId, otherId);
+}
+
+void ScriptManager_OnTriggerEnter(uint64_t entityId, uint64_t otherId) {
+    GE_LOG_INFO("ScriptManager_OnTriggerEnter: Entity %llu entered trigger %llu", entityId, otherId);
+}
+
+void ScriptManager_OnTriggerExit(uint64_t entityId, uint64_t otherId) {
+    GE_LOG_INFO("ScriptManager_OnTriggerExit: Entity %llu exited trigger %llu", entityId, otherId);
+}
+
+void ScriptManager_OnTransformInterpolate(uint64_t entityId, float x, float y, float z, float alpha) {
+    (void)entityId;
+    (void)x;
+    (void)y;
+    (void)z;
+    (void)alpha;
+}
+
+void ScriptManager_RegisterScript(const char* scriptTypeName) {
+    GE_LOG_INFO("ScriptManager_RegisterScript: %s", scriptTypeName);
+}
+
 }
 
 }

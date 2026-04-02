@@ -7,6 +7,7 @@
     <RootNamespace>GameEngine.SDK</RootNamespace>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableUnsafeBlocks>true</EnableUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +15,10 @@
     <Compile Include="Entity.cs" />
     <Compile Include="ScriptBase.cs" />
     <Compile Include="ComponentWrapper.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\scripts\ExampleScripts.cs" />
   </ItemGroup>
 
 </Project>
