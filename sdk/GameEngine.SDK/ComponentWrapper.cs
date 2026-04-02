@@ -54,49 +54,47 @@ namespace GameEngine.SDK
 
         public override string ToString() => $"({X:F2}, {Y:F2}, {Z:F2})";
     }
-
+    
     [StructLayout(LayoutKind.Sequential)]
-    public struct Quaternion
+    public struct Vector2
     {
-        public float X, Y, Z, W;
-
+        public float X, Y;
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Quaternion(float x, float y, float z, float w)
+        public Vector2(float x, float y)
         {
-            X = x; Y = y; Z = z; W = w;
+            X = x; Y = y;
         }
-
-        public static Quaternion Identity => new Quaternion(0, 0, 0, 1);
-
+        
+        public static Vector2 Zero => new Vector2(0, 0);
+        public static Vector2 One => new Vector2(1, 1);
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Quaternion FromEuler(float x, float y, float z)
-        {
-            float cx = (float)Math.Cos(x * 0.5f), sx = (float)Math.Sin(x * 0.5f);
-            float cy = (float)Math.Cos(y * 0.5f), sy = (float)Math.Sin(y * 0.5f);
-            float cz = (float)Math.Cos(z * 0.5f), sz = (float)Math.Sin(z * 0.5f);
-            
-            return new Quaternion(
-                sx * cy * cz - cx * sy * sz,
-                cx * sy * cz + sx * cy * sz,
-                cx * cy * sz - sx * sy * cz,
-                cx * cy * cz + sx * sy * sz
-            );
-        }
-
+        public float MagnitudeSquared => X * X + Y * Y;
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public float Magnitude => (float)Math.Sqrt(X * X + Y * Y + Z * Z + W * W);
-
+        public float Magnitude => (float)Math.Sqrt(MagnitudeSquared);
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Quaternion Normalized
+        public Vector2 Normalized
         {
             get
             {
                 float mag = Magnitude;
-                return mag > 0 ? new Quaternion(X / mag, Y / mag, Z / mag, W / mag) : Identity;
+                return mag > 0 ? new Vector2(X / mag, Y / mag) : Zero;
             }
         }
-
-        public override string ToString() => $"({X:F2}, {Y:F2}, {Z:F2}, {W:F2})";
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector2 operator +(Vector2 a, Vector2 b) => new Vector2(a.X + b.X, a.Y + b.Y);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector2 operator -(Vector2 a, Vector2 b) => new Vector2(a.X - b.X, a.Y - b.Y);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector2 operator *(Vector2 a, float s) => new Vector2(a.X * s, a.Y * s);
+        
+        public override string ToString() => $"({X:F2}, {Y:F2})";
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -494,6 +492,70 @@ namespace GameEngine.SDK
                 }
             }
         }
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Rigidbody3D_SetVelocity(ulong entityId, float x, float y, float z);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Rigidbody3D_GetVelocity(ulong entityId, out float x, out float y, out float z);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Rigidbody3D_AddForce(ulong entityId, float x, float y, float z);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Rigidbody3D_AddImpulse(ulong entityId, float x, float y, float z);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void Rigidbody3D_AddTorque(ulong entityId, float x, float y, float z);
+        
+        private ulong _entityId = 0;
+        
+        public Vector3 Velocity
+        {
+            get
+            {
+                if (!IsValid || _entityId == 0) return Vector3.Zero;
+                Rigidbody3D_GetVelocity(_entityId, out float x, out float y, out float z);
+                return new Vector3(x, y, z);
+            }
+            set
+            {
+                if (!IsValid || _entityId == 0) return;
+                Rigidbody3D_SetVelocity(_entityId, value.X, value.Y, value.Z);
+            }
+        }
+        
+        public void SetVelocity(float x, float y, float z)
+        {
+            if (!IsValid || _entityId == 0) return;
+            Rigidbody3D_SetVelocity(_entityId, x, y, z);
+        }
+        
+        public void AddForce(float x, float y, float z)
+        {
+            if (!IsValid || _entityId == 0) return;
+            Rigidbody3D_AddForce(_entityId, x, y, z);
+        }
+        
+        public void AddForce(Vector3 force) => AddForce(force.X, force.Y, force.Z);
+        
+        public void AddImpulse(float x, float y, float z)
+        {
+            if (!IsValid || _entityId == 0) return;
+            Rigidbody3D_AddImpulse(_entityId, x, y, z);
+        }
+        
+        public void AddImpulse(Vector3 impulse) => AddImpulse(impulse.X, impulse.Y, impulse.Z);
+        
+        public void AddTorque(float x, float y, float z)
+        {
+            if (!IsValid || _entityId == 0) return;
+            Rigidbody3D_AddTorque(_entityId, x, y, z);
+        }
+        
+        public void AddTorque(Vector3 torque) => AddTorque(torque.X, torque.Y, torque.Z);
+        
+        public void SetEntityId(ulong entityId) => _entityId = entityId;
     }
 
     public enum LightType
@@ -710,5 +772,167 @@ namespace GameEngine.SDK
                 }
             }
         }
+    }
+    
+    public class CameraComponent : IComponentWrapper
+    {
+        private IntPtr _nativePtr;
+        
+        public IntPtr NativePtr => _nativePtr;
+        
+        public bool IsValid => _nativePtr != IntPtr.Zero;
+        
+        public void SetNativePtr(IntPtr ptr) => _nativePtr = ptr;
+        
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeCamera
+        {
+            public Vector3 Position;
+            public Vector3 Forward;
+            public Vector3 Up;
+            public float FOV;
+            public float AspectRatio;
+            public float NearClip;
+            public float FarClip;
+        }
+        
+        public Vector3 Position
+        {
+            get
+            {
+                if (!IsValid) return Vector3.Zero;
+                unsafe { return ((NativeCamera*)_nativePtr)->Position; }
+            }
+        }
+        
+        public Vector3 Forward
+        {
+            get
+            {
+                if (!IsValid) return Vector3.Forward;
+                unsafe { return ((NativeCamera*)_nativePtr)->Forward; }
+            }
+        }
+        
+        public Vector3 Up
+        {
+            get
+            {
+                if (!IsValid) return Vector3.Up;
+                unsafe { return ((NativeCamera*)_nativePtr)->Up; }
+            }
+        }
+        
+        public float FOV
+        {
+            get
+            {
+                if (!IsValid) return 60.0f;
+                unsafe { return ((NativeCamera*)_nativePtr)->FOV; }
+            }
+            set
+            {
+                if (!IsValid) return;
+                unsafe { ((NativeCamera*)_nativePtr)->FOV = value; }
+            }
+        }
+        
+        public float AspectRatio
+        {
+            get
+            {
+                if (!IsValid) return 1.77f;
+                unsafe { return ((NativeCamera*)_nativePtr)->AspectRatio; }
+            }
+        }
+        
+        public float NearClip
+        {
+            get
+            {
+                if (!IsValid) return 0.1f;
+                unsafe { return ((NativeCamera*)_nativePtr)->NearClip; }
+            }
+        }
+        
+        public float FarClip
+        {
+            get
+            {
+                if (!IsValid) return 1000.0f;
+                unsafe { return ((NativeCamera*)_nativePtr)->FarClip; }
+            }
+        }
+    }
+    
+    public class AudioSourceComponent : IComponentWrapper
+    {
+        private IntPtr _nativePtr;
+        
+        public IntPtr NativePtr => _nativePtr;
+        
+        public bool IsValid => _nativePtr != IntPtr.Zero;
+        
+        public void SetNativePtr(IntPtr ptr) => _nativePtr = ptr;
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void AudioSource_Play(ulong entityId);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void AudioSource_Stop(ulong entityId);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void AudioSource_Pause(ulong entityId);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool AudioSource_IsPlaying(ulong entityId);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void AudioSource_SetVolume(ulong entityId, float volume);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void AudioSource_SetPitch(ulong entityId, float pitch);
+        
+        [DllImport("GameEngine.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void AudioSource_SetLoop(ulong entityId, bool loop);
+        
+        private ulong _entityId = 0;
+        
+        public void Play()
+        {
+            if (_entityId != 0) AudioSource_Play(_entityId);
+        }
+        
+        public void Stop()
+        {
+            if (_entityId != 0) AudioSource_Stop(_entityId);
+        }
+        
+        public void Pause()
+        {
+            if (_entityId != 0) AudioSource_Pause(_entityId);
+        }
+        
+        public bool IsPlaying
+        {
+            get => _entityId != 0 && AudioSource_IsPlaying(_entityId);
+        }
+        
+        public float Volume
+        {
+            set { if (_entityId != 0) AudioSource_SetVolume(_entityId, value); }
+        }
+        
+        public float Pitch
+        {
+            set { if (_entityId != 0) AudioSource_SetPitch(_entityId, value); }
+        }
+        
+        public bool Loop
+        {
+            set { if (_entityId != 0) AudioSource_SetLoop(_entityId, value); }
+        }
+        
+        public void SetEntityId(ulong entityId) => _entityId = entityId;
     }
 }
