@@ -26,6 +26,7 @@
 #include <cassert>
 #include <new>            // placement new
 #include <utility>        // std::forward
+#include <vector>
 
 namespace ge {
 namespace memory
@@ -327,6 +328,139 @@ private:
     std::uint8_t* buffer_;
     std::size_t   capacity_;
     std::size_t   top_;
+};
+
+
+// ================================================================
+//  FrameAllocator
+//  ───────────────
+//  Specialized linear allocator that clears every frame.
+//  Tracks individual allocations for proper cleanup.
+//
+//  Best for: per-frame temporary memory in Update() loops.
+// ================================================================
+
+class FrameAllocator final : public IAllocator
+{
+public:
+    explicit FrameAllocator(std::size_t capacity)
+        : buffer_(nullptr), capacity_(capacity), allocated_(0)
+    {
+        assert(capacity > 0 && "FrameAllocator capacity must be > 0");
+        buffer_ = new std::uint8_t[capacity];
+    }
+
+    ~FrameAllocator() override
+    {
+        Clear();
+        delete[] buffer_;
+    }
+
+    [[nodiscard]] void* Allocate(std::size_t size,
+                                std::size_t alignment = 16) override
+    {
+        const std::size_t alignedOffset = AlignAddress(allocated_, alignment);
+
+        if (alignedOffset + size > capacity_)
+            return nullptr;
+
+        void* result = buffer_ + alignedOffset;
+        allocated_ = alignedOffset + size;
+        
+        allocationPtrs_.push_back(result);
+        allocationSizes_.push_back(size);
+        
+        return result;
+    }
+
+    void Deallocate(void* ptr) override
+    {
+        if (!ptr) return;
+        for (std::size_t i = 0; i < allocationPtrs_.size(); ++i) {
+            if (allocationPtrs_[i] == ptr) {
+                allocationPtrs_.erase(allocationPtrs_.begin() + i);
+                allocationSizes_.erase(allocationSizes_.begin() + i);
+                return;
+            }
+        }
+    }
+
+    void Clear() override
+    {
+        allocated_ = 0;
+        allocationPtrs_.clear();
+        allocationSizes_.clear();
+    }
+
+    [[nodiscard]] std::size_t GetAllocatedSize() const noexcept override { return allocated_; }
+    [[nodiscard]] std::size_t GetCapacity()      const noexcept override { return capacity_;  }
+
+    std::size_t GetAllocationCount() const { return allocationPtrs_.size(); }
+
+private:
+    std::uint8_t* buffer_;
+    std::size_t   capacity_;
+    std::size_t   allocated_;
+    std::vector<void*> allocationPtrs_;
+    std::vector<std::size_t> allocationSizes_;
+};
+
+
+// ================================================================
+//  ScratchAllocator (TLS)
+//  ──────────────────────
+//  Thread-local linear allocator for parallel system updates.
+//  Provides fast scratch memory per thread.
+//
+//  Best for: parallel job execution, temporary calculations.
+// ================================================================
+
+class ScratchAllocator final : public IAllocator
+{
+public:
+    explicit ScratchAllocator(std::size_t capacity)
+        : buffer_(nullptr), capacity_(capacity), allocated_(0)
+    {
+        assert(capacity > 0 && "ScratchAllocator capacity must be > 0");
+        buffer_ = new std::uint8_t[capacity];
+    }
+
+    ~ScratchAllocator() override
+    {
+        delete[] buffer_;
+    }
+
+    [[nodiscard]] void* Allocate(std::size_t size,
+                                std::size_t alignment = 16) override
+    {
+        const std::size_t alignedOffset = AlignAddress(allocated_, alignment);
+
+        if (alignedOffset + size > capacity_)
+            return nullptr;
+
+        void* result = buffer_ + alignedOffset;
+        allocated_ = alignedOffset + size;
+        return result;
+    }
+
+    void Deallocate(void* ptr) override
+    {
+    }
+
+    void Clear() override
+    {
+        allocated_ = 0;
+    }
+
+    [[nodiscard]] std::size_t GetAllocatedSize() const noexcept override { return allocated_; }
+    [[nodiscard]] std::size_t GetCapacity()      const noexcept override { return capacity_;  }
+
+    static ScratchAllocator& GetThreadLocal();
+
+private:
+    std::uint8_t* buffer_;
+    std::size_t   capacity_;
+    std::size_t   allocated_;
 };
 
 

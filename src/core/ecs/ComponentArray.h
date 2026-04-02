@@ -16,7 +16,6 @@
 #include "../containers/dynamic_array.h"
 #include "../debug/log.h"
 #include "../debug/assert.h"
-#include <unordered_map>
 
 namespace ge {
 namespace ecs
