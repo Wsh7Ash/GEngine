@@ -15,6 +15,7 @@
     <Compile Include="Entity.cs" />
     <Compile Include="ScriptBase.cs" />
     <Compile Include="ComponentWrapper.cs" />
+    <Compile Include="AssemblyLoader.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -22,6 +22,9 @@ namespace GameEngine.SDK
         
         public virtual void OnTransformInterpolate(Vector3 interpolatedPos, float alpha) { }
         
+        public virtual void OnBeforeReload() { }
+        public virtual void OnAfterReload() { }
+        
         internal void SetEntity(Entity entity)
         {
             _entity = entity;
@@ -29,6 +32,13 @@ namespace GameEngine.SDK
             OnCreate();
         }
         
+        internal void ReattachEntity(Entity entity)
+        {
+            _entity = entity;
+            _isInitialized = true;
+            OnAfterReload();
+        }
+
         public bool IsValid => _isInitialized && _entity.IsValid;
         
         protected T GetComponent<T>() where T : IComponentWrapper, new() => _entity.GetComponent<T>();
@@ -83,6 +93,8 @@ namespace GameEngine.SDK
     {
         private static Dictionary<ulong, ScriptableEntity> _scripts = new Dictionary<ulong, ScriptableEntity>();
         private static Dictionary<Type, Func<ScriptableEntity>> _scriptFactories = new Dictionary<Type, Func<ScriptableEntity>>();
+        private static Dictionary<ulong, Type> _scriptTypes = new Dictionary<ulong, Type>();
+        private static bool _isReloading = false;
         
         public static void RegisterScript<T>() where T : ScriptableEntity, new()
         {
@@ -101,6 +113,7 @@ namespace GameEngine.SDK
             script.SetEntity(new Entity(entityId));
             
             _scripts[entityId] = script;
+            _scriptTypes[entityId] = scriptType;
             return script;
         }
         
@@ -113,8 +126,12 @@ namespace GameEngine.SDK
         {
             if (_scripts.ContainsKey(entityId))
             {
-                _scripts[entityId].OnDestroy();
+                if (!_isReloading)
+                {
+                    _scripts[entityId].OnDestroy();
+                }
                 _scripts.Remove(entityId);
+                _scriptTypes.Remove(entityId);
             }
         }
         
@@ -165,6 +182,70 @@ namespace GameEngine.SDK
                 _scripts[entityId].OnTransformInterpolate(pos, alpha);
             }
         }
+        
+        public static void OnBeforeAssemblyReload(string assemblyPath)
+        {
+            _isReloading = true;
+            Interop.LogInfo($"Preparing scripts for reload: {assemblyPath}");
+            
+            foreach (var kvp in _scripts)
+            {
+                kvp.Value.OnBeforeReload();
+            }
+        }
+        
+        public static void OnAfterAssemblyReload(string assemblyPath)
+        {
+            Interop.LogInfo($"Rehydrating scripts after reload: {assemblyPath}");
+            
+            var oldScripts = new Dictionary<ulong, ScriptableEntity>(_scripts);
+            _scripts.Clear();
+            
+            foreach (var kvp in oldScripts)
+            {
+                ulong entityId = kvp.Key;
+                Type scriptType = _scriptTypes.ContainsKey(entityId) ? _scriptTypes[entityId] : null;
+                
+                if (scriptType != null && _scriptFactories.ContainsKey(scriptType))
+                {
+                    var newScript = _scriptFactories[scriptType]();
+                    newScript.ReattachEntity(new Entity(entityId));
+                    _scripts[entityId] = newScript;
+                }
+            }
+            
+            _isReloading = false;
+            Interop.LogInfo($"Script reload complete. {oldScripts.Count} scripts rehydrated.");
+        }
+        
+        public static void ReloadAllScripts()
+        {
+            _isReloading = true;
+            
+            foreach (var kvp in _scripts)
+            {
+                kvp.Value.OnBeforeReload();
+                kvp.Value.OnDestroy();
+            }
+            
+            var oldScripts = new Dictionary<ulong, Type>(_scriptTypes);
+            _scripts.Clear();
+            _scriptTypes.Clear();
+            
+            foreach (var kvp in oldScripts)
+            {
+                if (_scriptFactories.ContainsKey(kvp.Value))
+                {
+                    var script = _scriptFactories[kvp.Value]();
+                    script.SetEntity(new Entity(kvp.Key));
+                    _scripts[kvp.Key] = script;
+                    _scriptTypes[kvp.Key] = kvp.Value;
+                }
+            }
+            
+            _isReloading = false;
+            Interop.LogInfo($"All scripts reloaded. {_scripts.Count} scripts active.");
+        }
     }
     
     public class ScriptHost
@@ -179,9 +260,7 @@ namespace GameEngine.SDK
                 return;
             }
             
-            var createMethod = typeof(ScriptManager).GetMethod("CreateScript");
-            var genericMethod = createMethod.MakeGenericMethod(scriptType);
-            genericMethod.Invoke(null, new object[] { entityId, scriptType });
+            ScriptManager.CreateScript(entityId, scriptType);
         }
         
         [UnmanagedCallersOnly(EntryPoint = "ScriptManager_OnUpdate", CallConventions = CallConventions.Cdecl)]
@@ -239,6 +318,12 @@ namespace GameEngine.SDK
             var registerMethod = typeof(ScriptManager).GetMethod("RegisterScript");
             var genericMethod = registerMethod.MakeGenericMethod(scriptType);
             genericMethod.Invoke(null, null);
+        }
+        
+        [UnmanagedCallersOnly(EntryPoint = "ScriptManager_ReloadAll", CallConventions = CallConventions.Cdecl)]
+        public static void ReloadAll()
+        {
+            ScriptManager.ReloadAllScripts();
         }
     }
 }

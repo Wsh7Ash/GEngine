@@ -5,6 +5,8 @@
 #include <memory>
 #include <functional>
 #include <cstdint>
+#include <unordered_map>
+#include <mutex>
 
 namespace ge {
 namespace ecs {
@@ -14,6 +16,14 @@ namespace ecs {
 namespace scripting {
 
 using ManagedDelegate = std::function<void()>;
+using ReloadCallback = std::function<void(const std::string& assemblyPath)>;
+
+struct AssemblyInfo {
+    std::string path;
+    std::string name;
+    uint64_t lastModified;
+    void* loadedContext;
+};
 
 class ScriptEngine {
 public:
@@ -24,6 +34,9 @@ public:
     void Shutdown();
 
     bool LoadAssembly(const char* assemblyPath);
+    bool ReloadAssembly(const char* assemblyPath);
+    bool ReloadAllAssemblies();
+    bool UnloadAssembly(const char* assemblyPath);
     
     template<typename FuncType>
     bool CreateDelegate(const char* assemblyName, const char* namespaceName, 
@@ -32,12 +45,22 @@ public:
     bool IsInitialized() const { return isInitialized_; }
     const std::string& GetLastError() const { return lastError_; }
 
+    void SetReloadCallback(ReloadCallback callback) { reloadCallback_ = callback; }
+    
+    void StartFileWatcher(const char* watchDirectory = nullptr);
+    void StopFileWatcher();
+    bool IsFileWatcherRunning() const { return isWatching_; }
+    
+    void CheckForFileChanges();
+
     static ScriptEngine& Get();
 
 private:
     bool InitializeCoreCLR(const char* dotnetPath);
     std::string GetCoreCLRPath(const char* dotnetPath);
     std::string GetTrustedPlatformAssemblies(const char* dotnetPath);
+    void OnFileChanged(const std::string& filePath);
+    uint64_t GetFileModifiedTime(const std::string& filePath);
 
     bool isInitialized_ = false;
     void* coreclrHandle_ = nullptr;
@@ -45,6 +68,12 @@ private:
     uint32_t domainId_ = 0;
     std::string lastError_;
     std::string runtimePath_;
+    std::string watchDirectory_;
+    bool isWatching_ = false;
+    ReloadCallback reloadCallback_;
+    
+    std::unordered_map<std::string, AssemblyInfo> loadedAssemblies_;
+    std::mutex assembliesMutex_;
     
     using CoreCLRInitializeFunc = int(*)(const char* exePath, const char* appDomainName, 
                                           int propertyCount, const char** keys, const char** values,
