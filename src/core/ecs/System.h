@@ -2,11 +2,16 @@
 
 // ================================================================
 //  System.h
-//  Base class for ECS systems.
+//  Base class for ECS systems with dependency tracking.
 // ================================================================
 
-#include <set>
 #include "Entity.h"
+#include "ComponentRegistry.h"
+#include <bitset>
+#include <set>
+#include <vector>
+#include <functional>
+#include <thread>
 
 namespace ge {
 namespace ecs
@@ -14,9 +19,28 @@ namespace ecs
 
 class World;
 
+using Signature = std::bitset<MAX_COMPONENTS>;
+
+// Forward declarations
+class SystemExecutor;
+class SystemGraph;
+
+enum class SystemPriority {
+    Critical = 0,   // Physics, input - must run first
+    High = 1,        // Animation, AI
+    Normal = 2,      // Most systems
+    Low = 3,        // Particles
+    Background = 4   // Async loading
+};
+
 /**
  * @brief Base class for all Systems.
- * Systems maintain a list of entities they are interested in.
+ * 
+ * Systems declare their component dependencies using:
+ * - ReadSignature(): Components read but not written
+ * - WriteSignature(): Components written
+ * 
+ * The SystemExecutor analyzes these to parallelize execution.
  */
 class System
 {
@@ -25,6 +49,34 @@ public:
 
     /// Entities matching the system's signature.
     std::set<Entity> entities;
+
+    /// Get the read signature (components this system reads).
+    virtual Signature GetReadSignature() const { return readSignature_; }
+    
+    /// Get the write signature (components this system writes).
+    virtual Signature GetWriteSignature() const { return writeSignature_; }
+    
+    /// Set read signature (usually called during registration).
+    void SetReadSignature(Signature sig) { readSignature_ = sig; }
+    
+    /// Set write signature (usually called during registration).
+    void SetWriteSignature(Signature sig) { writeSignature_ = sig; }
+    
+    /// Get system priority.
+    virtual SystemPriority GetPriority() const { return SystemPriority::Normal; }
+    
+    /// Whether this system supports parallel execution.
+    virtual bool IsParallelizable() const { return true; }
+    
+    /// Get estimated execution time (for load balancing).
+    virtual float GetEstimatedTime() const { return 1.0f; }
+
+protected:
+    Signature readSignature_;
+    Signature writeSignature_;
+    
+    friend class SystemExecutor;
+    friend class SystemGraph;
 };
 
 } // namespace ecs
