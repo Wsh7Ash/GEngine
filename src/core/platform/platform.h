@@ -153,5 +153,17 @@ const char* GetExecutablePath();
 /// Is this a debug build?
 constexpr bool IsDebugBuild() noexcept { return GE_BUILD_DEBUG != 0; }
 
+/// Get the number of CPU cores available to the system
+std::uint32_t GetCPUCoreCount();
+
+/// Get the current thread ID
+std::uint64_t GetCurrentThreadID();
+
+/// Get CPU usage for the current process (0.0 to 1.0)
+double GetCurrentProcessCPUUsage();
+
+/// Get memory usage for the current process in bytes
+std::uint64_t GetCurrentProcessMemoryUsage();
+
 } // namespace platform
 } // namespace ge
