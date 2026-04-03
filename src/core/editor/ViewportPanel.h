@@ -3,6 +3,8 @@
 #include "../math/VecTypes.h"
 #include "../math/quaternion.h"
 #include "../renderer/Framebuffer.h"
+#include "TransformGizmo.h"
+#include "PrecisionEditTool.h"
 #include <imgui.h>
 #include <memory>
 
@@ -58,6 +60,13 @@ private:
   Math::Quatf startingRotation_ = Math::Quatf::Identity();
   Math::Vec3f startingScale_ = {1, 1, 1};
   bool isUsingGizmo_ = false;
+
+  // Transform gizmo
+  TransformGizmo gizmo_;
+  PrecisionEditTool precisionTool_;
+  bool gizmoEnabled_ = true;
+  int currentGizmoMode_ = 0;
+  int currentGizmoSpace_ = 0;
 };
 
 } // namespace editor
