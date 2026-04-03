@@ -44,7 +44,8 @@ jobs:
             libxcursor-dev \
             libxi-dev \
             libx11-dev \
-            libgl-dev
+            libgl-dev \
+            lcov
 
       - name: Configure (${{ matrix.compiler }})
         run: |
@@ -52,10 +53,20 @@ jobs:
             -DCMAKE_C_COMPILER=${{ matrix.compiler }} \
             -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }} \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DGE_STANDALONE=OFF
+            -DGE_STANDALONE=OFF \
+            -DBUILD_TESTS=ON
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Run Tests
+        run: ctest --test-dir build --output-on-failure --verbose
+
+      - name: Generate Coverage (gcc only)
+        if: matrix.compiler == 'gcc'
+        run: |
+          lcov --capture --directory build --output-file build/coverage.info --no-external
+          lcov --summary build/coverage.info
 
   build-macos:
     runs-on: macos-14
@@ -72,10 +83,14 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DGE_STANDALONE=OFF
+            -DGE_STANDALONE=OFF \
+            -DBUILD_TESTS=ON
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Run Tests
+        run: ctest --test-dir build --output-on-failure --verbose
 
   build-windows-msvc:
     runs-on: windows-server-2022
@@ -92,10 +107,14 @@ jobs:
         run: |
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Debug `
-            -DGE_STANDALONE=OFF
+            -DGE_STANDALONE=OFF `
+            -DBUILD_TESTS=ON
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Run Tests
+        run: ctest --test-dir build --output-on-failure --verbose
 
   build-dedicated-server:
     runs-on: ubuntu-24.04
@@ -128,3 +147,28 @@ jobs:
       - name: Verify server runs
         run: |
           build/bin/GameServer --help || true
+
+  build-webassembly:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Configure
+        run: |
+          emcmake cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=${EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+
+      - name: Build
+        run: cmake --build build --parallel

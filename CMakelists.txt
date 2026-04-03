@@ -439,20 +439,11 @@ endif()
 #  Unit tests  (optional — build with -DBUILD_TESTS=ON)
 # ================================================================
 
-option(BUILD_TESTS "Build unit tests" OFF)
+option(BUILD_TESTS "Build unit tests" ON)
 
 if(BUILD_TESTS)
     enable_testing()
+    include(CTest)
 
-    add_executable(ge_tests
-        tests/test.cpp
-    )
-    target_link_libraries(ge_tests PRIVATE ge_core)
-    add_test(NAME CoreTests COMMAND ge_tests)
-
-    add_executable(ge_ecs_tests
-        tests/test_ecs.cpp
-    )
-    target_link_libraries(ge_ecs_tests PRIVATE ge_core)
-    add_test(NAME EcsTests COMMAND ge_ecs_tests)
+    add_subdirectory(tests)
 endif()

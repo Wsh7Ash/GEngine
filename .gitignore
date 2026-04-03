@@ -17,6 +17,15 @@ out/
 *.db
 *.opendb
 
+# Object files and debug symbols
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.iobj
+*.ipdb
+
 # Temporary files
 *.tmp
 *.log
@@ -33,3 +42,21 @@ Thumbs.db
 # Other
 *.ini
 *.json
+!tsconfig.json
+!package.json
+
+# Test artifacts
+tests/*.obj
+tests/*.pdb
+tests/*.ilk
+tests/vc*.pdb
+
+# Coverage reports
+*.info
+*.gcda
+*.gcno
+coverage/
+
+# SDK packages
+build/*.zip
+build/*.tar.gz
