@@ -1,5 +1,10 @@
 #pragma once
 
+// ================================================================
+//  CharacterController3DComponent.h
+//  Component for an advanced kinematic 3D Character Controller.
+// ================================================================
+
 #include "../../math/VecTypes.h"
 #include <functional>
 
@@ -31,6 +36,11 @@ namespace ecs {
         // State details
         bool IsGrounded = false;
         
+        // Prediction / Networking (Phase 95)
+        uint32_t tickCounter = 0;              // Current physics tick
+        float lastServerPositionError = 0.0f;  // For debugging
+        bool isPredicted = false;               // Whether client-side prediction is enabled for this entity
+
         // Runtime Data (populated by Physics3DSystem)
         JPH::CharacterVirtual* RuntimeCharacter = nullptr;
     };

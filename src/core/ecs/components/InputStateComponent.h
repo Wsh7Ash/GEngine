@@ -76,6 +76,11 @@ struct InputStateComponent {
     Math::Vec3f PreviousPosition;
     
     float InterpolationAlpha = 0.0f;
+
+    // Tick tracking for client-side prediction (Phase 95)
+    uint32_t tickNumber = 0;
+    uint32_t serverAckedTick = 0;
+    float inputLatency = 0.0f;
 };
 
 } // namespace ecs

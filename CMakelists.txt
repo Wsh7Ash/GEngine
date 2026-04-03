@@ -235,6 +235,10 @@ set(GE_CORE_HEADERS
     src/core/net/ComponentSerializer.h
     src/core/net/DirtyTracker.h
     src/core/net/ReplicationSystem.h
+    src/core/net/PredictionBuffer.h
+    src/core/net/CharacterState.h
+    src/core/net/ClientPredictionState.h
+    src/core/net/ClientPredictionSystem.h
 )
 
 set(GE_CORE_SOURCES
