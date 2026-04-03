@@ -1,7 +1,5 @@
-#pragma once
-
 // ================================================================
-//  LocaleDictionary.h
+//  LocaleDictionary.cpp
 //  String tables with JSON/CSV parsing support.
 // ================================================================
 

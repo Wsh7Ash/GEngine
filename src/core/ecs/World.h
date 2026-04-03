@@ -171,6 +171,14 @@ public:
   void ClearDirty() noexcept { isDirty_ = false; }
   void MarkDirty() noexcept { isDirty_ = true; }
 
+  // ── Serialization ───────────────────────────────────────────────
+
+  void Serialize(const std::string& filepath);
+  void Deserialize(const std::string& filepath);
+
+  std::string SerializeToString();
+  void DeserializeFromString(const std::string& data);
+
 private:
   /**
    * @brief Lazy-initializes and returns the storage for type T.
