@@ -72,9 +72,14 @@ FetchContent_MakeAvailable(imgui json imguizmo box2d miniaudio jolt assimp glsla
 
 # Options
 option(GE_STANDALONE "Build in standalone game mode (No Editor)" OFF)
+option(GE_DEDICATED_SERVER "Build dedicated server executable (No Graphics)" OFF)
 
 if(GE_STANDALONE)
     add_definitions(-DGE_STANDALONE)
+endif()
+
+if(GE_DEDICATED_SERVER)
+    add_definitions(-DGE_DEDICATED_SERVER)
 endif()
 
 project(GameEngine
@@ -213,6 +218,23 @@ set(GE_CORE_HEADERS
     src/core/cmd/Command.h
     src/core/cmd/CommandHistory.h
     src/core/cmd/EntityCommands.h
+    # Networking
+    src/core/net/Socket.h
+    src/core/net/Message.h
+    src/core/net/Connection.h
+    src/core/net/NetworkManager.h
+    src/core/net/NetworkSerializer.h
+    src/core/net/NetworkStats.h
+    src/core/net/Handshake.h
+    src/core/net/GameState.h
+    src/core/net/NetworkMode.h
+    src/core/net/Replication.h
+    src/core/net/ReplicationManager.h
+    src/core/net/NetworkEntity.h
+    src/core/net/ReplicationAttributes.h
+    src/core/net/ComponentSerializer.h
+    src/core/net/DirtyTracker.h
+    src/core/net/ReplicationSystem.h
 )
 
 set(GE_CORE_SOURCES
@@ -277,6 +299,9 @@ set(GE_CORE_SOURCES
     src/core/platform/Application.cpp
     src/core/audio/AudioEngine.cpp
     src/core/audio/miniaudio_impl.cpp
+    src/core/net/NetworkMode.cpp
+    src/core/net/NetworkSerializer.cpp
+    src/core/net/ReplicationManager.cpp
     deps/glad/src/glad.c
     
     # ImGui
@@ -339,6 +364,27 @@ add_custom_command(TARGET GameEngine POST_BUILD
     "$<TARGET_FILE_DIR:GameEngine>/assets"
     COMMENT "Copying assets to output directory..."
 )
+
+
+# ================================================================
+#  Dedicated Server executable
+# ================================================================
+
+if(GE_DEDICATED_SERVER)
+    set(GE_SERVER_SOURCES
+        src/server/main.cpp
+        src/server/ServerApplication.cpp
+    )
+
+    add_executable(GameServer ${GE_SERVER_SOURCES})
+    target_link_libraries(GameServer PRIVATE ge_core)
+    
+    target_compile_definitions(GameServer PRIVATE GE_DEDICATED_SERVER=1)
+    
+    target_include_directories(GameServer PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/server
+    )
+endif()
 
 
 # ================================================================

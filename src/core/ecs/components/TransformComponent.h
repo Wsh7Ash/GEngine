@@ -7,6 +7,7 @@
 
 #include "../../math/VecTypes.h"
 #include "../../math/quaternion.h"
+#include "../../net/ReplicationAttributes.h"
 
 namespace ge {
 namespace ecs

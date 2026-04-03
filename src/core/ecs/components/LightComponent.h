@@ -1,6 +1,12 @@
 #pragma once
 
+// ================================================================
+//  LightComponent.h
+//  Component for light sources.
+// ================================================================
+
 #include "../../math/VecTypes.h"
+#include "../../net/ReplicationAttributes.h"
 
 namespace ge {
 namespace ecs {

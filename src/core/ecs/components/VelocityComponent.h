@@ -1,6 +1,12 @@
 #pragma once
 
+// ================================================================
+//  VelocityComponent.h
+//  Component for object velocity.
+// ================================================================
+
 #include "../../math/VecTypes.h"
+#include "../../net/ReplicationAttributes.h"
 
 namespace ge {
 namespace ecs
