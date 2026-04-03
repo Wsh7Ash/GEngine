@@ -57,6 +57,8 @@ namespace ecs {
 
         float Friction = 0.5f;
         float Restitution = 0.0f;
+
+        float lagCompensationPadding = 0.0f;
     };
 
 } // namespace ecs

@@ -239,6 +239,9 @@ set(GE_CORE_HEADERS
     src/core/net/CharacterState.h
     src/core/net/ClientPredictionState.h
     src/core/net/ClientPredictionSystem.h
+    src/core/net/EntityStateHistory.h
+    src/core/net/StateRecorder.h
+    src/core/net/LagCompensationSystem.h
 )
 
 set(GE_CORE_SOURCES

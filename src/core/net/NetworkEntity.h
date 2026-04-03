@@ -24,8 +24,10 @@ struct NetworkEntity {
     NetworkAuthority authority = NetworkAuthority::Server;
     bool replicated = true;
     bool predictive = false;
+    bool lagCompensated = true;
     float updateRate = 0.033f;
     float interpolationTime = 0.1f;
+    float hitboxExpansion = 0.0f;
     uint32_t ownerClientId = 0;
     uint16_t version = 0;
     std::string prefabName;

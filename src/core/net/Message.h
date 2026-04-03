@@ -50,6 +50,12 @@ enum class MessageType : uint16_t {
     WorldTime,
     WorldEvent,
     
+    // Hit detection / Lag compensation
+    HitQuery = 400,
+    HitResult,
+    LagCompensationQuery,
+    LagCompensationStats,
+    
     // Custom
     Custom = 1000
 };
