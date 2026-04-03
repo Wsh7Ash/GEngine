@@ -2,6 +2,7 @@
 
 #include "../../renderer/OrthographicCamera.h"
 #include "../../renderer/PerspectiveCamera.h"
+#include "../../renderer/graph/RenderGraph.h"
 #include "../System.h"
 #include "../World.h"
 #include "../components/MeshComponent.h"
@@ -77,6 +78,9 @@ struct PostProcessingSettings {
     int ClusterSizeZ = 16;
     int MaxLightsPerCluster = 16;
     int MaxLights = 256;
+
+    // Render Graph Settings
+    bool EnableRenderGraph = false;
 };
 
 namespace ecs {
@@ -206,6 +210,9 @@ private:
   std::shared_ptr<renderer::PostProcessingStack> postProcessingStack_;
   std::shared_ptr<renderer::Framebuffer> intermediateA_;
   std::shared_ptr<renderer::Framebuffer> intermediateB_;
+  
+  // Render Graph (optional)
+  std::shared_ptr<renderer::RenderGraph> renderGraph_;
   
   // TAA / Temporal Tracking
   Math::Mat4f prevViewProj_;
