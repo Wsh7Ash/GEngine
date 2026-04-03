@@ -4,6 +4,7 @@
 #include "../renderer/RendererAPI.h"
 #include "../renderer/opengl/OpenGLContext.h"
 #include "../renderer/dx11/DX11Context.h"
+#include "../renderer/webgl2/WebGL2Context.h"
 // #include "../renderer/vulkan/VulkanContext.h"
 
 #include <GLFW/glfw3.h>
@@ -69,6 +70,14 @@ void Window::Init(const WindowProps& props)
         // No client API for DX11 context
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     }
+    else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::WebGL2)
+    {
+        // WebGL2 uses OpenGL ES 3.0 context via GLFW
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+    }
 
     window_ = glfwCreateWindow((int)props.Width, (int)props.Height, data_.Title.c_str(), nullptr, nullptr);
     GE_ASSERT(window_, "Could not create window!");
@@ -81,6 +90,10 @@ void Window::Init(const WindowProps& props)
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::DX11)
     {
         context_ = std::make_unique<renderer::DX11Context>(window_);
+    }
+    else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::WebGL2)
+    {
+        context_ = std::make_unique<renderer::WebGL2Context>(window_);
     }
 
     context_->Init();

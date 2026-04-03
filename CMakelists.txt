@@ -225,6 +225,11 @@ set(GE_CORE_HEADERS
     src/core/renderer/vulkan/VulkanMesh.h
     src/core/renderer/vulkan/VulkanTexture.h
     src/core/renderer/vulkan/VulkanFramebuffer.h
+    src/core/renderer/webgl2/WebGL2Context.h
+    src/core/renderer/webgl2/WebGL2Shader.h
+    src/core/renderer/webgl2/WebGL2Mesh.h
+    src/core/renderer/webgl2/WebGL2Texture.h
+    src/core/renderer/webgl2/WebGL2Framebuffer.h
     src/core/editor/EditorToolbar.h
     src/core/editor/SceneHierarchyPanel.h
     src/core/editor/ContentBrowserPanel.h
@@ -304,6 +309,11 @@ set(GE_CORE_SOURCES
     src/core/renderer/vulkan/VulkanMesh.cpp
     src/core/renderer/vulkan/VulkanTexture.cpp
     src/core/renderer/vulkan/VulkanFramebuffer.cpp
+    src/core/renderer/webgl2/WebGL2Context.cpp
+    src/core/renderer/webgl2/WebGL2Shader.cpp
+    src/core/renderer/webgl2/WebGL2Mesh.cpp
+    src/core/renderer/webgl2/WebGL2Texture.cpp
+    src/core/renderer/webgl2/WebGL2Framebuffer.cpp
     src/core/ecs/systems/RenderSystem.cpp
     src/core/ecs/systems/ScriptSystem.cpp
     src/core/ecs/ScriptRegistry.cpp
@@ -386,8 +396,14 @@ endif()
 #  Main executable
 # ================================================================
 
-add_executable(GameEngine main.cpp)
-target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt assimp::assimp)
+if(EMSCRIPTEN)
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+    add_executable(GameEngine main.cpp)
+    target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt assimp::assimp "-s USE_GLFW=3" "-s WASM=1" "-s USE_WEBGL2=1" "-s ALLOW_MEMORY_GROWTH=1" "-s INITIAL_MEMORY=256MB" "-s MAXIMUM_MEMORY=512MB" "-s ASYNCIFY=1" "-s ASYNCIFY_STACK_SIZE=65536")
+else()
+    add_executable(GameEngine main.cpp)
+    target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt assimp::assimp)
+endif()
 
 # Post-build: Copy assets
 add_custom_command(TARGET GameEngine POST_BUILD

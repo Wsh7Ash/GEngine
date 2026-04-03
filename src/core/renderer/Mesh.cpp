@@ -1,6 +1,7 @@
 #include "Mesh.h"
 #include "RendererAPI.h"
 #include "opengl/OpenGLMesh.h"
+#include "webgl2/WebGL2Mesh.h"
 // #include "dx11/DX11Mesh.h" // Placeholder
 
 namespace ge {
@@ -13,6 +14,7 @@ namespace renderer {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLMesh>(vertices, indices);
             case RenderAPI::DX11:    return nullptr; // TODO
+            case RenderAPI::WebGL2:  return std::make_shared<WebGL2Mesh>(vertices, indices);
         }
 
         return nullptr;
@@ -25,6 +27,7 @@ namespace renderer {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLMesh>(maxVertices, maxIndices);
             case RenderAPI::DX11:    return nullptr; // TODO
+            case RenderAPI::WebGL2:  return std::make_shared<WebGL2Mesh>();
         }
 
         return nullptr;

@@ -8,7 +8,8 @@ namespace renderer {
         None = 0,
         OpenGL = 1,
         DX11 = 2,
-        Vulkan = 3
+        Vulkan = 3,
+        WebGL2 = 4
     };
 
     /**

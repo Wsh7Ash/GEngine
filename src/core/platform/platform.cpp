@@ -33,6 +33,13 @@
     #include <cstdio>
 #endif
 
+// ── Web / Emscripten includes ───────────────────────────────────
+#if GE_PLATFORM_WEB
+    #include <emscripten/emscripten.h>
+    #include <emscripten/html5.h>
+    #include <cstdio>
+#endif
+
 namespace ge {
 namespace platform
 {
@@ -63,6 +70,9 @@ void Initialize()
 #elif GE_PLATFORM_MACOS
     uint32_t size = sizeof(g_executablePath);
     _NSGetExecutablePath(g_executablePath, &size);
+#elif GE_PLATFORM_WEB
+    // WebAssembly doesn't have a filesystem - use a placeholder
+    std::snprintf(g_executablePath, sizeof(g_executablePath), "web://gameengine");
 #else
     g_executablePath[0] = '\0';
 #endif
@@ -94,6 +104,8 @@ const char* GetPlatformName()
     return "Android";
 #elif GE_PLATFORM_IOS
     return "iOS";
+#elif GE_PLATFORM_WEB
+    return "Web";
 #else
     return "Unknown";
 #endif
@@ -120,6 +132,10 @@ std::uint64_t GetMemoryAvailable()
     sysctl(mib, 2, &mem, &len, nullptr, 0);
     return mem;
 
+#elif GE_PLATFORM_WEB
+    // WebAssembly has a fixed memory limit (set at compile time)
+    return 256ULL * 1024 * 1024; // 256MB default
+
 #else
     return 0;
 #endif
@@ -135,6 +151,10 @@ std::uint32_t GetProcessorCount()
 #elif GE_PLATFORM_LINUX || GE_PLATFORM_ANDROID || GE_PLATFORM_MACOS
     long count = sysconf(_SC_NPROCESSORS_ONLN);
     return (count > 0) ? static_cast<std::uint32_t>(count) : 1;
+
+#elif GE_PLATFORM_WEB
+    // WebAssembly typically runs on a single thread unless SharedArrayBuffer is available
+    return 1;
 
 #else
     return 1;

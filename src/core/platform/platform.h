@@ -46,6 +46,10 @@
         #define GE_PLATFORM_MACOS 1
     #endif
 
+// ── WebAssembly / Emscripten ──────────────────────────────────
+#elif defined(__EMSCRIPTEN__)
+    #define GE_PLATFORM_WEB 1
+
 #else
     #error "Unsupported platform"
 #endif
@@ -65,6 +69,9 @@
 #endif
 #ifndef GE_PLATFORM_IOS
     #define GE_PLATFORM_IOS 0
+#endif
+#ifndef GE_PLATFORM_WEB
+    #define GE_PLATFORM_WEB 0
 #endif
 
 // ── Architecture detection ──────────────────────────────────────
@@ -108,6 +115,7 @@ enum class PlatformID
     MacOS,
     Android,
     iOS,
+    Web,
     Unknown
 };
 
@@ -123,6 +131,8 @@ constexpr PlatformID CURRENT_PLATFORM =
     PlatformID::Android;
 #elif GE_PLATFORM_IOS
     PlatformID::iOS;
+#elif GE_PLATFORM_WEB
+    PlatformID::Web;
 #else
     PlatformID::Unknown;
 #endif
