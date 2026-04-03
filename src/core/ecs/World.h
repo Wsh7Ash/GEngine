@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include "components/IDComponent.h"
+#include "EntityCloner.h"
 
 namespace ge {
 namespace ecs {
@@ -73,6 +74,8 @@ public:
     }
     return INVALID_ENTITY;
   }
+
+  [[nodiscard]] Entity CloneEntity(Entity entity, CloneOptions options = CloneOptions::GenerateNewIDs);
 
   // ── Component management ─────────────────────────────────────
 
