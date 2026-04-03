@@ -50,7 +50,7 @@ public:
         using ReturnType = typename std::result_of<Func(Args...)>::type;
         
         auto task = std::make_shared<std::packaged_task<ReturnType()>>(
-            [func, &args...]()
+            [func, args...]()
             {
                 return func(args...);
             }

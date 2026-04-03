@@ -1,5 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 
+# Platform detection must come early
+set(GE_PLATFORM_WINDOWS OFF)
+set(GE_PLATFORM_LINUX OFF)
+set(GE_PLATFORM_MACOS OFF)
+
+if(WIN32)
+    set(GE_PLATFORM_WINDOWS ON)
+elseif(UNIX AND NOT APPLE)
+    set(GE_PLATFORM_LINUX ON)
+elseif(APPLE)
+    set(GE_PLATFORM_MACOS ON)
+endif()
+
+project(GameEngine
+    VERSION     0.1.0
+    LANGUAGES   CXX
+    DESCRIPTION "GEngine — Phase 1 Foundation Layer"
+)
+
 include(FetchContent)
 FetchContent_Declare(
     imgui
@@ -81,12 +100,6 @@ endif()
 if(GE_DEDICATED_SERVER)
     add_definitions(-DGE_DEDICATED_SERVER)
 endif()
-
-project(GameEngine
-    VERSION     0.1.0
-    LANGUAGES   CXX
-    DESCRIPTION "GEngine — Phase 1 Foundation Layer"
-)
 
 
 
@@ -353,17 +366,19 @@ target_include_directories(ge_core
         ${assimp_BINARY_DIR}/include
         ${glslang_SOURCE_DIR}
         ${glslang_SOURCE_DIR}/Include
-        ${glslang_SOURCE_DIR}/glslang/OSDependent/Unix
+        $<$<OR:$<BOOL:${GE_PLATFORM_LINUX}>,$<BOOL:${GE_PLATFORM_MACOS}>>:${glslang_SOURCE_DIR}/glslang/OSDependent/Unix>
         ${SPIRV-Tools_SOURCE_DIR}/include
 )
 
 # Platform-specific linking
-if(WIN32)
+if(GE_PLATFORM_WINDOWS)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_WINDOWS=1)
-elseif(UNIX AND NOT APPLE)
+elseif(GE_PLATFORM_LINUX)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_LINUX=1)
-elseif(APPLE)
+    target_link_libraries(ge_core PUBLIC pthread dl)
+elseif(GE_PLATFORM_MACOS)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_MACOS=1)
+    target_link_libraries(ge_core PUBLIC pthread)
 endif()
 
 

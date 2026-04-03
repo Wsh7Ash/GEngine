@@ -39,8 +39,39 @@ std::string VSCodeUtility::FindVSCodeExecutable() {
     }
 #else
     // Linux/macOS
-    if (system("which code > /dev/null 2>&1") == 0) {
-        return "code";
+    const char* pathEnv = std::getenv("PATH");
+    if (pathEnv) {
+        std::string paths = pathEnv;
+        std::string::size_type start = 0;
+        std::string::size_type end;
+        while ((end = paths.find(':', start)) != std::string::npos) {
+            std::string dir = paths.substr(start, end - start);
+            std::filesystem::path codePath = std::filesystem::path(dir) / "code";
+            if (std::filesystem::exists(codePath)) {
+                return codePath.string();
+            }
+            start = end + 1;
+        }
+        std::string dir = paths.substr(start);
+        if (!dir.empty()) {
+            std::filesystem::path codePath = std::filesystem::path(dir) / "code";
+            if (std::filesystem::exists(codePath)) {
+                return codePath.string();
+            }
+        }
+    }
+
+    // Check common install locations
+    std::vector<std::string> commonPaths;
+    commonPaths.push_back("/usr/bin/code");
+    commonPaths.push_back("/usr/local/bin/code");
+    commonPaths.push_back("/opt/vscode/bin/code");
+    commonPaths.push_back("~/Applications/Visual Studio Code.app/Contents/MacOS/Electron");
+
+    for (const auto& path : commonPaths) {
+        if (std::filesystem::exists(path)) {
+            return path;
+        }
     }
 #endif
 

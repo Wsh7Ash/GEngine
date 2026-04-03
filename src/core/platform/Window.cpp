@@ -12,6 +12,13 @@
     #define GLFW_EXPOSE_NATIVE_WIN32
     #include <GLFW/glfw3native.h>
     #include <Windows.h>
+#elif defined(GE_PLATFORM_LINUX)
+    #define GLFW_EXPOSE_NATIVE_X11
+    #define GLFW_EXPOSE_NATIVE_WAYLAND
+    #include <GLFW/glfw3native.h>
+#elif defined(GE_PLATFORM_MACOS)
+    #define GLFW_EXPOSE_NATIVE_COCOA
+    #include <GLFW/glfw3native.h>
 #endif
 
 namespace ge {

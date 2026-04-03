@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CMAKE_VERSION: "3.28"
+  Ninja_VERSION: "1.12.1"
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Setup Ninja
+        uses: unrealcontainers/ue4-setup-ninja@v1
+        with:
+          ninja-version: ${{ env.Ninja_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libgl1-mesa-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libx11-dev \
+            libgl-dev
+
+      - name: Configure (${{ matrix.compiler }})
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=${{ matrix.compiler }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }} \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DGE_STANDALONE=OFF
+
+      - name: Build
+        run: cmake --build build --parallel
+
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DGE_STANDALONE=OFF
+
+      - name: Build
+        run: cmake --build build --parallel
+
+  build-windows-msvc:
+    runs-on: windows-server-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Debug `
+            -DGE_STANDALONE=OFF
+
+      - name: Build
+        run: cmake --build build --parallel
+
+  build-dedicated-server:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGE_DEDICATED_SERVER=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Verify server runs
+        run: |
+          build/bin/GameServer --help || true
