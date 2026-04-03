@@ -207,6 +207,11 @@ set(GE_CORE_HEADERS
     src/core/renderer/opengl/OpenGLFramebuffer.h
     src/core/renderer/dx11/DX11Context.h
     src/core/renderer/dx11/DX11Texture.h
+    src/core/renderer/vulkan/VulkanContext.h
+    src/core/renderer/vulkan/VulkanShader.h
+    src/core/renderer/vulkan/VulkanMesh.h
+    src/core/renderer/vulkan/VulkanTexture.h
+    src/core/renderer/vulkan/VulkanFramebuffer.h
     src/core/editor/EditorToolbar.h
     src/core/editor/SceneHierarchyPanel.h
     src/core/editor/ContentBrowserPanel.h
@@ -281,6 +286,11 @@ set(GE_CORE_SOURCES
     src/core/renderer/opengl/stb_image_impl.cpp
     src/core/renderer/dx11/DX11Context.cpp
     src/core/renderer/dx11/DX11Texture.cpp
+    src/core/renderer/vulkan/VulkanContext.cpp
+    src/core/renderer/vulkan/VulkanShader.cpp
+    src/core/renderer/vulkan/VulkanMesh.cpp
+    src/core/renderer/vulkan/VulkanTexture.cpp
+    src/core/renderer/vulkan/VulkanFramebuffer.cpp
     src/core/ecs/systems/RenderSystem.cpp
     src/core/ecs/systems/ScriptSystem.cpp
     src/core/ecs/ScriptRegistry.cpp

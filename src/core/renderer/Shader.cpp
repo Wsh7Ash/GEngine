@@ -2,6 +2,7 @@
 #include "RendererAPI.h"
 #include "opengl/OpenGLShader.h"
 // #include "dx11/DX11Shader.h" // Placeholder
+// #include "vulkan/VulkanShader.h"
 
 namespace ge {
 namespace renderer {
@@ -13,6 +14,7 @@ namespace renderer {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLShader>(filepath);
             case RenderAPI::DX11:    return nullptr; // TODO
+            case RenderAPI::Vulkan:  return nullptr; // TODO: VulkanShader
         }
         return nullptr;
     }
@@ -24,6 +26,7 @@ namespace renderer {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLShader>(vertexPath, fragmentPath);
             case RenderAPI::DX11:    return nullptr; // TODO
+            case RenderAPI::Vulkan:  return nullptr; // TODO: VulkanShader
         }
 
         return nullptr;
