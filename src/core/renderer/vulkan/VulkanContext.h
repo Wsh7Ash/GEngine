@@ -63,6 +63,12 @@ public:
     void CreateRenderPass();
     void CreateCommandBuffers();
     void RecreateSwapchain();
+    void OnWindowResize(int width, int height);
+
+    void CreateSyncPrimitives();
+    void CreateSwapchainFramebuffers();
+
+    VkExtent2D GetSwapExtent() const { return swapExtent_; }
 
 private:
     void CreateInstance();
@@ -107,6 +113,11 @@ private:
     std::vector<VkImage> swapchainImages_;
     std::vector<VkImageView> swapchainImageViews_;
     std::vector<VkFramebuffer> swapchainFramebuffers_;
+    VkExtent2D swapExtent_ = {0, 0};
+
+    VkSemaphore imageAvailableSemaphore_ = VK_NULL_HANDLE;
+    VkSemaphore renderCompleteSemaphore_ = VK_NULL_HANDLE;
+    VkFence inFlightFence_ = VK_NULL_HANDLE;
 
     VkRenderPass renderPass_ = VK_NULL_HANDLE;
     VkCommandPool commandPool_ = VK_NULL_HANDLE;

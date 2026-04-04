@@ -40,6 +40,16 @@ VulkanContext::~VulkanContext() {
         vkDeviceWaitIdle(device_);
     }
 
+    if (inFlightFence_ != VK_NULL_HANDLE) {
+        vkDestroyFence(device_, inFlightFence_, nullptr);
+    }
+    if (renderCompleteSemaphore_ != VK_NULL_HANDLE) {
+        vkDestroySemaphore(device_, renderCompleteSemaphore_, nullptr);
+    }
+    if (imageAvailableSemaphore_ != VK_NULL_HANDLE) {
+        vkDestroySemaphore(device_, imageAvailableSemaphore_, nullptr);
+    }
+
     for (auto framebuffer : swapchainFramebuffers_) {
         if (framebuffer != VK_NULL_HANDLE) {
             vkDestroyFramebuffer(device_, framebuffer, nullptr);
@@ -90,12 +100,74 @@ void VulkanContext::Init() {
     CreateSwapchain();
     CreateRenderPass();
     CreateCommandBuffers();
+    CreateSyncPrimitives();
+    CreateSwapchainFramebuffers();
+    
+    glfwSetFramebufferSizeCallback(window_, [](GLFWwindow* window, int width, int height) {
+        auto context = reinterpret_cast<VulkanContext*>(glfwGetWindowUserPointer(window));
+        if (context) {
+            context->OnWindowResize(width, height);
+        }
+    });
     
     debug::log::info("Vulkan context initialized");
 }
 
 void VulkanContext::SwapBuffers() {
-    (void)currentFrame_;
+    vkWaitForFences(device_, 1, &inFlightFence_, VK_TRUE, UINT64_MAX);
+    vkResetFences(device_, 1, &inFlightFence_);
+
+    uint32_t imageIndex;
+    VkResult result = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, 
+        imageAvailableSemaphore_, VK_NULL_HANDLE, &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        RecreateSwapchain();
+        return;
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        debug::log::error("Failed to acquire swap chain image");
+        return;
+    }
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    VkSemaphore waitSemaphores[] = { imageAvailableSemaphore_ };
+    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffers_[currentFrame_];
+
+    VkSemaphore signalSemaphores[] = { renderCompleteSemaphore_ };
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    if (vkQueueSubmit(graphicsQueue_, 1, &submitInfo, inFlightFence_) != VK_SUCCESS) {
+        debug::log::error("Failed to submit draw command buffer");
+        return;
+    }
+
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+
+    VkSwapchainKHR swapChains[] = { swapchain_ };
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+
+    result = vkQueuePresentKHR(presentQueue_, &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        RecreateSwapchain();
+    } else if (result != VK_SUCCESS) {
+        debug::log::error("Failed to present swap chain image");
+    }
+
+    currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void VulkanContext::CreateInstance() {
@@ -212,7 +284,7 @@ void VulkanContext::CreateSwapchain() {
 
     VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport_.formats);
     VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport_.presentModes);
-    VkExtent2D extent = ChooseSwapExtent(swapChainSupport_.capabilities);
+    swapExtent_ = ChooseSwapExtent(swapChainSupport_.capabilities);
 
     uint32_t imageCount = swapChainSupport_.capabilities.minImageCount + 1;
     if (swapChainSupport_.capabilities.maxImageCount > 0 && imageCount > swapChainSupport_.capabilities.maxImageCount) {
@@ -225,7 +297,7 @@ void VulkanContext::CreateSwapchain() {
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
-    createInfo.imageExtent = extent;
+    createInfo.imageExtent = swapExtent_;
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -325,6 +397,48 @@ void VulkanContext::CreateCommandBuffers() {
     vkAllocateCommandBuffers(device_, &allocInfo, commandBuffers_.data());
 }
 
+void VulkanContext::CreateSyncPrimitives() {
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &imageAvailableSemaphore_) != VK_SUCCESS ||
+        vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &renderCompleteSemaphore_) != VK_SUCCESS ||
+        vkCreateFence(device_, &fenceInfo, nullptr, &inFlightFence_) != VK_SUCCESS) {
+        debug::log::error("Failed to create synchronization primitives");
+    }
+}
+
+void VulkanContext::CreateSwapchainFramebuffers() {
+    swapchainFramebuffers_.resize(swapchainImageViews_.size());
+
+    for (size_t i = 0; i < swapchainImageViews_.size(); i++) {
+        VkImageView attachments[] = { swapchainImageViews_[i] };
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = renderPass_;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = swapExtent_.width;
+        framebufferInfo.height = swapExtent_.height;
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(device_, &framebufferInfo, nullptr, &swapchainFramebuffers_[i]) != VK_SUCCESS) {
+            debug::log::error("Failed to create framebuffer");
+        }
+    }
+}
+
+void VulkanContext::OnWindowResize(int width, int height) {
+    (void)width;
+    (void)height;
+    RecreateSwapchain();
+}
+
 void VulkanContext::RecreateSwapchain() {
     int width = 0, height = 0;
     glfwGetFramebufferSize(window_, &width, &height);
@@ -349,6 +463,7 @@ void VulkanContext::RecreateSwapchain() {
 
     CreateSwapchain();
     CreateRenderPass();
+    CreateSwapchainFramebuffers();
 }
 
 bool VulkanContext::CheckValidationLayerSupport() {
