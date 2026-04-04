@@ -76,6 +76,19 @@ DX11Shader::DX11Shader(const std::string& filepath)
             GE_LOG_ERROR("DX11Shader: Failed to create constant buffer");
         }
 
+#ifndef NDEBUG
+        if (vertexShader_) {
+            static const GUID WKPDID_D3DDebugObjectName = { 0x429b8c6e, 0xadb7, 0x47f3, 0x8a, 0xda, 0x98, 0x6b, 0x03, 0x5e, 0x7f, 0x09 };
+            std::wstring name = L"DX11Shader_VS_" + std::wstring(filepath_.begin(), filepath_.end());
+            vertexShader_->SetPrivateData(WKPDID_D3DDebugObjectName, name.size() * 2, name.c_str());
+        }
+        if (pixelShader_) {
+            static const GUID WKPDID_D3DDebugObjectName = { 0x429b8c6e, 0xadb7, 0x47f3, 0x8a, 0xda, 0x98, 0x6b, 0x03, 0x5e, 0x7f, 0x09 };
+            std::wstring name = L"DX11Shader_PS_" + std::wstring(filepath_.begin(), filepath_.end());
+            pixelShader_->SetPrivateData(WKPDID_D3DDebugObjectName, name.size() * 2, name.c_str());
+        }
+#endif
+
         GE_LOG_INFO("DX11Shader: Loaded {0}", filepath);
     }
 

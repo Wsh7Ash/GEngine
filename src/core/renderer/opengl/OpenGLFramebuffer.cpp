@@ -1,6 +1,7 @@
 #include "OpenGLFramebuffer.h"
 #include "../../debug/assert.h"
 #include "../../debug/log.h"
+#include "../GPUDebug.h"
 #include <glad/glad.h>
 
 namespace ge {
@@ -232,6 +233,10 @@ void OpenGLFramebuffer::Invalidate() {
 
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     GE_LOG_ERROR("Framebuffer is incomplete!");
+
+#ifndef NDEBUG
+  glObjectLabel(GL_FRAMEBUFFER, rendererID_, -1, "OpenGLFramebuffer");
+#endif
 
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

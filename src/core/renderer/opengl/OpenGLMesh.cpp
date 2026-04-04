@@ -1,6 +1,7 @@
 #include "OpenGLMesh.h"
 #include <glad/glad.h>
 #include "../Renderer2D.h"
+#include "../GPUDebug.h"
 
 namespace ge {
 namespace renderer {
@@ -15,6 +16,12 @@ OpenGLMesh::OpenGLMesh(const std::vector<Vertex> &vertices,
 
   glCreateVertexArrays(1, &vao_);
   glBindVertexArray(vao_);
+
+#ifndef NDEBUG
+  glObjectLabel(GL_VERTEX_ARRAY, vao_, -1, "OpenGLMesh_VAO");
+  glObjectLabel(GL_BUFFER, vbo_, -1, "OpenGLMesh_VBO");
+  glObjectLabel(GL_BUFFER, ebo_, -1, "OpenGLMesh_EBO");
+#endif
 
   glCreateBuffers(1, &vbo_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);
@@ -88,6 +95,12 @@ OpenGLMesh::OpenGLMesh(uint32_t maxVertices, uint32_t maxIndices)
     : indexCount_(0), instanceVBO_(0) {
   glCreateVertexArrays(1, &vao_);
   glBindVertexArray(vao_);
+
+#ifndef NDEBUG
+  glObjectLabel(GL_VERTEX_ARRAY, vao_, -1, "OpenGLMesh_VAO");
+  glObjectLabel(GL_BUFFER, vbo_, -1, "OpenGLMesh_VBO");
+  glObjectLabel(GL_BUFFER, ebo_, -1, "OpenGLMesh_EBO");
+#endif
 
   glCreateBuffers(1, &vbo_);
   glBindBuffer(GL_ARRAY_BUFFER, vbo_);

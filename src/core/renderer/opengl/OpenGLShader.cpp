@@ -1,6 +1,7 @@
 #include "OpenGLShader.h"
 #include "../ShaderCompiler.h"
 #include "../ShaderVariantManager.h"
+#include "../GPUDebug.h"
 #include "../../debug/log.h"
 #include "../../debug/assert.h"
 #include "../../platform/VFS.h"
@@ -129,6 +130,10 @@ OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fra
 
         glDeleteShader(vs);
         glDeleteShader(fs);
+
+#ifndef NDEBUG
+        glObjectLabel(GL_PROGRAM, program, -1, filepath_.c_str());
+#endif
 
         return program;
     }
@@ -280,6 +285,10 @@ OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fra
             return 0;
         }
         
+#ifndef NDEBUG
+        glObjectLabel(GL_PROGRAM, program, -1, filepath_.c_str());
+#endif
+
         return program;
     }
 

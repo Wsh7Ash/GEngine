@@ -64,6 +64,13 @@ void DX11Mesh::CreateBuffers(D3D11_USAGE usage, UINT cpuAccessFlags)
     if (FAILED(hr)) {
         GE_LOG_ERROR("DX11Mesh: Failed to create vertex buffer (HRESULT: 0x{0:X})", hr);
     }
+#ifndef NDEBUG
+    else if (vertexBuffer_) {
+        static const GUID WKPDID_D3DDebugObjectName = { 0x429b8c6e, 0xadb7, 0x47f3, 0x8a, 0xda, 0x98, 0x6b, 0x03, 0x5e, 0x7f, 0x09 };
+        const char* name = "DX11Mesh_VBO";
+        vertexBuffer_->SetPrivateData(WKPDID_D3DDebugObjectName, strlen(name), name);
+    }
+#endif
 
     D3D11_BUFFER_DESC ibDesc = {};
     ibDesc.Usage = usage;
@@ -80,6 +87,13 @@ void DX11Mesh::CreateBuffers(D3D11_USAGE usage, UINT cpuAccessFlags)
     if (FAILED(hr)) {
         GE_LOG_ERROR("DX11Mesh: Failed to create index buffer (HRESULT: 0x{0:X})", hr);
     }
+#ifndef NDEBUG
+    else if (indexBuffer_) {
+        static const GUID WKPDID_D3DDebugObjectName = { 0x429b8c6e, 0xadb7, 0x47f3, 0x8a, 0xda, 0x98, 0x6b, 0x03, 0x5e, 0x7f, 0x09 };
+        const char* name = "DX11Mesh_IBO";
+        indexBuffer_->SetPrivateData(WKPDID_D3DDebugObjectName, strlen(name), name);
+    }
+#endif
 }
 
 void DX11Mesh::Bind() const
