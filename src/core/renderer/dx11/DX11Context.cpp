@@ -161,5 +161,26 @@ void DX11Context::SwapBuffers()
     }
 }
 
+uint32_t DX11Context::RegisterSRV(ID3D11ShaderResourceView* srv)
+{
+    uint32_t id = nextSRVId_++;
+    srvRegistry_[id] = srv;
+    return id;
+}
+
+void DX11Context::UnregisterSRV(uint32_t id)
+{
+    srvRegistry_.erase(id);
+}
+
+ID3D11ShaderResourceView* DX11Context::GetSRV(uint32_t id) const
+{
+    auto it = srvRegistry_.find(id);
+    if (it != srvRegistry_.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
 } // namespace renderer
 } // namespace ge
