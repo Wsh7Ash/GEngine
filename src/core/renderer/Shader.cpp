@@ -2,7 +2,7 @@
 #include "RendererAPI.h"
 #include "opengl/OpenGLShader.h"
 #include "webgl2/WebGL2Shader.h"
-// #include "dx11/DX11Shader.h" // Placeholder
+#include "dx11/DX11Shader.h"
 // #include "vulkan/VulkanShader.h"
 
 namespace ge {
@@ -14,7 +14,7 @@ namespace renderer {
         {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLShader>(filepath);
-            case RenderAPI::DX11:    return nullptr; // TODO
+            case RenderAPI::DX11:    return std::make_shared<DX11Shader>(filepath);
             case RenderAPI::Vulkan:  return nullptr; // TODO: VulkanShader
             case RenderAPI::WebGL2:  return std::make_shared<WebGL2Shader>(filepath);
         }
@@ -27,7 +27,7 @@ namespace renderer {
         {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLShader>(vertexPath, fragmentPath);
-            case RenderAPI::DX11:    return nullptr; // TODO
+            case RenderAPI::DX11:    return std::make_shared<DX11Shader>(vertexPath, fragmentPath);
             case RenderAPI::Vulkan:  return nullptr; // TODO: VulkanShader
             case RenderAPI::WebGL2:  return std::make_shared<WebGL2Shader>(vertexPath, fragmentPath);
         }

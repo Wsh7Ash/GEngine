@@ -220,6 +220,7 @@ set(GE_CORE_HEADERS
     src/core/renderer/opengl/OpenGLFramebuffer.h
     src/core/renderer/dx11/DX11Context.h
     src/core/renderer/dx11/DX11Texture.h
+    src/core/renderer/dx11/DX11Shader.h
     src/core/renderer/vulkan/VulkanContext.h
     src/core/renderer/vulkan/VulkanShader.h
     src/core/renderer/vulkan/VulkanMesh.h
@@ -304,6 +305,7 @@ set(GE_CORE_SOURCES
     src/core/renderer/opengl/stb_image_impl.cpp
     src/core/renderer/dx11/DX11Context.cpp
     src/core/renderer/dx11/DX11Texture.cpp
+    src/core/renderer/dx11/DX11Shader.cpp
     src/core/renderer/vulkan/VulkanContext.cpp
     src/core/renderer/vulkan/VulkanShader.cpp
     src/core/renderer/vulkan/VulkanMesh.cpp
@@ -383,6 +385,7 @@ target_include_directories(ge_core
 # Platform-specific linking
 if(GE_PLATFORM_WINDOWS)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_WINDOWS=1)
+    target_link_libraries(ge_core PUBLIC d3d11 d3dcompiler dxgi)
 elseif(GE_PLATFORM_LINUX)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_LINUX=1)
     target_link_libraries(ge_core PUBLIC pthread dl)
