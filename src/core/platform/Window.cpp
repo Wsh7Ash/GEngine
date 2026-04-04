@@ -5,7 +5,7 @@
 #include "../renderer/opengl/OpenGLContext.h"
 #include "../renderer/dx11/DX11Context.h"
 #include "../renderer/webgl2/WebGL2Context.h"
-// #include "../renderer/vulkan/VulkanContext.h"
+#include "../renderer/vulkan/VulkanContext.h"
 
 #include <GLFW/glfw3.h>
 
@@ -70,6 +70,11 @@ void Window::Init(const WindowProps& props)
         // No client API for DX11 context
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     }
+    else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::Vulkan)
+    {
+        // Vulkan uses GLFW_NO_API - no OpenGL context needed
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::WebGL2)
     {
         // WebGL2 uses OpenGL ES 3.0 context via GLFW
@@ -90,6 +95,10 @@ void Window::Init(const WindowProps& props)
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::DX11)
     {
         context_ = std::make_unique<renderer::DX11Context>(window_);
+    }
+    else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::Vulkan)
+    {
+        context_ = std::make_unique<renderer::VulkanContext>(window_);
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::WebGL2)
     {
