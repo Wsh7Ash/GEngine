@@ -3,6 +3,7 @@
 #include "opengl/OpenGLMesh.h"
 #include "webgl2/WebGL2Mesh.h"
 #include "dx11/DX11Mesh.h"
+#include "vulkan/VulkanMesh.h"
 
 namespace ge {
 namespace renderer {
@@ -14,6 +15,7 @@ namespace renderer {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLMesh>(vertices, indices);
             case RenderAPI::DX11:    return std::make_shared<DX11Mesh>(vertices, indices);
+            case RenderAPI::Vulkan:  return std::make_shared<VulkanMesh>(vertices, indices);
             case RenderAPI::WebGL2:  return std::make_shared<WebGL2Mesh>(vertices, indices);
         }
 
@@ -27,6 +29,7 @@ namespace renderer {
             case RenderAPI::None:    return nullptr;
             case RenderAPI::OpenGL:  return std::make_shared<OpenGLMesh>(maxVertices, maxIndices);
             case RenderAPI::DX11:    return std::make_shared<DX11Mesh>(maxVertices, maxIndices);
+            case RenderAPI::Vulkan:  return std::make_shared<VulkanMesh>(maxVertices, maxIndices);
             case RenderAPI::WebGL2:  return std::make_shared<WebGL2Mesh>();
         }
 
