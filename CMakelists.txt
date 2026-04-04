@@ -221,6 +221,7 @@ set(GE_CORE_HEADERS
     src/core/renderer/dx11/DX11Context.h
     src/core/renderer/dx11/DX11Texture.h
     src/core/renderer/dx11/DX11Shader.h
+    src/core/renderer/dx11/DX11Mesh.h
     src/core/renderer/vulkan/VulkanContext.h
     src/core/renderer/vulkan/VulkanShader.h
     src/core/renderer/vulkan/VulkanMesh.h
@@ -306,6 +307,7 @@ set(GE_CORE_SOURCES
     src/core/renderer/dx11/DX11Context.cpp
     src/core/renderer/dx11/DX11Texture.cpp
     src/core/renderer/dx11/DX11Shader.cpp
+    src/core/renderer/dx11/DX11Mesh.cpp
     src/core/renderer/vulkan/VulkanContext.cpp
     src/core/renderer/vulkan/VulkanShader.cpp
     src/core/renderer/vulkan/VulkanMesh.cpp
