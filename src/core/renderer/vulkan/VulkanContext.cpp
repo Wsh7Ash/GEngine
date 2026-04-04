@@ -20,6 +20,11 @@ namespace renderer {
 
 VKAPI_PTR VkDebugUtilsMessengerEXT VulkanContext::callback_ = nullptr;
 
+VulkanContext& VulkanContext::Get() {
+    static VulkanContext instance(nullptr);
+    return instance;
+}
+
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 VulkanContext::VulkanContext(GLFWwindow* window) : window_(window) {

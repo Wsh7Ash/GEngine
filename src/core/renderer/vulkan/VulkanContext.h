@@ -39,6 +39,8 @@ public:
     void Init() override;
     void SwapBuffers() override;
 
+    static VulkanContext& Get();
+
     VkInstance GetInstance() const { return instance_; }
     VkDevice GetDevice() const { return device_; }
     VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice_; }
