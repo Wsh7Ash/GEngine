@@ -27,13 +27,34 @@ enum class FramebufferTextureFormat {
   Depth = DEPTH24STENCIL8
 };
 
+enum class TextureFilter {
+  Nearest = 0,
+  Linear = 1,
+  NearestMipmapNearest = 2,
+  LinearMipmapNearest = 3,
+  NearestMipmapLinear = 4,
+  LinearMipmapLinear = 5
+};
+
+enum class TextureWrap {
+  Repeat = 0,
+  ClampToEdge = 1,
+  ClampToBorder = 2,
+  MirrorRepeat = 3
+};
+
 struct FramebufferTextureSpecification {
   FramebufferTextureSpecification() = default;
   FramebufferTextureSpecification(FramebufferTextureFormat format)
       : TextureFormat(format) {}
 
   FramebufferTextureFormat TextureFormat = FramebufferTextureFormat::None;
-  // TODO: filtering/wrap
+  
+  TextureFilter MinFilter = TextureFilter::Linear;
+  TextureFilter MagFilter = TextureFilter::Linear;
+  TextureWrap WrapU = TextureWrap::ClampToEdge;
+  TextureWrap WrapV = TextureWrap::ClampToEdge;
+  TextureWrap WrapR = TextureWrap::ClampToEdge;
 };
 
 struct FramebufferAttachmentSpecification {

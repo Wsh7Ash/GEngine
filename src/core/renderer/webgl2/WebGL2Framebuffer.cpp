@@ -7,6 +7,40 @@
 namespace ge {
 namespace renderer {
 
+namespace Utils {
+
+static GLenum FilterToGL(TextureFilter filter) {
+  switch (filter) {
+    case TextureFilter::Nearest: return GL_NEAREST;
+    case TextureFilter::Linear: return GL_LINEAR;
+    case TextureFilter::NearestMipmapNearest: return GL_NEAREST_MIPMAP_NEAREST;
+    case TextureFilter::LinearMipmapNearest: return GL_LINEAR_MIPMAP_NEAREST;
+    case TextureFilter::NearestMipmapLinear: return GL_NEAREST_MIPMAP_LINEAR;
+    case TextureFilter::LinearMipmapLinear: return GL_LINEAR_MIPMAP_LINEAR;
+    default: return GL_LINEAR;
+  }
+}
+
+static GLenum WrapToGL(TextureWrap wrap) {
+  switch (wrap) {
+    case TextureWrap::Repeat: return GL_REPEAT;
+    case TextureWrap::ClampToEdge: return GL_CLAMP_TO_EDGE;
+    case TextureWrap::ClampToBorder: return GL_CLAMP_TO_BORDER;
+    case TextureWrap::MirrorRepeat: return GL_MIRRORED_REPEAT;
+    default: return GL_CLAMP_TO_EDGE;
+  }
+}
+
+static void SetSamplingParams(const FramebufferTextureSpecification& spec) {
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, FilterToGL(spec.MinFilter));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, FilterToGL(spec.MagFilter));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, WrapToGL(spec.WrapU));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, WrapToGL(spec.WrapV));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, WrapToGL(spec.WrapR));
+}
+
+} // namespace Utils
+
 WebGL2Framebuffer::WebGL2Framebuffer(const FramebufferSpecification& spec)
     : specification_(spec)
 {
@@ -34,10 +68,7 @@ void WebGL2Framebuffer::Invalidate()
                         glGenTextures(1, &colorAttachment_);
                         glBindTexture(GL_TEXTURE_2D, colorAttachment_);
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, specification_.Width, specification_.Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                        Utils::SetSamplingParams(attachment);
                         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + static_cast<GLenum>(i), GL_TEXTURE_2D, colorAttachment_, 0);
                         break;
                     }
@@ -45,10 +76,7 @@ void WebGL2Framebuffer::Invalidate()
                         glGenTextures(1, &colorAttachment_);
                         glBindTexture(GL_TEXTURE_2D, colorAttachment_);
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, specification_.Width, specification_.Height, 0, GL_RGBA, GL_FLOAT, nullptr);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                        Utils::SetSamplingParams(attachment);
                         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + static_cast<GLenum>(i), GL_TEXTURE_2D, colorAttachment_, 0);
                         break;
                     }
@@ -56,10 +84,7 @@ void WebGL2Framebuffer::Invalidate()
                         glGenTextures(1, &depthAttachment_);
                         glBindTexture(GL_TEXTURE_2D, depthAttachment_);
                         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, specification_.Width, specification_.Height, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, nullptr);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                        Utils::SetSamplingParams(attachment);
                         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, depthAttachment_, 0);
                         break;
                     }

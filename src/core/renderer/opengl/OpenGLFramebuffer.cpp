@@ -21,9 +21,39 @@ static void BindTexture(bool multisampled, uint32_t id) {
   glBindTexture(TextureTarget(multisampled), id);
 }
 
+static GLenum FilterToGL(TextureFilter filter) {
+  switch (filter) {
+    case TextureFilter::Nearest: return GL_NEAREST;
+    case TextureFilter::Linear: return GL_LINEAR;
+    case TextureFilter::NearestMipmapNearest: return GL_NEAREST_MIPMAP_NEAREST;
+    case TextureFilter::LinearMipmapNearest: return GL_LINEAR_MIPMAP_NEAREST;
+    case TextureFilter::NearestMipmapLinear: return GL_NEAREST_MIPMAP_LINEAR;
+    case TextureFilter::LinearMipmapLinear: return GL_LINEAR_MIPMAP_LINEAR;
+    default: return GL_LINEAR;
+  }
+}
+
+static GLenum WrapToGL(TextureWrap wrap) {
+  switch (wrap) {
+    case TextureWrap::Repeat: return GL_REPEAT;
+    case TextureWrap::ClampToEdge: return GL_CLAMP_TO_EDGE;
+    case TextureWrap::ClampToBorder: return GL_CLAMP_TO_BORDER;
+    case TextureWrap::MirrorRepeat: return GL_MIRRORED_REPEAT;
+    default: return GL_CLAMP_TO_EDGE;
+  }
+}
+
+static void SetSamplingParams(const FramebufferTextureSpecification& spec) {
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, FilterToGL(spec.MinFilter));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, FilterToGL(spec.MagFilter));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, WrapToGL(spec.WrapU));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, WrapToGL(spec.WrapV));
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, WrapToGL(spec.WrapR));
+}
+
 static void AttachColorTexture(uint32_t id, int samples, GLenum internalFormat,
                                GLenum format, GLenum type, uint32_t width, uint32_t height,
-                               int index) {
+                               int index, const FramebufferTextureSpecification& spec) {
   bool multisampled = samples > 1;
   if (multisampled) {
     glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, internalFormat,
@@ -32,20 +62,16 @@ static void AttachColorTexture(uint32_t id, int samples, GLenum internalFormat,
     glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format,
                  type, nullptr);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    SetSamplingParams(spec);
   }
 
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
-                         TextureTarget(multisampled), id, 0);
+                          TextureTarget(multisampled), id, 0);
 }
 
 static void AttachDepthTexture(uint32_t id, int samples, GLenum format,
                                GLenum attachmentType, uint32_t width,
-                               uint32_t height) {
+                               uint32_t height, const FramebufferTextureSpecification& spec) {
   bool multisampled = samples > 1;
   if (multisampled) {
     glTexStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, format, width,
@@ -53,11 +79,7 @@ static void AttachDepthTexture(uint32_t id, int samples, GLenum format,
   } else {
     glTexStorage2D(GL_TEXTURE_2D, 1, format, width, height);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    SetSamplingParams(spec);
   }
 
   glFramebufferTexture2D(GL_FRAMEBUFFER, attachmentType,
@@ -147,23 +169,28 @@ void OpenGLFramebuffer::Invalidate() {
       switch (colorAttachmentSpecifications_[i].TextureFormat) {
       case FramebufferTextureFormat::RGBA8:
         Utils::AttachColorTexture(colorAttachments_[i], spec_.Samples, GL_RGBA8,
-                                  GL_RGBA, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i);
+                                  GL_RGBA, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RGBA16F:
         Utils::AttachColorTexture(colorAttachments_[i], spec_.Samples, GL_RGBA16F,
-                                  GL_RGBA, GL_FLOAT, spec_.Width, spec_.Height, i);
+                                  GL_RGBA, GL_FLOAT, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RG16F:
         Utils::AttachColorTexture(colorAttachments_[i], spec_.Samples, GL_RG16F,
-                                  GL_RG, GL_FLOAT, spec_.Width, spec_.Height, i);
+                                  GL_RG, GL_FLOAT, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RED8:
         Utils::AttachColorTexture(colorAttachments_[i], spec_.Samples, GL_R8,
-                                  GL_RED, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i);
+                                  GL_RED, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RED_INTEGER:
         Utils::AttachColorTexture(colorAttachments_[i], spec_.Samples, GL_R32I,
-                                  GL_RED_INTEGER, GL_INT, spec_.Width, spec_.Height, i);
+                                  GL_RED_INTEGER, GL_INT, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       }
     }
@@ -179,7 +206,7 @@ void OpenGLFramebuffer::Invalidate() {
       Utils::AttachDepthTexture(depthAttachment_, spec_.Samples,
                                 GL_DEPTH24_STENCIL8,
                                 GL_DEPTH_STENCIL_ATTACHMENT, spec_.Width,
-                                spec_.Height);
+                                spec_.Height, depthAttachmentSpecification_);
       break;
     }
   }
