@@ -16,6 +16,7 @@ namespace ecs {
         std::shared_ptr<renderer::Cubemap> IrradianceMap;
         std::shared_ptr<renderer::Cubemap> PrefilterMap;
         std::shared_ptr<renderer::Texture> BrdfLUT;
+        uint32_t BrdfLUT_ID = 0;  // Raw GL ID for BRDF LUT (if not wrapped in Texture)
         
         std::string SourceHDRPath;
         bool IsComputed = false;

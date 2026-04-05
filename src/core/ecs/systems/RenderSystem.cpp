@@ -679,11 +679,14 @@ struct ScopedProfileTimer {
                 if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
                     skybox.SceneEnvironment->IrradianceMap->Bind(11);
                     skybox.SceneEnvironment->PrefilterMap->Bind(12);
-                    // BrdfLUT binding (since it's a raw ID for now, I'll bind manually)
-                    // Wait, I should have wrapped it in a Texture.
-                    // For now, I'll use glBindTexture directly if needed, or better, keep slots consistent.
+                    // Bind BrdfLUT (raw GL ID)
+                    if (skybox.SceneEnvironment->BrdfLUT_ID != 0) {
+                        glActiveTexture(GL_TEXTURE13);
+                        glBindTexture(GL_TEXTURE_2D, skybox.SceneEnvironment->BrdfLUT_ID);
+                    }
                     shader->SetInt("u_IrradianceMap", 11);
                     shader->SetInt("u_PrefilterMap", 12);
+                    shader->SetInt("u_BRDFLUT", 13);
                     shader->SetBool("u_UseIBL", true);
                 } else {
                     shader->SetBool("u_UseIBL", false);
@@ -814,20 +817,25 @@ struct ScopedProfileTimer {
                  shader->SetBool("u_UseGBufferMaterials", true);
  
                  // IBL Bindings
-                if (skyboxEntity != ecs::INVALID_ENTITY) {
-                    auto& skybox = world.GetSkybox(skyboxEntity);
-                    if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
-                        skybox.SceneEnvironment->IrradianceMap->Bind(11);
-                        skybox.SceneEnvironment->PrefilterMap->Bind(12);
-                        shader->SetInt("u_IrradianceMap", 11);
-                        shader->SetInt("u_PrefilterMap", 12);
-                        shader->SetBool("u_UseIBL", true);
-                    } else {
-                        shader->SetBool("u_UseIBL", false);
-                    }
-                } else {
-                    shader->SetBool("u_UseIBL", false);
-                }
+                 if (skyboxEntity != ecs::INVALID_ENTITY) {
+                     auto& skybox = world.GetSkybox(skyboxEntity);
+                     if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
+                         skybox.SceneEnvironment->IrradianceMap->Bind(11);
+                         skybox.SceneEnvironment->PrefilterMap->Bind(12);
+                         if (skybox.SceneEnvironment->BrdfLUT_ID != 0) {
+                             glActiveTexture(GL_TEXTURE13);
+                             glBindTexture(GL_TEXTURE_2D, skybox.SceneEnvironment->BrdfLUT_ID);
+                         }
+                         shader->SetInt("u_IrradianceMap", 11);
+                         shader->SetInt("u_PrefilterMap", 12);
+                         shader->SetInt("u_BRDFLUT", 13);
+                         shader->SetBool("u_UseIBL", true);
+                     } else {
+                         shader->SetBool("u_UseIBL", false);
+                     }
+                 } else {
+                     shader->SetBool("u_UseIBL", false);
+                 }
 
                 bool isAnimated = false;
                 if (world.HasAnimator(entity)) {
@@ -1857,8 +1865,6 @@ struct ScopedProfileTimer {
       }
 
       // 4. BRDF LUT
-      // I'll skip BRDF LUT generation for now and use a default/placeholder or implement it if possible.
-      // Actually, I'll implement it as it's needed for Split-Sum.
       uint32_t brdfLutID;
       glCreateTextures(GL_TEXTURE_2D, 1, &brdfLutID);
       glTextureStorage2D(brdfLutID, 1, GL_RG16F, 512, 512);
@@ -1874,8 +1880,8 @@ struct ScopedProfileTimer {
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
       RenderQuad();
       
-      // Need a way to wrap brdfLutID into a Texture object.
-      // env.BrdfLUT = ...
+      // Store BRDF LUT ID for later binding
+      env.BrdfLUT_ID = brdfLutID;
 
       glDeleteFramebuffers(1, &captureFBO);
       glBindFramebuffer(GL_FRAMEBUFFER, 0);

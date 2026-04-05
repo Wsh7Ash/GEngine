@@ -50,6 +50,12 @@ uniform float u_SpotOuterCones[MAX_SPOT_SHADOWS];
 uniform float u_SpotInnerCones[MAX_SPOT_SHADOWS];
 uniform int u_SpotShadowCount;
 
+// IBL (Image-Based Lighting)
+uniform samplerCube u_IrradianceMap;
+uniform samplerCube u_PrefilterMap;
+uniform sampler2D u_BRDFLUT;
+uniform bool u_UseIBL;
+
 const float PI = 3.14159265359;
 
 // ----------------------------------------------------------------------------
