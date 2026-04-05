@@ -1,6 +1,7 @@
 #include "Material.h"
 #include "opengl/OpenGLShader.h"
 #include "../debug/log.h"
+#include <glad/glad.h>
 #include <filesystem>
 #include <fstream>
 
@@ -10,6 +11,60 @@ namespace renderer {
     Material::Material(const std::shared_ptr<Shader>& shader)
         : shader_(shader), currentVariantKey_("default")
     {
+    }
+
+    void Material::BindState() {
+        if (renderState_.Blend == BlendMode::Opaque) {
+            glDisable(GL_BLEND);
+        } else {
+            glEnable(GL_BLEND);
+            switch (renderState_.Blend) {
+                case BlendMode::AlphaBlend:
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    break;
+                case BlendMode::Additive:
+                    glBlendFunc(GL_ONE, GL_ONE);
+                    break;
+                case BlendMode::Multiply:
+                    glBlendFunc(GL_DST_COLOR, GL_ZERO);
+                    break;
+                case BlendMode::Premultiplied:
+                    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                    break;
+                default:
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    break;
+            }
+        }
+
+        if (renderState_.DepthTest == DepthTestMode::None) {
+            glDisable(GL_DEPTH_TEST);
+        } else {
+            glEnable(GL_DEPTH_TEST);
+            switch (renderState_.DepthTest) {
+                case DepthTestMode::Less:
+                    glDepthFunc(GL_LESS);
+                    break;
+                case DepthTestMode::LessEqual:
+                    glDepthFunc(GL_LEQUAL);
+                    break;
+                case DepthTestMode::Always:
+                    glDepthFunc(GL_ALWAYS);
+                    break;
+                default:
+                    glDepthFunc(GL_LESS);
+                    break;
+            }
+        }
+
+        glDepthMask(renderState_.DepthWrite ? GL_TRUE : GL_FALSE);
+
+        if (renderState_.CullFace) {
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+        } else {
+            glDisable(GL_CULL_FACE);
+        }
     }
 
     void Material::SetVariant(const std::string& key) {
@@ -32,6 +87,8 @@ namespace renderer {
     void Material::Bind()
     {
         if (!shader_) return;
+
+        BindState();
 
         shader_->Bind();
 

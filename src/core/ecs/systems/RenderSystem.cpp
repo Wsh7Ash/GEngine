@@ -2074,6 +2074,7 @@ struct ScopedProfileTimer {
               InstanceBatch batch;
               batch.MeshPtr = meshComp.MeshPtr;
               batch.MaterialPtr = meshComp.MaterialPtr;
+              batch.IsTransparent = meshComp.MaterialPtr->IsTransparent();
               batch.Entities.push_back(entity);
               batchMap[key] = instanceBatches_.size();
               instanceBatches_.push_back(std::move(batch));

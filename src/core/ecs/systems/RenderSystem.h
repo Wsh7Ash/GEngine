@@ -91,6 +91,7 @@ struct InstanceBatch {
     std::shared_ptr<renderer::Material> MaterialPtr;
     std::vector<Math::Mat4f> InstanceMatrices;
     std::vector<ecs::Entity> Entities;
+    bool IsTransparent = false;
 };
 
 /**
