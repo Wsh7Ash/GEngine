@@ -2,6 +2,8 @@
 
 #define MAX_LIGHTS 64
 #define MAX_CSM_CASCADES 4
+#define MAX_POINT_SHADOWS 4
+#define MAX_SPOT_SHADOWS 8
 
 struct Light {
     vec3 Position;
@@ -35,6 +37,18 @@ uniform mat4 u_LightSpaceMatrices[MAX_CSM_CASCADES];
 uniform float u_CSMSplitDepths[MAX_CSM_CASCADES];
 uniform int u_CSMCount;
 uniform vec2 u_ShadowMapSize;
+
+// Point light shadows (cubemaps)
+uniform samplerCube u_PointShadowMaps[MAX_POINT_SHADOWS];
+uniform float u_PointShadowRanges[MAX_POINT_SHADOWS];
+uniform int u_PointShadowCount;
+
+// Spot light shadows (2D)
+uniform sampler2D u_SpotShadowMaps[MAX_SPOT_SHADOWS];
+uniform mat4 u_SpotLightSpaceMatrices[MAX_SPOT_SHADOWS];
+uniform float u_SpotOuterCones[MAX_SPOT_SHADOWS];
+uniform float u_SpotInnerCones[MAX_SPOT_SHADOWS];
+uniform int u_SpotShadowCount;
 
 const float PI = 3.14159265359;
 
@@ -79,6 +93,56 @@ float CSMShadowCalculation(vec3 worldPos, float viewZ, vec3 normal, vec3 lightDi
     for (int x = -1; x <= 1; ++x) {
         for (int y = -1; y <= 1; ++y) {
             float pcfDepth = texture(u_ShadowMaps[outCascadeIndex], projCoords.xy + vec2(x, y) * texelSize * offset).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+    shadow /= 9.0;
+    
+    return shadow;
+}
+// ----------------------------------------------------------------------------
+float PointLightShadow(vec3 fragPos, vec3 lightPos, float lightRange, samplerCube shadowMap) {
+    vec3 fragToLight = fragPos - lightPos;
+    float currentDepth = length(fragToLight);
+    
+    if (currentDepth > lightRange) return 1.0;
+    
+    float bias = 0.05;
+    float shadow = 0.0;
+    
+    // Simple PCF sampling
+    float fragRadius = 0.05;
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int z = -1; z <= 1; z++) {
+                vec3 offset = vec3(x, y, z) * fragRadius;
+                float closestDepth = texture(shadowMap, fragToLight + offset).r;
+                shadow += currentDepth - bias > closestDepth ? 1.0 : 0.0;
+            }
+        }
+    }
+    shadow /= 27.0;
+    
+    return shadow;
+}
+// ----------------------------------------------------------------------------
+float SpotLightShadow(vec3 worldPos, mat4 lightSpaceMatrix, float outerCone, float innerCone, sampler2D shadowMap) {
+    vec4 lightSpacePos = lightSpaceMatrix * vec4(worldPos, 1.0);
+    vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0 || projCoords.z > 1.0) {
+        return 1.0;
+    }
+    
+    float currentDepth = projCoords.z;
+    float bias = 0.005;
+    
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / vec2(512.0);
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
             shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
         }
     }
@@ -358,10 +422,25 @@ void main()
         float NdotL = max(dot(N, L), 0.0);        
         
         float shadow = 0.0;
-        if (i == 0 && u_Lights[i].Type == 0) // Primary directional light shadow
+        if (i == 0 && u_Lights[i].Type == 0) // Primary directional light shadow (CSM)
         {
             int cascadeIndex;
             shadow = CSMShadowCalculation(v_WorldPos, v_ViewZ, N, L, cascadeIndex);
+        }
+        else if (u_Lights[i].Type == 1 && u_Lights[i].ShadowIndex >= 0) // Point light shadow
+        {
+            int shadowIdx = u_Lights[i].ShadowIndex;
+            if (shadowIdx < u_PointShadowCount) {
+                shadow = PointLightShadow(v_WorldPos, u_Lights[i].Position, u_PointShadowRanges[shadowIdx], u_PointShadowMaps[shadowIdx]);
+            }
+        }
+        else if (u_Lights[i].Type == 2 && u_Lights[i].ShadowIndex >= 0) // Spot light shadow
+        {
+            int shadowIdx = u_Lights[i].ShadowIndex;
+            if (shadowIdx < u_SpotShadowCount) {
+                shadow = SpotLightShadow(v_WorldPos, u_SpotLightSpaceMatrices[shadowIdx], 
+                    u_SpotOuterCones[shadowIdx], u_SpotInnerCones[shadowIdx], u_SpotShadowMaps[shadowIdx]);
+            }
         }
         
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * (1.0 - shadow);  

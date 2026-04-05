@@ -128,6 +128,24 @@ private:
   float csmShadowBias_ = 0.001f;
   float csmBlendWidth_ = 0.1f;
   
+  // Point Light Shadows (Cubemaps)
+  static constexpr int MAX_POINT_SHADOWS = 4;
+  std::vector<std::shared_ptr<renderer::Framebuffer>> pointShadowFramebuffers_;
+  std::vector<uint32_t> pointShadowRendererIDs_;
+  std::vector<Math::Mat4f> pointShadowMatrices_;  // 6 matrices per light
+  std::vector<float> pointLightRanges_;
+  int pointShadowCount_ = 0;
+  int pointShadowMapSize_ = 512;
+  
+  // Spot Light Shadows (2D)
+  static constexpr int MAX_SPOT_SHADOWS = 8;
+  std::vector<std::shared_ptr<renderer::Framebuffer>> spotShadowFramebuffers_;
+  std::vector<Math::Mat4f> spotShadowMatrices_;
+  std::vector<float> spotOuterCones_;
+  std::vector<float> spotInnerCones_;
+  int spotShadowCount_ = 0;
+  int spotShadowMapSize_ = 512;
+  
   // Volumetric Fog
   bool volumetricFogEnabled_ = false;
   float fogDensity_ = 0.05f;

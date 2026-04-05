@@ -275,6 +275,33 @@ struct ScopedProfileTimer {
         shadowSpec.Attachments = { renderer::FramebufferTextureFormat::DEPTH24STENCIL8 };
         shadowMap_ = renderer::Framebuffer::Create(shadowSpec);
         shadowShader_ = renderer::Shader::Create("./src/shaders/shadow.vert", "./src/shaders/shadow.frag");
+        
+        // Point light shadow cubemaps
+        for (int i = 0; i < MAX_POINT_SHADOWS; i++) {
+            renderer::FramebufferSpecification pointSpec;
+            pointSpec.Width = pointShadowMapSize_;
+            pointSpec.Height = pointShadowMapSize_;
+            pointSpec.Attachments = { renderer::FramebufferTextureFormat::DEPTH24STENCIL8 };
+            auto fbo = renderer::Framebuffer::Create(pointSpec);
+            pointShadowFramebuffers_.push_back(fbo);
+            pointShadowRendererIDs_.push_back(0);
+            pointShadowMatrices_.insert(pointShadowMatrices_.end(), 6, Math::Mat4f::Identity());
+        }
+        pointShadowCount_ = 0;
+        
+        // Spot light shadow maps
+        for (int i = 0; i < MAX_SPOT_SHADOWS; i++) {
+            renderer::FramebufferSpecification spotSpec;
+            spotSpec.Width = spotShadowMapSize_;
+            spotSpec.Height = spotShadowMapSize_;
+            spotSpec.Attachments = { renderer::FramebufferTextureFormat::DEPTH24STENCIL8 };
+            auto fbo = renderer::Framebuffer::Create(spotSpec);
+            spotShadowFramebuffers_.push_back(fbo);
+            spotShadowMatrices_.push_back(Math::Mat4f::Identity());
+            spotOuterCones_.push_back(45.0f);
+            spotInnerCones_.push_back(30.0f);
+        }
+        spotShadowCount_ = 0;
     }
 
      // --- Collect 3D Entities ---
@@ -501,20 +528,41 @@ struct ScopedProfileTimer {
              shader->SetInt("u_LightCount", lightCount);
  
              for (int i = 0; i < lightCount; ++i) {
-                 auto& lc = world.GetLight(lightEntities[i]);
-                 auto& lt = world.GetTransform(lightEntities[i]);
- 
-                 std::string base = "u_Lights[" + std::to_string(i) + "].";
-                 shader->SetInt(base + "Type", (int)lc.Type);
-                 shader->SetVec3(base + "Position", lt.position);
-                 
-                 Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
-                 Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
-                 shader->SetVec3(base + "Direction", direction);
-                 
-                 shader->SetFloat(base + "Intensity", lc.Intensity);
-                 shader->SetFloat(base + "Range", lc.Range);
-             }
+                  auto& lc = world.GetLight(lightEntities[i]);
+                  auto& lt = world.GetTransform(lightEntities[i]);
+  
+                  std::string base = "u_Lights[" + std::to_string(i) + "].";
+                  shader->SetInt(base + "Type", (int)lc.Type);
+                  shader->SetVec3(base + "Position", lt.position);
+                  
+                  Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+                  Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
+                  shader->SetVec3(base + "Direction", direction);
+                  
+                  shader->SetFloat(base + "Intensity", lc.Intensity);
+                  shader->SetFloat(base + "Range", lc.Range);
+                  
+                  // Set shadow index for point/spot lights
+                  int shadowIdx = -1;
+                  if (lc.Type == ge::ecs::LightType::Point && lc.CastShadows) {
+                      // Find matching point shadow
+                      for (int p = 0; p < pointShadowCount_; p++) {
+                          if ((lt.position - pointShadowMatrices_[p * 6].Inverse()[3].xyz()).Length() < 0.01f) {
+                              shadowIdx = p;
+                              break;
+                          }
+                      }
+                  } else if (lc.Type == ge::ecs::LightType::Spot && lc.CastShadows) {
+                      // Find matching spot shadow
+                      for (int s = 0; s < spotShadowCount_; s++) {
+                          if ((lt.position - spotShadowMatrices_[s].Inverse()[3].xyz()).Length() < 0.01f) {
+                              shadowIdx = s;
+                              break;
+                          }
+                      }
+                  }
+                  shader->SetInt(base + "ShadowIndex", shadowIdx);
+              }
  
               if (primaryLight != ecs::INVALID_ENTITY) {
                   shader->SetInt("u_CSMCount", csmCount_);
@@ -529,8 +577,31 @@ struct ScopedProfileTimer {
                       shader->SetInt("u_ShadowMaps[" + std::to_string(i) + "]", 10 + i);
                   }
               }
- 
-             // Bind SSAO texture (Slot 5)
+              
+              // Point light shadows
+              shader->SetInt("u_PointShadowCount", pointShadowCount_);
+              int spotShadowStart = 20;
+              for (int i = 0; i < pointShadowCount_ && i < MAX_POINT_SHADOWS; i++) {
+                  glActiveTexture(GL_TEXTURE0 + spotShadowStart + i);
+                  glBindTexture(GL_TEXTURE_2D, pointShadowFramebuffers_[i]->GetDepthAttachmentRendererID());
+                  shader->SetInt("u_PointShadowMaps[" + std::to_string(i) + "]", spotShadowStart + i);
+                  shader->SetFloat("u_PointShadowRanges[" + std::to_string(i) + "]", pointLightRanges_[i]);
+              }
+              
+              // Spot light shadows
+              shader->SetInt("u_SpotShadowCount", spotShadowCount_);
+              int spotMapStart = spotShadowStart + MAX_POINT_SHADOWS;
+              for (int i = 0; i < spotShadowCount_ && i < MAX_SPOT_SHADOWS; i++) {
+                  shader->SetMat4("u_SpotLightSpaceMatrices[" + std::to_string(i) + "]", spotShadowMatrices_[i]);
+                  shader->SetFloat("u_SpotOuterCones[" + std::to_string(i) + "]", spotOuterCones_[i]);
+                  shader->SetFloat("u_SpotInnerCones[" + std::to_string(i) + "]", spotInnerCones_[i]);
+                  
+                  glActiveTexture(GL_TEXTURE0 + spotMapStart + i);
+                  glBindTexture(GL_TEXTURE_2D, spotShadowFramebuffers_[i]->GetDepthAttachmentRendererID());
+                  shader->SetInt("u_SpotShadowMaps[" + std::to_string(i) + "]", spotMapStart + i);
+              }
+  
+              // Bind SSAO texture (Slot 5)
              if (settings_.EnableSSAO) {
                  glActiveTexture(GL_TEXTURE5);
                  glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
@@ -1057,6 +1128,125 @@ struct ScopedProfileTimer {
           glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
 
           lastSplitDist = splitDist;
+      }
+
+      // --- Point Light Shadow Pass (Cubemaps) ---
+      pointShadowCount_ = 0;
+      for (auto const& le : lightEntities) {
+          if (pointShadowCount_ >= MAX_POINT_SHADOWS) break;
+          
+          auto& lc = world.GetLight(le);
+          auto& lt = world.GetTransform(le);
+          
+          if (lc.Type != ge::ecs::LightType::Point || !lc.CastShadows) continue;
+          
+          auto& fbo = pointShadowFramebuffers_[pointShadowCount_];
+          Math::Vec3f lightPos = lt.position;
+          
+          // Generate 6 view matrices for cubemap faces
+          Math::Vec3f faces[6] = {
+              {1, 0, 0}, {-1, 0, 0}, {0, 1, 0},
+              {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
+          };
+          Math::Vec3f ups[6] = {
+              {0, -1, 0}, {0, -1, 0}, {0, 0, 1},
+              {0, 0, -1}, {0, -1, 0}, {0, -1, 0}
+          };
+          
+          GLint oldViewport[4];
+          glGetIntegerv(GL_VIEWPORT, oldViewport);
+          fbo->Bind();
+          glViewport(0, 0, pointShadowMapSize_, pointShadowMapSize_);
+          glClear(GL_DEPTH_BUFFER_BIT);
+          
+          shadowShader_->Bind();
+          shadowShader_->SetBool("u_IsAnimated", false);
+          
+          for (int face = 0; face < 6; face++) {
+              Math::Mat4f lightView = Math::Mat4f::LookAt(lightPos, lightPos + faces[face], ups[face]);
+              Math::Mat4f lightProj = Math::Mat4f::Perspective(90.0f, 1.0f, 0.1f, lc.Range);
+              Math::Mat4f lightSpaceMatrix = lightProj * lightView;
+              
+              int matrixIdx = pointShadowCount_ * 6 + face;
+              pointShadowMatrices_[matrixIdx] = lightSpaceMatrix;
+              
+              shadowShader_->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+              
+              // Render meshes to this cubemap face
+              auto meshEntities = world.Query<ge::ecs::MeshComponent, ge::ecs::TransformComponent>();
+              for (auto const& me : meshEntities) {
+                  if (!world.HasComponent<ge::ecs::TransformComponent>(me)) continue;
+                  auto& transform = world.GetTransform(me);
+                  auto& meshComp = world.GetMesh(me);
+                  if (!meshComp.IsVisible || !meshComp.MeshPtr) continue;
+                  
+                  Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                      transform.rotation.ToMat4x4() *
+                                      Math::Mat4f::Scale(transform.scale);
+                  shadowShader_->SetMat4("u_Model", model);
+                  meshComp.MeshPtr->Draw();
+              }
+          }
+          
+          fbo->Unbind();
+          glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+          pointShadowRendererIDs_[pointShadowCount_] = fbo->GetDepthAttachmentRendererID();
+          pointLightRanges_[pointShadowCount_] = lc.Range;
+          pointShadowCount_++;
+      }
+
+      // --- Spot Light Shadow Pass ---
+      spotShadowCount_ = 0;
+      for (auto const& le : lightEntities) {
+          if (spotShadowCount_ >= MAX_SPOT_SHADOWS) break;
+          
+          auto& lc = world.GetLight(le);
+          auto& lt = world.GetTransform(le);
+          
+          if (lc.Type != ge::ecs::LightType::Spot || !lc.CastShadows) continue;
+          
+          auto& fbo = spotShadowFramebuffers_[spotShadowCount_];
+          Math::Vec3f lightPos = lt.position;
+          Math::Vec3f lightDir = lt.rotation * Math::Vec3f(0, 0, -1);
+          
+          float outerRad = lc.SpotOuterCone * Math::DEG2RAD;
+          float fov = 2.0f * std::tan(outerRad * 0.5f);
+          
+          Math::Mat4f lightProj = Math::Mat4f::Perspective(fov, 1.0f, 0.1f, lc.Range);
+          Math::Mat4f lightView = Math::Mat4f::LookAt(lightPos, lightPos + lightDir, {0, 1, 0});
+          Math::Mat4f lightSpaceMatrix = lightProj * lightView;
+          
+          spotShadowMatrices_[spotShadowCount_] = lightSpaceMatrix;
+          spotOuterCones_[spotShadowCount_] = lc.SpotOuterCone;
+          spotInnerCones_[spotShadowCount_] = lc.SpotInnerCone;
+          
+          GLint oldViewport[4];
+          glGetIntegerv(GL_VIEWPORT, oldViewport);
+          fbo->Bind();
+          glViewport(0, 0, spotShadowMapSize_, spotShadowMapSize_);
+          glClear(GL_DEPTH_BUFFER_BIT);
+          
+          shadowShader_->Bind();
+          shadowShader_->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+          shadowShader_->SetBool("u_IsAnimated", false);
+          
+          auto meshEntities = world.Query<ge::ecs::MeshComponent, ge::ecs::TransformComponent>();
+          for (auto const& me : meshEntities) {
+              if (!world.HasComponent<ge::ecs::TransformComponent>(me)) continue;
+              auto& transform = world.GetTransform(me);
+              auto& meshComp = world.GetMesh(me);
+              if (!meshComp.IsVisible || !meshComp.MeshPtr) continue;
+              
+              Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                  transform.rotation.ToMat4x4() *
+                                  Math::Mat4f::Scale(transform.scale);
+              shadowShader_->SetMat4("u_Model", model);
+              meshComp.MeshPtr->Draw();
+          }
+          
+          fbo->Unbind();
+          glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+          spotShadowCount_++;
       }
 
       volumetricFogEnabled_ = lc.VolumetricFog;
