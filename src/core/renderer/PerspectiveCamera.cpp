@@ -11,6 +11,8 @@ namespace renderer {
 
     void PerspectiveCamera::SetProjection(float fov, float aspectRatio, float nearClip, float farClip)
     {
+        nearClip_ = nearClip;
+        farClip_ = farClip;
         projectionMatrix_ = Math::Mat4f::Perspective(fov, aspectRatio, nearClip, farClip);
         viewProjectionMatrix_ = projectionMatrix_ * viewMatrix_;
     }

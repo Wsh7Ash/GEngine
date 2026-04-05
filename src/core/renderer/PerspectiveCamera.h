@@ -26,6 +26,9 @@ namespace renderer {
         const Math::Mat4f& GetViewMatrix() const { return viewMatrix_; }
         const Math::Mat4f& GetViewProjectionMatrix() const { return viewProjectionMatrix_; }
 
+        float GetNearPlane() const { return nearClip_; }
+        float GetFarPlane() const { return farClip_; }
+
     private:
         void RecalculateViewMatrix();
 
@@ -36,6 +39,9 @@ namespace renderer {
 
         Math::Vec3f position_ = { 0.0f, 0.0f, 0.0f };
         Math::Quatf rotation_ = Math::Quatf::Identity();
+
+        float nearClip_ = 0.1f;
+        float farClip_ = 100.0f;
     };
 
 } // namespace renderer

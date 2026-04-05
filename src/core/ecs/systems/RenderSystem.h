@@ -82,6 +82,10 @@ struct PostProcessingSettings {
 
     // Render Graph Settings
     bool EnableRenderGraph = false;
+
+    // Occlusion Culling Settings
+    bool EnableOcclusionCulling = false;
+    bool UseGPUOcclusion = false;
 };
 
 namespace ecs {
