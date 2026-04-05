@@ -16,6 +16,7 @@
 namespace ge {
 namespace renderer {
     class Mesh;
+    class Material;
     class Shader;
     class PostProcessingStack;
     class Framebuffer;
@@ -85,6 +86,13 @@ struct PostProcessingSettings {
 
 namespace ecs {
 
+struct InstanceBatch {
+    std::shared_ptr<renderer::Mesh> MeshPtr;
+    std::shared_ptr<renderer::Material> MaterialPtr;
+    std::vector<Math::Mat4f> InstanceMatrices;
+    std::vector<ecs::Entity> Entities;
+};
+
 /**
  * @brief System responsible for rendering all Entities with a MeshComponent and
  * TransformComponent.
@@ -108,6 +116,8 @@ public:
   Set3DCamera(const std::shared_ptr<renderer::PerspectiveCamera> &camera) {
     camera3D_ = camera;
   }
+
+  void BuildInstanceBatches(World& world, const std::vector<ecs::Entity>& meshEntities);
 
   PostProcessingSettings& GetSettings() { return settings_; }
 
@@ -239,6 +249,8 @@ private:
   Math::Vec2f jitter_ = {0, 0};
   std::shared_ptr<renderer::Shader> taaShader_;
   std::shared_ptr<renderer::Framebuffer> prevFrameFBO_, resolveFBO_;
+
+  std::vector<InstanceBatch> instanceBatches_;
 
   PostProcessingSettings settings_;
 };

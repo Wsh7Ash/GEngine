@@ -330,6 +330,9 @@ struct ScopedProfileTimer {
         AssignLightsToClusters(lightEntities, world);
     }
 
+    // 3.6 Build Instance Batches for GPU Instancing
+    BuildInstanceBatches(world, meshEntities);
+
     // 4. Shadow Pass (Directional)
     Math::Mat4f lightSpaceMatrix = Math::Mat4f::Identity();
     ecs::Entity primaryLight = ecs::INVALID_ENTITY;
@@ -490,226 +493,174 @@ struct ScopedProfileTimer {
         intermediateA_->Bind();
     }
 
-    // 6. 3D PBR Lighting Pass
+    // 6. 3D PBR Lighting Pass (Batched Instancing)
     {
         ScopedProfileTimer lightingTimer(&renderer::Renderer2D::GetStats().PassLighting);
-        static_assert(sizeof(::ge::ecs::TransformComponent) > 0, "TransformComponent must be complete");
-        static_assert(sizeof(::ge::ecs::MeshComponent) > 0, "MeshComponent must be complete");
-        for (auto const& entity : meshEntities) {
-        auto& transform = world.GetTransform(entity);
-        auto& meshComp = world.GetMesh(entity);
-
-        if (!meshComp.MeshPtr) continue;
-        if (!meshComp.IsVisible) {
-            renderer::Renderer2D::GetStats().CulledCount++;
-            continue;
+        
+        if (camera3D_) {
+            frustum.FromMatrix(camera3D_->GetViewProjectionMatrix());
         }
-
-        if (meshComp.MeshPtr && meshComp.MaterialPtr) {
-            Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
-                                transform.rotation.ToMat4x4() *
-                                Math::Mat4f::Scale(transform.scale);
+        
+        for (auto& batch : instanceBatches_) {
+            if (batch.InstanceMatrices.empty()) continue;
             
-            Math::AABB worldAABB = meshComp.MeshPtr->GetAABB().Transform(model);
+            batch.MaterialPtr->Bind();
+            auto shader = batch.MaterialPtr->GetShader();
             
-            if (camera3D_) {
-                float dist = (transform.position - camera3D_->GetPosition()).Length();
-                if (dist > meshComp.MaxDrawDistance || dist < meshComp.MinDrawDistance) {
-                    renderer::Renderer2D::GetStats().CulledCount++;
-                    continue;
+            shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
+            shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
+            
+            int lightCount = (int)lightEntities.size();
+            if (lightCount > 8) lightCount = 8;
+            shader->SetInt("u_LightCount", lightCount);
+            
+            for (int i = 0; i < lightCount; ++i) {
+                auto& lc = world.GetLight(lightEntities[i]);
+                auto& lt = world.GetTransform(lightEntities[i]);
+                
+                std::string base = "u_Lights[" + std::to_string(i) + "].";
+                shader->SetInt(base + "Type", (int)lc.Type);
+                shader->SetVec3(base + "Position", lt.position);
+                
+                Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
+                Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
+                shader->SetVec3(base + "Direction", direction);
+                
+                shader->SetFloat(base + "Intensity", lc.Intensity);
+                shader->SetFloat(base + "Range", lc.Range);
+                
+                int shadowIdx = -1;
+                if (lc.Type == ge::ecs::LightType::Point && lc.CastShadows) {
+                    for (int p = 0; p < pointShadowCount_; p++) {
+                        if ((lt.position - pointShadowMatrices_[p * 6].Inverse()[3].xyz()).Length() < 0.01f) {
+                            shadowIdx = p;
+                            break;
+                        }
+                    }
+                } else if (lc.Type == ge::ecs::LightType::Spot && lc.CastShadows) {
+                    for (int s = 0; s < spotShadowCount_; s++) {
+                        if ((lt.position - spotShadowMatrices_[s].Inverse()[3].xyz()).Length() < 0.01f) {
+                            shadowIdx = s;
+                            break;
+                        }
+                    }
                 }
-                if (!frustum.Intersect(worldAABB)) {
-                    renderer::Renderer2D::GetStats().CulledCount++;
-                    continue;
+                shader->SetInt(base + "ShadowIndex", shadowIdx);
+            }
+            
+            if (primaryLight != ecs::INVALID_ENTITY) {
+                shader->SetInt("u_CSMCount", csmCount_);
+                shader->SetFloat("u_ShadowMapSize", (float)csmShadowMapSize_);
+                
+                for (int i = 0; i < csmCount_ && i < MAX_CSM_CASCADES; i++) {
+                    shader->SetMat4("u_LightSpaceMatrices[" + std::to_string(i) + "]", csmLightSpaceMatrices_[i]);
+                    shader->SetFloat("u_CSMSplitDepths[" + std::to_string(i) + "]", csmSplitDepths_[i]);
+                    
+                    glActiveTexture(GL_TEXTURE10 + i);
+                    glBindTexture(GL_TEXTURE_2D, csmFramebuffers_[i]->GetDepthAttachmentRendererID());
+                    shader->SetInt("u_ShadowMaps[" + std::to_string(i) + "]", 10 + i);
                 }
             }
-            renderer::Renderer2D::GetStats().VisibleCount++;
-
-            // LOD Selection
-            std::shared_ptr<renderer::Mesh> activeMesh = meshComp.MeshPtr;
-            if (camera3D_ && !meshComp.LODLevels.empty()) {
-                float dist = (transform.position - camera3D_->GetPosition()).Length();
-                for (const auto& lod : meshComp.LODLevels) {
-                    if (dist >= lod.DistanceThreshold)
-                        activeMesh = lod.MeshPtr;
-                }
+            
+            shader->SetInt("u_PointShadowCount", pointShadowCount_);
+            int spotShadowStart = 20;
+            for (int i = 0; i < pointShadowCount_ && i < MAX_POINT_SHADOWS; i++) {
+                glActiveTexture(GL_TEXTURE0 + spotShadowStart + i);
+                glBindTexture(GL_TEXTURE_2D, pointShadowFramebuffers_[i]->GetDepthAttachmentRendererID());
+                shader->SetInt("u_PointShadowMaps[" + std::to_string(i) + "]", spotShadowStart + i);
+                shader->SetFloat("u_PointShadowRanges[" + std::to_string(i) + "]", pointLightRanges_[i]);
             }
-
-             meshComp.MaterialPtr->Bind();
-             auto shader = meshComp.MaterialPtr->GetShader();
- 
-             shader->SetMat4("u_Model", model);
- 
-             if (camera3D_) {
-                 shader->SetMat4("u_ViewProjection", camera3D_->GetViewProjectionMatrix());
-                 shader->SetVec3("u_CameraPos", camera3D_->GetPosition());
-             }
- 
-             int lightCount = (int)lightEntities.size();
-             if (lightCount > 8) lightCount = 8;
-             shader->SetInt("u_LightCount", lightCount);
- 
-             for (int i = 0; i < lightCount; ++i) {
-                  auto& lc = world.GetLight(lightEntities[i]);
-                  auto& lt = world.GetTransform(lightEntities[i]);
-  
-                  std::string base = "u_Lights[" + std::to_string(i) + "].";
-                  shader->SetInt(base + "Type", (int)lc.Type);
-                  shader->SetVec3(base + "Position", lt.position);
-                  
-                  Math::Vec4f dir4 = lt.rotation.ToMat4x4() * Math::Vec4f(0, 0, -1, 0);
-                  Math::Vec3f direction = { dir4.x, dir4.y, dir4.z };
-                  shader->SetVec3(base + "Direction", direction);
-                  
-                  shader->SetFloat(base + "Intensity", lc.Intensity);
-                  shader->SetFloat(base + "Range", lc.Range);
-                  
-                  // Set shadow index for point/spot lights
-                  int shadowIdx = -1;
-                  if (lc.Type == ge::ecs::LightType::Point && lc.CastShadows) {
-                      // Find matching point shadow
-                      for (int p = 0; p < pointShadowCount_; p++) {
-                          if ((lt.position - pointShadowMatrices_[p * 6].Inverse()[3].xyz()).Length() < 0.01f) {
-                              shadowIdx = p;
-                              break;
-                          }
-                      }
-                  } else if (lc.Type == ge::ecs::LightType::Spot && lc.CastShadows) {
-                      // Find matching spot shadow
-                      for (int s = 0; s < spotShadowCount_; s++) {
-                          if ((lt.position - spotShadowMatrices_[s].Inverse()[3].xyz()).Length() < 0.01f) {
-                              shadowIdx = s;
-                              break;
-                          }
-                      }
-                  }
-                  shader->SetInt(base + "ShadowIndex", shadowIdx);
-              }
- 
-              if (primaryLight != ecs::INVALID_ENTITY) {
-                  shader->SetInt("u_CSMCount", csmCount_);
-                  shader->SetFloat("u_ShadowMapSize", (float)csmShadowMapSize_);
-                  
-                  for (int i = 0; i < csmCount_ && i < MAX_CSM_CASCADES; i++) {
-                      shader->SetMat4("u_LightSpaceMatrices[" + std::to_string(i) + "]", csmLightSpaceMatrices_[i]);
-                      shader->SetFloat("u_CSMSplitDepths[" + std::to_string(i) + "]", csmSplitDepths_[i]);
-                      
-                      glActiveTexture(GL_TEXTURE10 + i);
-                      glBindTexture(GL_TEXTURE_2D, csmFramebuffers_[i]->GetDepthAttachmentRendererID());
-                      shader->SetInt("u_ShadowMaps[" + std::to_string(i) + "]", 10 + i);
-                  }
-              }
-              
-              // Point light shadows
-              shader->SetInt("u_PointShadowCount", pointShadowCount_);
-              int spotShadowStart = 20;
-              for (int i = 0; i < pointShadowCount_ && i < MAX_POINT_SHADOWS; i++) {
-                  glActiveTexture(GL_TEXTURE0 + spotShadowStart + i);
-                  glBindTexture(GL_TEXTURE_2D, pointShadowFramebuffers_[i]->GetDepthAttachmentRendererID());
-                  shader->SetInt("u_PointShadowMaps[" + std::to_string(i) + "]", spotShadowStart + i);
-                  shader->SetFloat("u_PointShadowRanges[" + std::to_string(i) + "]", pointLightRanges_[i]);
-              }
-              
-              // Spot light shadows
-              shader->SetInt("u_SpotShadowCount", spotShadowCount_);
-              int spotMapStart = spotShadowStart + MAX_POINT_SHADOWS;
-              for (int i = 0; i < spotShadowCount_ && i < MAX_SPOT_SHADOWS; i++) {
-                  shader->SetMat4("u_SpotLightSpaceMatrices[" + std::to_string(i) + "]", spotShadowMatrices_[i]);
-                  shader->SetFloat("u_SpotOuterCones[" + std::to_string(i) + "]", spotOuterCones_[i]);
-                  shader->SetFloat("u_SpotInnerCones[" + std::to_string(i) + "]", spotInnerCones_[i]);
-                  
-                  glActiveTexture(GL_TEXTURE0 + spotMapStart + i);
-                  glBindTexture(GL_TEXTURE_2D, spotShadowFramebuffers_[i]->GetDepthAttachmentRendererID());
-                  shader->SetInt("u_SpotShadowMaps[" + std::to_string(i) + "]", spotMapStart + i);
-              }
-  
-              // Bind SSAO texture (Slot 5)
-              // Check both settings_ and PostProcessComponent for SSAO state
-              bool ssaoEnabled = settings_.EnableSSAO;
-              auto ppEntities = world.Query<PostProcessComponent>();
-              if (ppEntities.begin() != ppEntities.end()) {
-                  auto& ppc = world.GetComponent<PostProcessComponent>(*ppEntities.begin());
-                  ssaoEnabled = ssaoEnabled && ppc.SSAOEnabled;
-              }
-              
-              if (ssaoEnabled && ssaoBlurFBO_) {
-                  glActiveTexture(GL_TEXTURE5);
-                  glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
-                  shader->SetInt("u_SSAO", 5);
-              } else {
-                  shader->SetInt("u_SSAO", -1); // Disabled
-              }
-             
-             // Bind G-Buffer textures for decal support
-             glActiveTexture(GL_TEXTURE6);
-             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0)); // Position
-             shader->SetInt("u_gPosition", 6);
-
-             glActiveTexture(GL_TEXTURE7);
-             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1)); // Albedo
-             shader->SetInt("u_gAlbedo", 7);
-
-             glActiveTexture(GL_TEXTURE8);
-             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2)); // Normal
-             shader->SetInt("u_gNormal", 8);
-
-             glActiveTexture(GL_TEXTURE9);
-             glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3)); // Velocity
-             shader->SetInt("u_gVelocity", 9);
-
-             // Bind SSGI texture (Slot 13)
-             if (settings_.EnableSSGI && ssgiFBO_) {
-                 glActiveTexture(GL_TEXTURE13);
-                 glBindTexture(GL_TEXTURE_2D, ssgiFBO_->GetColorAttachmentRendererID(0));
-                 shader->SetInt("u_SSGI", 13);
-                 shader->SetFloat("u_SSGIIntensity", settings_.SSGIIntensity);
-             } else {
-                 shader->SetInt("u_SSGI", -1);
-                 shader->SetFloat("u_SSGIIntensity", 0.0);
-             }
-
-              // Bind SSR texture (Slot 14)
-              if (settings_.EnableSSR && ssrFBO_) {
-                  glActiveTexture(GL_TEXTURE14);
-                  glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
-                  shader->SetInt("u_SSR", 14);
-                  shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
-              } else {
-                  shader->SetInt("u_SSR", -1);
-                  shader->SetFloat("u_SSRIntensity", 0.0);
-              }
-
-              // Forward+ Clustered Lighting
-              shader->SetBool("u_UseForwardPlus", settings_.EnableForwardPlus);
-              if (settings_.EnableForwardPlus && lightBuffer_ != 0) {
-                  shader->SetInt("u_ClusterCountX", clusterCountX_);
-                  shader->SetInt("u_ClusterCountY", clusterCountY_);
-                  shader->SetInt("u_ClusterCountZ", clusterCountZ_);
-                  shader->SetFloat("u_NearPlane", camera3D_->GetNearPlane());
-                  shader->SetFloat("u_FarPlane", camera3D_->GetFarPlane());
-
-                  // Bind SSBOs
-                  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, lightBuffer_);
-                  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, clusterLightIndicesBuffer_);
-                  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, clusterLightCountsBuffer_);
-              }
-              
-              // Indicate we're using G-Buffer materials
-             shader->SetBool("u_UseGBufferMaterials", true);
- 
-             // Set default material values (will be overridden by G-Buffer when used)
-             shader->SetVec3("u_AlbedoColor", meshComp.AlbedoColor);
-             shader->SetFloat("u_Metallic", meshComp.Metallic);
-             shader->SetFloat("u_Roughness", meshComp.Roughness);
-             shader->SetBool("u_IsAnimated", false);
-
-            // IBL Bindings
+            
+            shader->SetInt("u_SpotShadowCount", spotShadowCount_);
+            int spotMapStart = spotShadowStart + MAX_POINT_SHADOWS;
+            for (int i = 0; i < spotShadowCount_ && i < MAX_SPOT_SHADOWS; i++) {
+                shader->SetMat4("u_SpotLightSpaceMatrices[" + std::to_string(i) + "]", spotShadowMatrices_[i]);
+                shader->SetFloat("u_SpotOuterCones[" + std::to_string(i) + "]", spotOuterCones_[i]);
+                shader->SetFloat("u_SpotInnerCones[" + std::to_string(i) + "]", spotInnerCones_[i]);
+                
+                glActiveTexture(GL_TEXTURE0 + spotMapStart + i);
+                glBindTexture(GL_TEXTURE_2D, spotShadowFramebuffers_[i]->GetDepthAttachmentRendererID());
+                shader->SetInt("u_SpotShadowMaps[" + std::to_string(i) + "]", spotMapStart + i);
+            }
+            
+            bool ssaoEnabled = settings_.EnableSSAO;
+            auto ppEntities = world.Query<PostProcessComponent>();
+            if (ppEntities.begin() != ppEntities.end()) {
+                auto& ppc = world.GetComponent<PostProcessComponent>(*ppEntities.begin());
+                ssaoEnabled = ssaoEnabled && ppc.SSAOEnabled;
+            }
+            
+            if (ssaoEnabled && ssaoBlurFBO_) {
+                glActiveTexture(GL_TEXTURE5);
+                glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
+                shader->SetInt("u_SSAO", 5);
+            } else {
+                shader->SetInt("u_SSAO", -1);
+            }
+            
+            glActiveTexture(GL_TEXTURE6);
+            glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(0));
+            shader->SetInt("u_gPosition", 6);
+            
+            glActiveTexture(GL_TEXTURE7);
+            glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(1));
+            shader->SetInt("u_gAlbedo", 7);
+            
+            glActiveTexture(GL_TEXTURE8);
+            glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(2));
+            shader->SetInt("u_gNormal", 8);
+            
+            glActiveTexture(GL_TEXTURE9);
+            glBindTexture(GL_TEXTURE_2D, gBuffer_->GetColorAttachmentRendererID(3));
+            shader->SetInt("u_gVelocity", 9);
+            
+            if (settings_.EnableSSGI && ssgiFBO_) {
+                glActiveTexture(GL_TEXTURE13);
+                glBindTexture(GL_TEXTURE_2D, ssgiFBO_->GetColorAttachmentRendererID(0));
+                shader->SetInt("u_SSGI", 13);
+                shader->SetFloat("u_SSGIIntensity", settings_.SSGIIntensity);
+            } else {
+                shader->SetInt("u_SSGI", -1);
+                shader->SetFloat("u_SSGIIntensity", 0.0);
+            }
+            
+            if (settings_.EnableSSR && ssrFBO_) {
+                glActiveTexture(GL_TEXTURE14);
+                glBindTexture(GL_TEXTURE_2D, ssrFBO_->GetColorAttachmentRendererID(0));
+                shader->SetInt("u_SSR", 14);
+                shader->SetFloat("u_SSRIntensity", settings_.SSRIntensity);
+            } else {
+                shader->SetInt("u_SSR", -1);
+                shader->SetFloat("u_SSRIntensity", 0.0);
+            }
+            
+            shader->SetBool("u_UseForwardPlus", settings_.EnableForwardPlus);
+            if (settings_.EnableForwardPlus && lightBuffer_ != 0) {
+                shader->SetInt("u_ClusterCountX", clusterCountX_);
+                shader->SetInt("u_ClusterCountY", clusterCountY_);
+                shader->SetInt("u_ClusterCountZ", clusterCountZ_);
+                shader->SetFloat("u_NearPlane", camera3D_->GetNearPlane());
+                shader->SetFloat("u_FarPlane", camera3D_->GetFarPlane());
+                
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, lightBuffer_);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, clusterLightIndicesBuffer_);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, clusterLightCountsBuffer_);
+            }
+            
+            shader->SetBool("u_UseGBufferMaterials", true);
+            
+            auto firstEntity = batch.Entities[0];
+            auto& firstMeshComp = world.GetMesh(firstEntity);
+            shader->SetVec3("u_AlbedoColor", firstMeshComp.AlbedoColor);
+            shader->SetFloat("u_Metallic", firstMeshComp.Metallic);
+            shader->SetFloat("u_Roughness", firstMeshComp.Roughness);
+            shader->SetBool("u_IsAnimated", false);
+            
             if (skyboxEntity != ecs::INVALID_ENTITY) {
                 auto& skybox = world.GetSkybox(skyboxEntity);
                 if (skybox.SceneEnvironment && skybox.SceneEnvironment->IsComputed) {
                     skybox.SceneEnvironment->IrradianceMap->Bind(11);
                     skybox.SceneEnvironment->PrefilterMap->Bind(12);
-                    // Bind BrdfLUT (raw GL ID)
                     if (skybox.SceneEnvironment->BrdfLUT_ID != 0) {
                         glActiveTexture(GL_TEXTURE13);
                         glBindTexture(GL_TEXTURE_2D, skybox.SceneEnvironment->BrdfLUT_ID);
@@ -724,8 +675,9 @@ struct ScopedProfileTimer {
             } else {
                 shader->SetBool("u_UseIBL", false);
             }
-
-            activeMesh->Draw();
+            
+            shader->SetBool("u_IsInstanced", true);
+            batch.MeshPtr->DrawInstanced(batch.InstanceMatrices);
         }
     }
 
@@ -2086,6 +2038,59 @@ struct ScopedProfileTimer {
       glBufferData(GL_SHADER_STORAGE_BUFFER, totalClusters * sizeof(int), 
                    fpData_.lightCountPerCluster, GL_DYNAMIC_DRAW);
       glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+  }
+
+  void RenderSystem::BuildInstanceBatches(World& world, const std::vector<ecs::Entity>& meshEntities) {
+      instanceBatches_.clear();
+
+      struct BatchKey {
+          uint64_t meshPtr;
+          uint64_t materialPtr;
+          bool operator==(const BatchKey& other) const {
+              return meshPtr == other.meshPtr && materialPtr == other.materialPtr;
+          }
+      };
+      struct BatchKeyHash {
+          size_t operator()(const BatchKey& k) const {
+              return std::hash<uint64_t>{}(k.meshPtr) ^ (std::hash<uint64_t>{}(k.materialPtr) << 1);
+          }
+      };
+
+      std::unordered_map<BatchKey, size_t, BatchKeyHash> batchMap;
+
+      for (auto const& entity : meshEntities) {
+          auto& transform = world.GetTransform(entity);
+          auto& meshComp = world.GetMesh(entity);
+
+          if (!meshComp.MeshPtr || !meshComp.MaterialPtr) continue;
+          if (!meshComp.IsVisible) continue;
+
+          BatchKey key{ reinterpret_cast<uint64_t>(meshComp.MeshPtr.get()),
+                        reinterpret_cast<uint64_t>(meshComp.MaterialPtr.get()) };
+
+          auto it = batchMap.find(key);
+          if (it == batchMap.end()) {
+              InstanceBatch batch;
+              batch.MeshPtr = meshComp.MeshPtr;
+              batch.MaterialPtr = meshComp.MaterialPtr;
+              batch.Entities.push_back(entity);
+              batchMap[key] = instanceBatches_.size();
+              instanceBatches_.push_back(std::move(batch));
+          } else {
+              instanceBatches_[it->second].Entities.push_back(entity);
+          }
+      }
+
+      for (auto& batch : instanceBatches_) {
+          batch.InstanceMatrices.reserve(batch.Entities.size());
+          for (auto entity : batch.Entities) {
+              auto& transform = world.GetTransform(entity);
+              Math::Mat4f model = Math::Mat4f::Translate(transform.position) *
+                                  transform.rotation.ToMat4x4() *
+                                  Math::Mat4f::Scale(transform.scale);
+              batch.InstanceMatrices.push_back(model);
+          }
+      }
   }
 
 } // namespace ecs
