@@ -81,9 +81,25 @@ namespace ecs {
         m_FinalFB->Bind();
         glClear(GL_COLOR_BUFFER_BIT);
         m_CompositeShader->Bind();
+        
+        // Basic exposure & tone mapping
         m_CompositeShader->SetFloat("u_Exposure", ppc.Exposure);
+        m_CompositeShader->SetFloat("u_WhitePoint", ppc.WhitePoint);
+        m_CompositeShader->SetInt("u_ToneMappingType", ppc.ToneMappingType);
+        
+        // Auto-exposure
+        m_CompositeShader->SetFloat("u_AutoExposure", ppc.AutoExposure ? m_CurrentExposure : 0.0f);
+        
+        // Color grading
         m_CompositeShader->SetFloat("u_Gamma", ppc.Gamma);
+        
+        // Bloom
         m_CompositeShader->SetFloat("u_BloomIntensity", ppc.BloomIntensity);
+        
+        // Vignette
+        m_CompositeShader->SetBool("u_VignetteEnabled", ppc.VignetteEnabled);
+        m_CompositeShader->SetFloat("u_VignetteIntensity", ppc.VignetteIntensity);
+        m_CompositeShader->SetFloat("u_VignetteSmoothness", ppc.VignetteSmoothness);
         
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, inputFB->GetColorAttachmentRendererID(0));

@@ -14,9 +14,31 @@ namespace ecs {
         float BloomIntensity = 1.0f;
         float BloomThreshold = 1.0f;
 
-        // Color Grading / Tonemapping
+        // Tonemapping
+        enum class ToneMapping {
+            Reinhard = 0,
+            ACES = 1,
+            Filmic = 2,
+            Uncharted2 = 3
+        };
+        
+        int ToneMappingType = 1; // 0=Reinhard, 1=ACES (default), 2=Filmic, 3=Uncharted2
+        float WhitePoint = 4.0f;
+        
+        // Exposure
         float Exposure = 1.0f;
+        bool AutoExposure = false;
+        float AutoExposureSpeed = 1.0f;
+        float AutoExposureMin = 0.03f;
+        float AutoExposureMax = 10.0f;
+
+        // Color Grading / Tonemapping
         float Gamma = 2.2f;
+
+        // Vignette
+        bool VignetteEnabled = true;
+        float VignetteIntensity = 0.4f;
+        float VignetteSmoothness = 0.5f;
 
         // Volumetric Fog
         bool VolumetricFogEnabled = false;

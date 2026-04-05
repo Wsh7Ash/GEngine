@@ -35,6 +35,10 @@ namespace ecs {
         std::shared_ptr<renderer::SSGIPass> m_SSGIPass; // SSGI pass
 
         uint32_t m_Width = 1280, m_Height = 720;
+        
+        // Auto-exposure state
+        float m_CurrentExposure = 1.0f;
+        float m_Luminance = 0.0f;
     };
 
 } // namespace ecs
