@@ -1,5 +1,12 @@
 #version 450 core
 
+// Shader Variant Configuration
+#pragma variant USE_FORWARD_PLUS
+#pragma variant USE_IBL
+#pragma variant USE_SCREEN_SPACE_REFLECTIONS
+#pragma variant USE_GLOBAL_ILLUMINATION
+#pragma variant USE_SSS
+
 #define MAX_LIGHTS 64
 #define MAX_CSM_CASCADES 4
 #define MAX_POINT_SHADOWS 4

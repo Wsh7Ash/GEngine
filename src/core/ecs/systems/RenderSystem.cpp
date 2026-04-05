@@ -23,6 +23,7 @@
 #include "../../renderer/Texture.h"
 #include "../../renderer/Cubemap.h"
 #include "../../renderer/PostProcessingPass.h"
+#include "../../renderer/ShaderVariantManager.h"
 #include "../../math/BoundingVolumes.h"
 
 // Decal shaders

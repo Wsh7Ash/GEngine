@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include "ImGuiLayer.h"
 #include "../renderer/Renderer2D.h"
+#include "../renderer/ShaderVariantManager.h"
 #include "../debug/log.h"
 #include "VFS.h"
 
@@ -118,6 +119,7 @@ Application::Application(const ApplicationProps& props) {
     }
 
     renderer::Renderer2D::Init();
+    renderer::ShaderWarmUp::Get().WarmUp();
     audioSystem->Init();
     postProcessSystem->Init(props.Width, props.Height);
     
@@ -127,6 +129,7 @@ Application::Application(const ApplicationProps& props) {
 }
 
 Application::~Application() {
+    renderer::ShaderVariantManager::Get().StopBackgroundThread();
     renderer::Renderer2D::Shutdown();
 #ifndef GE_STANDALONE
     editor::EditorToolbar::Shutdown();
