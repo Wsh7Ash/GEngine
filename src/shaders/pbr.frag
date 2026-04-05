@@ -359,8 +359,11 @@ void main()
     }
     
     // Scale screen-space ambient occlusion
-    vec2 screenCoords = gl_FragCoord.xy / textureSize(u_SSAO, 0);
-    float ssao = texture(u_SSAO, screenCoords).r;
+    float ssao = 1.0; // Default to no occlusion
+    if (u_SSAO >= 0) {
+        vec2 screenCoords = gl_FragCoord.xy / textureSize(u_SSAO, 0);
+        ssao = texture(u_SSAO, screenCoords).r;
+    }
     ao *= ssao;
     
     // Normal mapping

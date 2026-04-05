@@ -460,7 +460,29 @@ struct ScopedProfileTimer {
 
     // 5. SSAO Pass
     if (settings_.EnableSSAO) {
-        ExecuteSSAOPass(world);
+        // Check for per-scene SSAO override from PostProcessComponent
+        auto ppEntities = world.Query<PostProcessComponent>();
+        bool ssaoEnabled = settings_.EnableSSAO;
+        float ssaoIntensity = settings_.SSAOIntensity;
+        float ssaoRadius = settings_.SSAORadius;
+        float ssaoBias = settings_.SSAOBias;
+        int ssaoKernelSize = settings_.SSAOKernelSize;
+        
+        if (ppEntities.begin() != ppEntities.end()) {
+            auto& ppc = world.GetComponent<PostProcessComponent>(*ppEntities.begin());
+            if (!ppc.SSAOEnabled) {
+                ssaoEnabled = false;
+            } else {
+                ssaoIntensity = ppc.SSAOIntensity;
+                ssaoRadius = ppc.SSAORadius;
+                ssaoBias = ppc.SSAOBias;
+                ssaoKernelSize = ppc.SSAOKernelSize;
+            }
+        }
+        
+        if (ssaoEnabled) {
+            ExecuteSSAOPass(world, ssaoIntensity, ssaoRadius, ssaoBias, ssaoKernelSize);
+        }
     }
 
     // Re-bind Intermediate A for 3D PBR passes (SSAO pass unbinds it usually)
@@ -602,13 +624,21 @@ struct ScopedProfileTimer {
               }
   
               // Bind SSAO texture (Slot 5)
-             if (settings_.EnableSSAO) {
-                 glActiveTexture(GL_TEXTURE5);
-                 glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
-                 shader->SetInt("u_SSAO", 5);
-             } else {
-                 shader->SetInt("u_SSAO", -1); // Or handle in shader
-             }
+              // Check both settings_ and PostProcessComponent for SSAO state
+              bool ssaoEnabled = settings_.EnableSSAO;
+              auto ppEntities = world.Query<PostProcessComponent>();
+              if (ppEntities.begin() != ppEntities.end()) {
+                  auto& ppc = world.GetComponent<PostProcessComponent>(*ppEntities.begin());
+                  ssaoEnabled = ssaoEnabled && ppc.SSAOEnabled;
+              }
+              
+              if (ssaoEnabled && ssaoBlurFBO_) {
+                  glActiveTexture(GL_TEXTURE5);
+                  glBindTexture(GL_TEXTURE_2D, ssaoBlurFBO_->GetColorAttachmentRendererID(0));
+                  shader->SetInt("u_SSAO", 5);
+              } else {
+                  shader->SetInt("u_SSAO", -1); // Disabled
+              }
              
              // Bind G-Buffer textures for decal support
              glActiveTexture(GL_TEXTURE6);
@@ -1500,7 +1530,7 @@ struct ScopedProfileTimer {
   }
 
 
-  void RenderSystem::ExecuteSSAOPass(World& world) {
+  void RenderSystem::ExecuteSSAOPass(World& world, float ssaoIntensity, float ssaoRadius, float ssaoBias, int ssaoKernelSize) {
     if (!camera3D_ || !gBuffer_ || !ssaoShader_) return;
     ScopedProfileTimer ssaoTimer(&renderer::Renderer2D::GetStats().PassSSAO);
 
@@ -1638,14 +1668,14 @@ struct ScopedProfileTimer {
     ssaoShader_->SetMat4("projection", camera3D_->GetProjectionMatrix());
     
     // Set kernel samples
-    for (unsigned int i = 0; i < 64; ++i) {
+    for (unsigned int i = 0; i < 64 && i < (unsigned int)ssaoKernelSize; ++i) {
         ssaoShader_->SetVec3("samples[" + std::to_string(i) + "]", ssaoKernel_[i]);
     }
     
-    ssaoShader_->SetInt("kernelSize", settings_.SSAOKernelSize);
-    ssaoShader_->SetFloat("radius", settings_.SSAORadius);
-    ssaoShader_->SetFloat("bias", settings_.SSAOBias);
-    ssaoShader_->SetFloat("intensity", settings_.SSAOIntensity);
+    ssaoShader_->SetInt("kernelSize", ssaoKernelSize);
+    ssaoShader_->SetFloat("radius", ssaoRadius);
+    ssaoShader_->SetFloat("bias", ssaoBias);
+    ssaoShader_->SetFloat("intensity", ssaoIntensity);
     
     RenderQuad();
     ssaoFBO_->Unbind();

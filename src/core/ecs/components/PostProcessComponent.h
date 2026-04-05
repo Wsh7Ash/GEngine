@@ -40,6 +40,13 @@ namespace ecs {
         float VignetteIntensity = 0.4f;
         float VignetteSmoothness = 0.5f;
 
+        // SSAO
+        bool SSAOEnabled = true;
+        float SSAOIntensity = 1.0f;
+        float SSAORadius = 0.5f;
+        float SSAOBias = 0.025f;
+        int SSAOKernelSize = 64;
+
         // Volumetric Fog
         bool VolumetricFogEnabled = false;
         float FogDensity = 0.05f;
