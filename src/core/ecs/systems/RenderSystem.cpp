@@ -1926,13 +1926,40 @@ struct ScopedProfileTimer {
       Math::Mat4f viewProj = proj * view;
       Math::Vec3f camPos = camera3D_->GetPosition();
 
-      // Collect light data
-      int lightCount = std::min((int)lightEntities.size(), maxLights_);
-      
-      for (int i = 0; i < lightCount; ++i) {
-          auto& lc = world.GetLight(lightEntities[i]);
-          auto& lt = world.GetTransform(lightEntities[i]);
+      // Build frustum for light culling
+      Math::Frustum frustum;
+      frustum.FromMatrix(camera3D_->GetViewProjectionMatrix());
 
+      // Collect light data and cull by frustum
+      int lightCount = 0;
+      
+      for (size_t idx = 0; idx < lightEntities.size() && idx < (size_t)maxLights_; ++idx) {
+          auto& lc = world.GetLight(lightEntities[idx]);
+          auto& lt = world.GetTransform(lightEntities[idx]);
+
+          // Frustum culling for lights - skip lights outside camera frustum
+          Math::Vec3f lightPos = lt.position;
+          float lightRange = lc.Range;
+          if (lc.Type == LightType::Point) {
+              Math::AABB lightAABB;
+              lightAABB.Min = lightPos - Math::Vec3f(lightRange);
+              lightAABB.Max = lightPos + Math::Vec3f(lightRange);
+              if (!frustum.Intersect(lightAABB)) {
+                  continue; // Skip lights outside frustum
+              }
+          } else if (lc.Type == LightType::Spot) {
+              // For spot lights, use a conservative bound
+              Math::AABB lightAABB;
+              lightAABB.Min = lightPos - Math::Vec3f(lightRange);
+              lightAABB.Max = lightPos + Math::Vec3f(lightRange);
+              if (!frustum.Intersect(lightAABB)) {
+                  continue;
+              }
+          }
+          // Directional lights are always included (affect entire scene)
+
+          int i = lightCount++;
+          
           fpData_.lightPositions[i] = lt.position;
           fpData_.lightColors[i] = lc.Color;
           fpData_.lightIntensities[i] = lc.Intensity;
@@ -1945,35 +1972,36 @@ struct ScopedProfileTimer {
           fpData_.lightSpotInner[i] = lc.SpotInnerCone;
 
           // Assign light to clusters based on its position and range
-          float lightRange = lc.Range;
+          float effectiveRange = lc.Range;
           if (lc.Type == LightType::Directional) {
-              lightRange = farPlane * 2.0f; // Directional lights affect everything
+              effectiveRange = farPlane * 2.0f;
           }
 
-          // Determine which clusters this light affects
-          Math::Vec3f lightPos = lt.position;
+          Math::Vec3f lightPosAssign = lt.position;
 
-          // Simple bounding sphere to cluster assignment
+          // Improved cluster assignment using proper bounds
           for (int z = 0; z < clusterCountZ_; ++z) {
               for (int y = 0; y < clusterCountY_; ++y) {
                   for (int x = 0; x < clusterCountX_; ++x) {
                       int clusterIdx = z * clusterCountX_ * clusterCountY_ + y * clusterCountX_ + x;
 
-                      // Calculate cluster bounds in view space (simplified)
                       float zNear = nearPlane + (float(z) / clusterCountZ_) * (farPlane - nearPlane);
                       float zFar = nearPlane + (float(z + 1) / clusterCountZ_) * (farPlane - nearPlane);
                       
-                      // Check if light affects this cluster
                       bool affects = false;
                       if (lc.Type == LightType::Directional) {
-                          affects = true; // Directional lights affect all clusters
+                          affects = true;
                       } else {
-                          // Point/Spot lights - check distance to cluster center
-                          float clusterZ = (zNear + zFar) * 0.5f;
-                          Math::Vec3f clusterCenter = camPos + Math::Vec3f(0, 0, -clusterZ);
-                          float dist = (lightPos - clusterCenter).Length();
-                          if (dist < lightRange) {
-                              affects = true;
+                          // Improved: Check Z range overlap with light sphere
+                          float lightZ = lightPosAssign.z;
+                          float zOverlap = (lightZ + effectiveRange > zNear) && (lightZ - effectiveRange < zFar);
+                          
+                          if (zOverlap) {
+                              // Approximate check - use distance to camera direction
+                              float dist = (lightPosAssign - camPos).Length();
+                              if (dist - effectiveRange < zFar) {
+                                  affects = true;
+                              }
                           }
                       }
 

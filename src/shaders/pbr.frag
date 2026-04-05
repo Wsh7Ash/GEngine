@@ -12,6 +12,10 @@
 #define MAX_POINT_SHADOWS 4
 #define MAX_SPOT_SHADOWS 8
 
+// Forward+ constants (must match RenderSystem)
+#define MAX_LIGHTS_PER_CLUSTER 16
+#define MAX_FP_LIGHTS 256
+
 struct Light {
     vec3 Position;
     vec3 Color;
@@ -22,6 +26,40 @@ struct Light {
     float AngleOrRange;
     int Type;
 };
+
+// Forward+ structures and SSBOs
+struct FPClusteredLight {
+    vec3 Position;
+    float Range;
+    vec3 Color;
+    float Intensity;
+    vec3 Direction;
+    float SpotOuterCone;
+    float SpotInnerCone;
+    int Type;
+    float padding;
+};
+
+#if defined(USE_FORWARD_PLUS)
+layout(std430, binding = 0) buffer FPLightBuffer {
+    FPClusteredLight fpLights[];
+};
+
+layout(std430, binding = 1) buffer FPClusterLightIndices {
+    int fpLightIndices[];
+};
+
+layout(std430, binding = 2) buffer FPClusterLightCounts {
+    int fpLightCountPerCluster[];
+};
+
+uniform bool u_UseForwardPlus;
+uniform int u_ClusterCountX;
+uniform int u_ClusterCountY;
+uniform int u_ClusterCountZ;
+uniform float u_NearPlane;
+uniform float u_FarPlane;
+#endif
 
 layout (location = 0) out vec4 FragColor;
 
@@ -211,6 +249,7 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 // ----------------------------------------------------------------------------
 // Forward+ Clustered Lighting Functions
 // ----------------------------------------------------------------------------
+#if defined(USE_FORWARD_PLUS)
 
 int getFPClusterIndex(ivec3 clusterCoord) {
     return clusterCoord.z * u_ClusterCountX * u_ClusterCountY + 
@@ -329,6 +368,7 @@ vec3 computeForwardPlusLighting(vec3 worldPos, vec3 N, vec3 V, vec3 albedo, floa
     
     return Lo;
 }
+#endif
 
 // ----------------------------------------------------------------------------
 

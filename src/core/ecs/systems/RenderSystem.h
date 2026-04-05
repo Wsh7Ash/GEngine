@@ -77,8 +77,8 @@ struct PostProcessingSettings {
     int ClusterSizeX = 16;
     int ClusterSizeY = 8;
     int ClusterSizeZ = 16;
-    int MaxLightsPerCluster = 16;
-    int MaxLights = 256;
+    int MaxLightsPerCluster = 64;
+    int MaxLights = 1024;
 
     // Render Graph Settings
     bool EnableRenderGraph = false;
