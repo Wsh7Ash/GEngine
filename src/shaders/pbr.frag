@@ -1,147 +1,89 @@
 #version 450 core
 
-// Shader Variants - these can be enabled/disabled at runtime
-#pragma variant USE_IBL
-#pragma variant USE_GLOBAL_ILLUMINATION
-#pragma variant USE_SCREEN_SPACE_REFLECTIONS
-#pragma variant USE_SSS
-#pragma variant USE_REFRACTION
-#pragma variant USE_FORWARD_PLUS
-
-layout (location = 0) out vec4 color;
-
-in vec3 v_WorldPos;
-in vec2 v_TexCoord;
-in mat3 v_TBN;
-
-// Material properties
-uniform sampler2D u_AlbedoMap;
-uniform sampler2D u_NormalMap;
-uniform sampler2D u_MetallicMap;
-uniform sampler2D u_RoughnessMap;
-uniform sampler2D u_AOMap;
-uniform sampler2D u_SSAO;
-uniform sampler2D u_SSGI;         // Screen Space Global Illumination
-uniform sampler2D u_SSR;          // Screen Space Reflections
-uniform sampler2D u_gPosition;    // G-Buffer position
-uniform sampler2D u_gAlbedo;      // G-Buffer albedo (RGB) + metallic (A)
-uniform sampler2D u_gNormal;      // G-Buffer normal (RGB) + roughness (A)
-uniform sampler2D u_gVelocity;    // G-Buffer velocity
-uniform bool u_UseGBufferMaterials;
-uniform float u_SSGIIntensity;    // SSGI intensity multiplier
-uniform float u_SSRIntensity;     // SSR intensity multiplier
-
-// Subsurface Scattering
-uniform float u_IOR;
-uniform float u_Thickness;
-uniform vec3 u_TintColor;
-uniform vec3 u_SubsurfaceColor;
-uniform float u_SubsurfacePower;
-uniform float u_Translucency;
-uniform float u_SSSIntensity;
-uniform sampler2D u_SSSS;         // Screen-space SSS result
-
-uniform vec3 u_AlbedoColor;
-uniform float u_Metallic;
-uniform float u_Roughness;
-
-// IBL
-uniform samplerCube u_IrradianceMap;
-uniform samplerCube u_PrefilterMap;
-uniform sampler2D   u_BRDFLUT;
-uniform bool        u_UseIBL;
-
-// Lighting
-#define MAX_LIGHTS 8
-#define MAX_LIGHTS_FP 256
-#define MAX_LIGHTS_PER_CLUSTER 16
-
-// Forward+ settings
-uniform bool u_UseForwardPlus;
-uniform int u_ClusterCountX;
-uniform int u_ClusterCountY;
-uniform int u_ClusterCountZ;
-uniform float u_NearPlane;
-uniform float u_FarPlane;
-
-// Forward+ buffers
-#define LIGHT_BUFFER_BINDING 0
-#define CLUSTER_INDICES_BINDING 1
-#define CLUSTER_COUNTS_BINDING 2
-
-struct FPClusteredLight {
-    vec3 Position;
-    float Range;
-    vec3 Color;
-    float Intensity;
-    vec3 Direction;
-    float SpotOuterCone;
-    float SpotInnerCone;
-    int Type;
-    float padding;
-};
-
-layout(std430, binding = LIGHT_BUFFER_BINDING) buffer FP_LightBuffer {
-    FPClusteredLight fpLights[];
-};
-
-layout(std430, binding = CLUSTER_INDICES_BINDING) buffer FP_ClusterLightIndices {
-    int fpLightIndices[];
-};
-
-layout(std430, binding = CLUSTER_COUNTS_BINDING) buffer FP_ClusterLightCounts {
-    int fpLightCountPerCluster[];
-};
+#define MAX_LIGHTS 64
+#define MAX_CSM_CASCADES 4
 
 struct Light {
-    int Type; // 0: Directional, 1: Point
     vec3 Position;
-    vec3 Direction;
     vec3 Color;
+    vec3 Direction;
+    vec3 Attenuation;
     float Intensity;
-    float Range;
+    int ShadowIndex;
+    float AngleOrRange;
+    int Type;
 };
+
+layout (location = 0) out vec4 FragColor;
+
+in VS_OUT {
+    vec3 WorldPos;
+    vec3 Normal;
+    vec2 TexCoord;
+    vec4 FragPosLightSpace;
+    float ViewZ;
+} fs_in;
+
+in float v_ViewZ;
 
 uniform Light u_Lights[MAX_LIGHTS];
 uniform int u_LightCount;
 
 uniform vec3 u_CameraPos;
-uniform sampler2D u_ShadowMap;
-uniform mat4 u_LightSpaceMatrix;
+uniform sampler2D u_ShadowMaps[MAX_CSM_CASCADES];
+uniform mat4 u_LightSpaceMatrices[MAX_CSM_CASCADES];
+uniform float u_CSMSplitDepths[MAX_CSM_CASCADES];
+uniform int u_CSMCount;
+uniform vec2 u_ShadowMapSize;
 
 const float PI = 3.14159265359;
 
 // ----------------------------------------------------------------------------
-float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
+int GetCascadeIndex(float viewZ) {
+    for (int i = 0; i < u_CSMCount - 1; i++) {
+        if (viewZ < u_CSMSplitDepths[i]) {
+            return i;
+        }
+    }
+    return u_CSMCount - 1;
+}
+
+vec3 GetCascadeScale(int cascadeIndex) {
+    float invMapSize = 1.0 / u_ShadowMapSize.x;
+    float scrollX = float(cascadeIndex) * invMapSize;
+    return vec3(scrollX, 0.0, 0.0);
+}
+
+float CSMShadowCalculation(vec3 worldPos, float viewZ, vec3 normal, vec3 lightDir, out int outCascadeIndex)
 {
-    // perform perspective divide
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    // transform to [0,1] range
-    projCoords = projCoords * 0.5 + 0.5;
-    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-    float closestDepth = texture(u_ShadowMap, projCoords.xy).r; 
-    // get depth of current fragment from light's perspective
-    float currentDepth = projCoords.z;
-    // calculate bias (based on depth map resolution and slope)
-    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    outCascadeIndex = GetCascadeIndex(viewZ);
     
-    // PCF
+    vec4 lightSpacePos = u_LightSpaceMatrices[outCascadeIndex] * vec4(worldPos, 1.0);
+    vec3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+        return 0.0;
+    }
+    
+    projCoords.x += GetCascadeScale(outCascadeIndex).x;
+    
+    float currentDepth = projCoords.z;
+    float bias = max(0.005 * (1.0 - dot(normal, lightDir)), 0.0005);
+    
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(u_ShadowMap, 0);
-    for(int x = -1; x <= 1; ++x)
-    {
-        for(int y = -1; y <= 1; ++y)
-        {
-            float pcfDepth = texture(u_ShadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
-            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;        
-        }    
+    vec2 texelSize = 1.0 / u_ShadowMapSize;
+    
+    int samples = 3;
+    float offset = 1.0;
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(u_ShadowMaps[outCascadeIndex], projCoords.xy + vec2(x, y) * texelSize * offset).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
     }
     shadow /= 9.0;
     
-    // keep shadow at 0.0 when outside the far_plane region of the light's frustum.
-    if(projCoords.z > 1.0)
-        shadow = 0.0;
-        
     return shadow;
 }
 // ----------------------------------------------------------------------------
@@ -418,8 +360,8 @@ void main()
         float shadow = 0.0;
         if (i == 0 && u_Lights[i].Type == 0) // Primary directional light shadow
         {
-            vec4 fragPosLightSpace = u_LightSpaceMatrix * vec4(v_WorldPos, 1.0);
-            shadow = ShadowCalculation(fragPosLightSpace, N, L);
+            int cascadeIndex;
+            shadow = CSMShadowCalculation(v_WorldPos, v_ViewZ, N, L, cascadeIndex);
         }
         
         Lo += (kD * albedo / PI + specular) * radiance * NdotL * (1.0 - shadow);  

@@ -13,12 +13,14 @@ layout (location = 11) in mat4 a_InstanceMatrix;
 
 uniform mat4 u_ViewProjection;
 uniform mat4 u_Model;
+uniform mat4 u_View;
 uniform mat4 u_BoneMatrices[100];
 uniform bool u_IsAnimated;
 uniform bool u_IsInstanced;
 
 out vec3 v_WorldPos;
 out vec2 v_TexCoord;
+out float v_ViewZ;
 out mat3 v_TBN;
 
 void main()
@@ -39,6 +41,9 @@ void main()
     vec4 worldPos = modelMatrix * localPos;
     v_WorldPos = worldPos.xyz;
     v_TexCoord = a_TexCoord;
+
+    vec4 viewPos = u_View * worldPos;
+    v_ViewZ = -viewPos.z;
 
     // Correct normal matrix for non-uniform scaling
     mat3 normalMatrix = transpose(inverse(mat3(modelMatrix * skinMatrix)));

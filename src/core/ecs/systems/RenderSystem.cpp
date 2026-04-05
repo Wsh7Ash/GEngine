@@ -516,13 +516,19 @@ struct ScopedProfileTimer {
                  shader->SetFloat(base + "Range", lc.Range);
              }
  
-             if (primaryLight != ecs::INVALID_ENTITY) {
-                 shader->SetMat4("u_LightSpaceMatrix", lightSpaceMatrix);
-                 uint32_t shadowSlot = 10;
-                 glActiveTexture(GL_TEXTURE0 + shadowSlot);
-                 glBindTexture(GL_TEXTURE_2D, shadowMap_->GetDepthAttachmentRendererID());
-                 shader->SetInt("u_ShadowMap", (int)shadowSlot);
-             }
+              if (primaryLight != ecs::INVALID_ENTITY) {
+                  shader->SetInt("u_CSMCount", csmCount_);
+                  shader->SetFloat("u_ShadowMapSize", (float)csmShadowMapSize_);
+                  
+                  for (int i = 0; i < csmCount_ && i < MAX_CSM_CASCADES; i++) {
+                      shader->SetMat4("u_LightSpaceMatrices[" + std::to_string(i) + "]", csmLightSpaceMatrices_[i]);
+                      shader->SetFloat("u_CSMSplitDepths[" + std::to_string(i) + "]", csmSplitDepths_[i]);
+                      
+                      glActiveTexture(GL_TEXTURE10 + i);
+                      glBindTexture(GL_TEXTURE_2D, csmFramebuffers_[i]->GetDepthAttachmentRendererID());
+                      shader->SetInt("u_ShadowMaps[" + std::to_string(i) + "]", 10 + i);
+                  }
+              }
  
              // Bind SSAO texture (Slot 5)
              if (settings_.EnableSSAO) {
@@ -977,7 +983,15 @@ struct ScopedProfileTimer {
           float scale = splitDist / camFar;
           float orthoSize = frustumSize * scale * 2.0f;
 
+          // Stable shadow: snap light position to texel grid
+          float shadowMapSize = (float)csmShadowMapSize_;
+          float alignToTexel = 100.0f;
+          Math::Vec3f snapOffset = {0, 0, 0};
+          snapOffset.x = std::fmod(camera3D_->GetPosition().x, alignToTexel);
+          snapOffset.y = std::fmod(camera3D_->GetPosition().y, alignToTexel);
+
           Math::Vec3f eye = camera3D_->GetPosition() - lightDir * 100.0f;
+          eye -= snapOffset;
           Math::Vec3f center = camera3D_->GetPosition();
           Math::Mat4f lightView = Math::Mat4f::LookAt(eye, center, { 0, 1, 0 });
           Math::Mat4f lightProj = Math::Mat4f::Orthographic(-orthoSize, orthoSize, -orthoSize, orthoSize, 0.1f, 200.0f);
