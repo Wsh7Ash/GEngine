@@ -15,6 +15,7 @@ set(GE_TEST_SOURCES
     integration/test_ecs.cpp
     integration/test_network.cpp
     integration/test_network_soak.cpp
+    integration/test_physics_regression.cpp
     integration/test_render_regression.cpp
 
     # Stress tests
