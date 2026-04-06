@@ -39,6 +39,8 @@ namespace renderer {
         bool IsUsingSPIRV() const { return useSPIRV_; }
         const std::string& GetFilepath() const { return filepath_; }
 
+        virtual bool Reload() override;
+
     private:
         std::unordered_map<unsigned int, std::string> PreProcess(const std::string& source);
         uint32_t CreateProgram(const std::string& vertexSource, const std::string& fragmentSource);

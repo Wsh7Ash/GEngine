@@ -386,5 +386,93 @@ int DX11Shader::GetUniformOffset(const std::string& name)
     return uniformOffset_[name];
 }
 
+bool DX11Shader::Reload()
+{
+    GE_LOG_INFO("Reloading DX11 shader: %s", filepath_.c_str());
+    
+    ID3D11VertexShader* oldVertexShader = vertexShader_;
+    ID3D11PixelShader* oldPixelShader = pixelShader_;
+    ID3D11InputLayout* oldInputLayout = inputLayout_;
+    
+    std::string source = core::VFS::ReadString(filepath_);
+    if (source.empty()) {
+        GE_LOG_ERROR("DX11Shader reload failed: Failed to read shader file");
+        return false;
+    }
+    
+    std::string vertexSource;
+    std::string pixelSource;
+    
+    const char* typeToken = "#type";
+    size_t typeTokenLength = strlen(typeToken);
+    size_t pos = source.find(typeToken);
+    
+    while (pos != std::string::npos) {
+        size_t eol = source.find_first_of("\r\n", pos);
+        size_t begin = pos + typeTokenLength + 1;
+        std::string type = source.substr(begin, eol - begin);
+        
+        size_t nextPos = source.find(typeToken, eol);
+        std::string shaderSource = (nextPos == std::string::npos) ? source.substr(eol) : source.substr(eol, nextPos - eol);
+        
+        if (type == "vertex") {
+            vertexSource = shaderSource;
+        } else if (type == "pixel" || type == "fragment") {
+            pixelSource = shaderSource;
+        }
+        
+        pos = nextPos;
+    }
+    
+    ID3DBlob* vertexBlob = CompileShaderFromSource(vertexSource.c_str(), "main", "vs_5_0");
+    if (!vertexBlob) {
+        GE_LOG_ERROR("DX11Shader reload failed: Failed to compile vertex shader");
+        return false;
+    }
+    
+    ID3DBlob* pixelBlob = CompileShaderFromSource(pixelSource.c_str(), "main", "ps_5_0");
+    if (!pixelBlob) {
+        vertexBlob->Release();
+        GE_LOG_ERROR("DX11Shader reload failed: Failed to compile pixel shader");
+        return false;
+    }
+    
+    HRESULT hr;
+    auto* device = DX11Context::GetDevice();
+    
+    ID3D11VertexShader* newVertexShader = nullptr;
+    hr = device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), nullptr, &newVertexShader);
+    if (FAILED(hr)) {
+        vertexBlob->Release();
+        pixelBlob->Release();
+        GE_LOG_ERROR("DX11Shader reload failed: Failed to create vertex shader");
+        return false;
+    }
+    
+    ID3D11PixelShader* newPixelShader = nullptr;
+    hr = device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), nullptr, &newPixelShader);
+    if (FAILED(hr)) {
+        vertexBlob->Release();
+        pixelBlob->Release();
+        if (newVertexShader) newVertexShader->Release();
+        GE_LOG_ERROR("DX11Shader reload failed: Failed to create pixel shader");
+        return false;
+    }
+    
+    CreateInputLayout(vertexBlob);
+    vertexBlob->Release();
+    pixelBlob->Release();
+    
+    if (oldVertexShader) oldVertexShader->Release();
+    if (oldPixelShader) oldPixelShader->Release();
+    if (oldInputLayout) oldInputLayout->Release();
+    
+    vertexShader_ = newVertexShader;
+    pixelShader_ = newPixelShader;
+    
+    GE_LOG_INFO("DX11Shader reloaded successfully: %s", filepath_.c_str());
+    return true;
+}
+
 } // namespace renderer
 } // namespace ge

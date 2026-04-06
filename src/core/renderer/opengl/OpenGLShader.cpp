@@ -336,5 +336,47 @@ OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fra
         }
     }
 
+    bool OpenGLShader::Reload()
+    {
+        GE_LOG_INFO("Reloading shader: %s", filepath_.c_str());
+        
+        uint32_t oldRendererID = rendererID_;
+        std::string oldVertexSource = vertexSource_;
+        std::string oldFragmentSource = fragmentSource_;
+        
+        try {
+            std::string newSource = ReadFile(filepath_);
+            auto sources = PreProcess(newSource);
+            
+            if (sources.size() < 2) {
+                GE_LOG_ERROR("Shader reload failed: Not enough shader stages in %s", filepath_.c_str());
+                return false;
+            }
+            
+            uint32_t newProgram = CreateProgram(sources[GL_VERTEX_SHADER], sources[GL_FRAGMENT_SHADER]);
+            
+            if (newProgram == 0) {
+                GE_LOG_ERROR("Shader reload failed: Failed to compile new shader");
+                return false;
+            }
+            
+            glDeleteProgram(oldRendererID);
+            rendererID_ = newProgram;
+            uniformLocationCache_.clear();
+            
+            std::string variantKey = currentVariantKey_;
+            if (!variantKey.empty() && variantProgramCache_.find(variantKey) != variantProgramCache_.end()) {
+                variantProgramCache_[variantKey] = newProgram;
+            }
+            
+            GE_LOG_INFO("Shader reloaded successfully: %s", filepath_.c_str());
+            return true;
+        }
+        catch (const std::exception& e) {
+            GE_LOG_ERROR("Shader reload failed with exception: %s", e.what());
+            return false;
+        }
+    }
+
 } // namespace renderer
 } // namespace ge

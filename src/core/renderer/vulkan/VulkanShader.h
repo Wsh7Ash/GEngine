@@ -30,6 +30,8 @@ public:
     void SetMat4(const std::string& name, const Math::Mat4f& value) override;
     void SetMat4Array(const std::string& name, const Math::Mat4f* values, uint32_t count) override;
 
+    virtual bool Reload() override;
+
     virtual void UseVariant(const std::string& key) override;
 
     VkPipeline GetPipeline() const { return pipeline_; }

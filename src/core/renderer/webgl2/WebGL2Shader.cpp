@@ -165,5 +165,86 @@ void WebGL2Shader::SetMat4Array(const std::string& name, const Math::Mat4f* valu
     glUniformMatrix4fv(GetUniformLocation(name), count, GL_FALSE, &values[0][0][0]);
 }
 
+bool WebGL2Shader::Reload()
+{
+    GE_LOG_INFO("Reloading WebGL2 shader: %s", filepath_.c_str());
+    
+    uint32_t oldRendererID = rendererID_;
+    
+    std::string source = core::VFS::Get().ReadString(filepath_);
+    if (source.empty()) {
+        GE_LOG_ERROR("WebGL2Shader reload failed: Failed to read shader file");
+        return false;
+    }
+    
+    std::string vertexSource;
+    std::string fragmentSource;
+    
+    const char* typeToken = "#type";
+    size_t typeTokenLength = strlen(typeToken);
+    size_t pos = source.find(typeToken);
+    
+    while (pos != std::string::npos) {
+        size_t eol = source.find_first_of("\r\n", pos);
+        size_t begin = pos + typeTokenLength + 1;
+        std::string type = source.substr(begin, eol - begin);
+        
+        size_t nextPos = source.find(typeToken, eol);
+        std::string shaderSource = (nextPos == std::string::npos) ? source.substr(eol) : source.substr(eol, nextPos - eol);
+        
+        if (type == "vertex") {
+            vertexSource = shaderSource;
+        } else if (type == "pixel" || type == "fragment") {
+            fragmentSource = shaderSource;
+        }
+        
+        pos = nextPos;
+    }
+    
+    if (vertexSource.empty() || fragmentSource.empty()) {
+        GE_LOG_ERROR("WebGL2Shader reload failed: Missing vertex or fragment shader");
+        return false;
+    }
+    
+    uint32_t newProgram = glCreateProgram();
+    uint32_t vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSource);
+    uint32_t fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSource);
+    
+    if (vertexShader == 0 || fragmentShader == 0) {
+        if (vertexShader) glDeleteShader(vertexShader);
+        if (fragmentShader) glDeleteShader(fragmentShader);
+        if (newProgram) glDeleteProgram(newProgram);
+        GE_LOG_ERROR("WebGL2Shader reload failed: Failed to compile shaders");
+        return false;
+    }
+    
+    glAttachShader(newProgram, vertexShader);
+    glAttachShader(newProgram, fragmentShader);
+    glLinkProgram(newProgram);
+    
+    int success;
+    glGetProgramiv(newProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(newProgram, 512, nullptr, infoLog);
+        GE_LOG_ERROR("WebGL2Shader reload failed: %s", infoLog);
+        
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+        glDeleteProgram(newProgram);
+        return false;
+    }
+    
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    glDeleteProgram(oldRendererID);
+    
+    rendererID_ = newProgram;
+    uniformLocationCache_.clear();
+    
+    GE_LOG_INFO("WebGL2Shader reloaded successfully: %s", filepath_.c_str());
+    return true;
+}
+
 } // namespace renderer
 } // namespace ge
