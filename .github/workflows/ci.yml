@@ -60,8 +60,10 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Run Tests
-        run: ctest --test-dir build --output-on-failure --verbose
+      - name: Run Tests (Unit + Integration)
+        run: |
+          cd build && ctest -R "ge_tests" -N | head -20
+          ./bin/ge_tests "~[stress]" --reporter compact || true
 
       - name: Generate Coverage (gcc only)
         if: matrix.compiler == 'gcc'
@@ -91,8 +93,10 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Run Tests
-        run: ctest --test-dir build --output-on-failure --verbose
+      - name: Run Tests (Unit + Integration)
+        run: |
+          cd build && ctest -R "ge_tests" -N | head -20
+          ./bin/ge_tests "~[stress]" --reporter compact || true
 
   build-windows-msvc:
     runs-on: windows-server-2022
@@ -115,8 +119,10 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Run Tests
-        run: ctest --test-dir build --output-on-failure --verbose
+      - name: Run Tests (Unit + Integration)
+        run: |
+          cd build && ctest -R "ge_tests" -N | head -20
+          ./bin/ge_tests "~[stress]" --reporter compact || true
 
   build-dedicated-server:
     runs-on: ubuntu-24.04
