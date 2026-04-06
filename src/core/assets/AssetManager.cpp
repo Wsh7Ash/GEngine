@@ -4,8 +4,11 @@
 #include "TextureAsset.h"
 #include "SceneAsset.h"
 #include "ModelAsset.h"
+#include "ShaderAsset.h"
 #include "../renderer/Texture.h"
 #include "../renderer/Model.h"
+#include "../renderer/Shader.h"
+#include <filesystem>
 
 namespace ge {
 namespace assets {
@@ -65,8 +68,59 @@ namespace assets {
 
     std::shared_ptr<Asset> AssetManager::GetAssetInternal(AssetHandle handle)
     {
+        // Check if asset is already loaded
         if (IsAssetLoaded(handle))
+        {
+            // Check if file has been modified since last load
+            const auto& metadata = GetMetadata(handle);
+            if (metadata)
+            {
+                std::filesystem::file_time_type currentWriteTime = std::filesystem::last_write_time(metadata.FilePath);
+                if (currentWriteTime > metadata.LastWriteTime)
+                {
+                    // File has been modified, attempt to reload
+                    GE_LOG_INFO("AssetManager: Detected file change for asset %llu (%s), attempting reload...", 
+                               (uint64_t)handle, metadata.FilePath.string().c_str());
+                    
+                    auto loadedAsset = s_LoadedAssets[handle];
+                    bool reloadSuccess = false;
+                    
+                    switch (metadata.Type)
+                    {
+                        case AssetType::Shader:
+                        {
+                            auto shaderAsset = std::static_pointer_cast<ShaderAsset>(loadedAsset);
+                            reloadSuccess = shaderAsset->Shader->Reload();
+                            break;
+                        }
+                        case AssetType::Texture:
+                        {
+                            auto textureAsset = std::static_pointer_cast<TextureAsset>(loadedAsset);
+                            reloadSuccess = textureAsset->Texture->Reload();
+                            break;
+                        }
+                        default:
+                            // For other asset types, we'll fall through to reload by creating new asset
+                            break;
+                    }
+                    
+                    if (reloadSuccess)
+                    {
+                        // Update metadata with new write time
+                        AssetManager::s_AssetRegistry[handle].LastWriteTime = currentWriteTime;
+                        GE_LOG_INFO("AssetManager: Successfully reloaded asset %llu", (uint64_t)handle);
+                        return loadedAsset;
+                    }
+                    else
+                    {
+                        GE_LOG_WARNING("AssetManager: Failed to reload asset %llu, keeping previous version", (uint64_t)handle);
+                        // Return existing asset since reload failed
+                        return loadedAsset;
+                    }
+                }
+            }
             return s_LoadedAssets[handle];
+        }
         
         const auto& metadata = GetMetadata(handle);
         if (!metadata)
@@ -94,6 +148,12 @@ namespace assets {
             {
                 auto model = std::make_shared<renderer::Model>(metadata.FilePath.string());
                 asset = std::make_shared<ModelAsset>(model);
+                break;
+            }
+            case AssetType::Shader:
+            {
+                auto shader = renderer::Shader::Create(metadata.FilePath.string());
+                asset = std::make_shared<ShaderAsset>(shader);
                 break;
             }
             default:

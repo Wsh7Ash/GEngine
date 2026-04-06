@@ -14,6 +14,7 @@ namespace assets {
         AssetHandle Handle;
         AssetType Type = AssetType::None;
         std::filesystem::path FilePath;
+        std::filesystem::file_time_type LastWriteTime;
 
         operator bool() const { return Type != AssetType::None; }
     };

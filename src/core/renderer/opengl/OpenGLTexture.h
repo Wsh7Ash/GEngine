@@ -22,6 +22,8 @@ namespace renderer {
 
         virtual bool operator==(const Texture& other) const override { return rendererID_ == ((OpenGLTexture&)other).rendererID_; }
 
+        virtual bool Reload() override;
+
     private:
         std::string path_;
         uint32_t width_, height_;

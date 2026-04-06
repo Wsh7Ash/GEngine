@@ -26,12 +26,18 @@ namespace renderer {
         virtual void SetVec3(const std::string& name, const Math::Vec3f& value) = 0;
         virtual void SetVec4(const std::string& name, const Math::Vec4f& value) = 0;
         virtual void SetMat4(const std::string& name, const Math::Mat4f& value) = 0;
-        virtual void SetMat4Array(const std::string& name, const Math::Mat4f* values, uint32_t count) = 0;
+    virtual void SetMat4Array(const std::string& name, const Math::Mat4f* values, uint32_t count) = 0;
 
-        /**
-         * @brief Factory method to create a shader of the current API type from a single unified file.
-         */
-        static std::shared_ptr<Shader> Create(const std::string& filepath);
+    /**
+     * @brief Reloads the shader from its source file.
+     * @return True if reload was successful, false otherwise.
+     */
+    virtual bool Reload() = 0;
+
+    /**
+     * @brief Factory method to create a shader of the current API type from a single unified file.
+     */
+    static std::shared_ptr<Shader> Create(const std::string& filepath);
 
         /**
          * @brief Factory method to create a shader of the current API type from two files.

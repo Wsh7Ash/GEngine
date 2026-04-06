@@ -22,12 +22,18 @@ namespace renderer {
         virtual uint32_t GetHeight() const = 0;
         virtual uint32_t GetID() const = 0;
 
-        virtual bool operator==(const Texture& other) const = 0;
+    virtual bool operator==(const Texture& other) const = 0;
 
-        /**
-         * @brief Factory method to create a texture from a file.
-         */
-        static std::shared_ptr<Texture> Create(const std::string& path, bool hdr = false);
+    /**
+     * @brief Reloads the texture from its source file.
+     * @return True if reload was successful, false otherwise.
+     */
+    virtual bool Reload() = 0;
+
+    /**
+     * @brief Factory method to create a texture from a file.
+     */
+    static std::shared_ptr<Texture> Create(const std::string& path, bool hdr = false);
         
         /**
          * @brief Factory method to create a raw texture from memory data.

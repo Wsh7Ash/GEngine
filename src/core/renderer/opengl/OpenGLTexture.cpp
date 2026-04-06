@@ -1,6 +1,7 @@
 #include "OpenGLTexture.h"
 #include "../../debug/log.h"
 #include "../../debug/assert.h"
+#include <glad/glad.h>
 
 // Define STB_IMAGE_IMPLEMENTATION is in stb_image_impl.cpp
 #include "../../../../deps/stb/stb_image.h"
@@ -104,6 +105,78 @@ namespace renderer {
     void OpenGLTexture::Unbind() const
     {
         glBindTextureUnit(0, 0);
+    }
+
+    bool OpenGLTexture::Reload()
+    {
+        GE_LOG_INFO("Reloading texture: %s", path_.c_str());
+        
+        // Load new texture data
+        auto buffer = core::VFS::ReadBinary(path_);
+        if (buffer.empty())
+        {
+            GE_LOG_ERROR("Failed to reload texture: %s", path_.c_str());
+            return false;
+        }
+
+        bool isHDR = path_.substr(path_.find_last_of(".") + 1) == "hdr";
+        
+        int width, height, channels;
+        stbi_set_flip_vertically_on_load(1);
+        
+        void* data = nullptr;
+        if (isHDR)
+            data = stbi_loadf_from_memory(buffer.data(), (int)buffer.size(), &width, &height, &channels, 0);
+        else
+            data = stbi_load_from_memory(buffer.data(), (int)buffer.size(), &width, &height, &channels, 0);
+
+        if (!data)
+        {
+            GE_LOG_ERROR("Failed to decode texture during reload: %s", path_.c_str());
+            return false;
+        }
+
+        // Validate dimensions match
+        if (width != width_ || height != height_)
+        {
+            GE_LOG_ERROR("Texture dimensions changed during reload: %s (%dx%d -> %dx%d)", 
+                        path_.c_str(), width_, height_, width, height);
+            stbi_image_free(data);
+            return false;
+        }
+
+        // Validate format matches
+        GLenum type = isHDR ? GL_FLOAT : GL_UNSIGNED_BYTE;
+        GLenum newInternalFormat = GL_RGB16F;
+        GLenum newDataFormat = GL_RGB;
+        
+        if (!isHDR)
+        {
+            if (channels == 4)
+            {
+                newInternalFormat = GL_RGBA8;
+                newDataFormat = GL_RGBA;
+            }
+            else if (channels == 3)
+            {
+                newInternalFormat = GL_RGB8;
+                newDataFormat = GL_RGB;
+            }
+        }
+
+        if (newInternalFormat != internalFormat_ || newDataFormat != dataFormat_)
+        {
+            GE_LOG_ERROR("Texture format changed during reload: %s", path_.c_str());
+            stbi_image_free(data);
+            return false;
+        }
+
+        // Update texture data
+        glTextureSubImage2D(rendererID_, 0, 0, 0, width_, height_, dataFormat_, type, data);
+        stbi_image_free(data);
+        
+        GE_LOG_INFO("Successfully reloaded texture: %s", path_.c_str());
+        return true;
     }
 
 } // namespace renderer
