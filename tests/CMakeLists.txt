@@ -14,6 +14,7 @@ set(GE_TEST_SOURCES
     # Integration tests
     integration/test_ecs.cpp
     integration/test_network.cpp
+    integration/test_render_regression.cpp
 
     # Stress tests
     stress/test_thread_safety.cpp
