@@ -31,6 +31,11 @@ struct NetworkEntity {
     uint32_t ownerClientId = 0;
     uint16_t version = 0;
     std::string prefabName;
+
+    float viewDistance = 100.0f;
+    float importance = 1.0f;
+    bool static_ = false;
+    uint8_t replicationLayer = 0;
 };
 
 } // namespace ecs

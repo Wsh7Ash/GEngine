@@ -20,6 +20,7 @@ set(GE_TEST_SOURCES
     integration/test_localization.cpp
     integration/test_audio.cpp
     integration/test_network_security.cpp
+    integration/test_interest.cpp
 
     # Stress tests
     stress/test_thread_safety.cpp

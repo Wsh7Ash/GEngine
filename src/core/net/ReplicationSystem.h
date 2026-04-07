@@ -10,6 +10,7 @@
 #include "ComponentSerializer.h"
 #include "NetworkEntity.h"
 #include "NetworkMode.h"
+#include "InterestManager.h"
 #include <memory>
 #include <vector>
 #include <unordered_map>
@@ -68,6 +69,9 @@ public:
     const DirtyTracker& GetDirtyTracker() const { return dirtyTracker_; }
     DirtyTracker& GetDirtyTracker() { return dirtyTracker_; }
 
+    void SetInterestManager(InterestManager* manager) { interestManager_ = manager; }
+    InterestManager* GetInterestManager() const { return interestManager_; }
+
 private:
     ReplicationSystem();
     ~ReplicationSystem() = default;
@@ -77,11 +81,13 @@ private:
     void SerializeComponent(uint32_t entityId, ComponentTypeID compTypeId, NetworkSerializer& serializer);
     void SendToClient(uint32_t clientId, const ReplicationEvent& event);
     void BroadcastEvent(const ReplicationEvent& event);
+    void SendToInterestedClients(uint32_t entityId, const ReplicationEvent& event);
 
     ecs::World* world_ = nullptr;
     NetworkManager* networkManager_ = nullptr;
     ReplicationManager* replicationManager_ = nullptr;
     DirtyTracker dirtyTracker_;
+    InterestManager* interestManager_ = nullptr;
 
     float replicationRate_ = 30.0f;
     float replicationInterval_ = 1.0f / 30.0f;
