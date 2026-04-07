@@ -5,10 +5,11 @@
 //  Server-specific application lifecycle (no graphics/window).
 // ================================================================
 
-#include "src/core/ecs/World.h"
-#include "src/core/net/NetworkManager.h"
-#include "src/core/net/NetworkMode.h"
-#include "src/core/net/ReplicationManager.h"
+#include "../core/ecs/World.h"
+#include "../core/net/NetworkManager.h"
+#include "../core/net/NetworkMode.h"
+#include "../core/net/ReplicationManager.h"
+
 #include <memory>
 #include <string>
 #include <vector>

@@ -1,7 +1,33 @@
 #include "ServerApplication.h"
-#include "core/debug/log.h"
+#include "../core/debug/log.h"
+#include "../core/ecs/systems/Physics2DSystem.h"
+#include "../core/ecs/systems/Physics3DSystem.h"
+#include "../core/ecs/systems/ScriptSystem.h"
+#include "../core/ecs/systems/BehaviorTreeSystem.h"
+#include "../core/ecs/systems/VisualScriptSystem.h"
+#include "../core/ecs/systems/BuoyancySystem.h"
+#include "../core/ecs/systems/VehicleSystem.h"
+#include "../core/ecs/systems/DestructibleSystem.h"
+#include "../core/ecs/systems/ClothSystem.h"
+#include "../core/ecs/systems/AnimationSystem.h"
+#include "../core/ecs/systems/ParticleSystem.h"
+
+#include "../core/ecs/components/Rigidbody2DComponent.h"
+#include "../core/ecs/components/Rigidbody3DComponent.h"
+#include "../core/ecs/components/NativeScriptComponent.h"
+#include "../core/behaviortree/BehaviorTreeComponent.h"
+#include "../core/visualscripting/VisualScriptComponent.h"
+#include "../core/ecs/components/BuoyancyComponent.h"
+#include "../core/ecs/components/VehicleComponent.h"
+#include "../core/ecs/components/JointComponent.h"
+#include "../core/ecs/components/ClothComponent.h"
+#include "../core/ecs/components/AnimatorComponent.h"
+#include "../core/ecs/components/ParticleEmitterComponent.h"
+#include "../core/ecs/components/TransformComponent.h"
+
 #include <chrono>
 #include <thread>
+#include <bitset>
 
 namespace ge {
 
@@ -10,6 +36,90 @@ ServerApplication::ServerApplication()
     net::SetGameState(net::GameState::Server);
     networkManager_ = std::make_unique<net::NetworkManager>();
     replicationManager_ = std::make_unique<net::ReplicationManager>();
+
+    std::bitset<128> signature;
+
+    auto physics2DSystem = world_->RegisterSystem<ecs::Physics2DSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::Rigidbody2DComponent>());
+        signature.set(ecs::GetComponentTypeID<ecs::TransformComponent>());
+        world_->SetSystemSignature<ecs::Physics2DSystem>(signature);
+    }
+
+    auto physics3DSystem = world_->RegisterSystem<ecs::Physics3DSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::Rigidbody3DComponent>());
+        signature.set(ecs::GetComponentTypeID<ecs::TransformComponent>());
+        world_->SetSystemSignature<ecs::Physics3DSystem>(signature);
+    }
+
+    auto scriptSystem = world_->RegisterSystem<ecs::ScriptSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::NativeScriptComponent>());
+        world_->SetSystemSignature<ecs::ScriptSystem>(signature);
+    }
+
+    auto behaviorTreeSystem = world_->RegisterSystem<ecs::BehaviorTreeSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::BehaviorTreeComponent>());
+        world_->SetSystemSignature<ecs::BehaviorTreeSystem>(signature);
+    }
+
+    auto visualScriptSystem = world_->RegisterSystem<ecs::VisualScriptSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::VisualScriptComponent>());
+        world_->SetSystemSignature<ecs::VisualScriptSystem>(signature);
+    }
+
+    auto buoyancySystem = world_->RegisterSystem<ecs::BuoyancySystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::BuoyancyComponent>());
+        signature.set(ecs::GetComponentTypeID<ecs::WaterVolumeComponent>());
+        world_->SetSystemSignature<ecs::BuoyancySystem>(signature);
+    }
+
+    auto vehicleSystem = world_->RegisterSystem<ecs::VehicleSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::VehicleComponent>());
+        world_->SetSystemSignature<ecs::VehicleSystem>(signature);
+    }
+
+    auto destructibleSystem = world_->RegisterSystem<ecs::DestructibleSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::DestructibleComponent>());
+        world_->SetSystemSignature<ecs::DestructibleSystem>(signature);
+    }
+
+    auto clothSystem = world_->RegisterSystem<ecs::ClothSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::ClothComponent>());
+        world_->SetSystemSignature<ecs::ClothSystem>(signature);
+    }
+
+    auto animationSystem = world_->RegisterSystem<ecs::AnimationSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::AnimatorComponent>());
+        world_->SetSystemSignature<ecs::AnimationSystem>(signature);
+    }
+
+    auto particleSystem = world_->RegisterSystem<ecs::ParticleSystem>();
+    {
+        signature.reset();
+        signature.set(ecs::GetComponentTypeID<ecs::ParticleEmitterComponent>());
+        world_->SetSystemSignature<ecs::ParticleSystem>(signature);
+    }
+
+    debug::log::info("[Server] Registered {} systems", 11);
 }
 
 ServerApplication::~ServerApplication() {
@@ -87,6 +197,18 @@ void ServerApplication::InitializeServer() {
 }
 
 void ServerApplication::Update(float dt) {
+    world_->GetSystem<ecs::Physics2DSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::Physics3DSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::ScriptSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::BehaviorTreeSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::VisualScriptSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::BuoyancySystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::VehicleSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::DestructibleSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::ClothSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::AnimationSystem>()->Update(*world_, dt);
+    world_->GetSystem<ecs::ParticleSystem>()->Update(*world_, dt);
+
     networkManager_->Update(dt);
     replicationManager_->Update(dt);
     OnUpdate(dt);
