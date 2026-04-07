@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include "../../math/VecTypes.h"
+#include "../../audio/AudioCategory.h"
 
 namespace ge {
 namespace ecs {
@@ -46,6 +47,8 @@ struct AudioSourceComponent {
     bool  Loop     = false;
     bool  PlayOnAwake = false;
     bool  Is3D     = false;
+
+    audio::AudioCategory Category = audio::AudioCategory::SFX;
 
     float MinDistance = 1.0f;
     float MaxDistance = 100.0f;
