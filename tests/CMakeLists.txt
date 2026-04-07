@@ -18,6 +18,7 @@ set(GE_TEST_SOURCES
     integration/test_physics_regression.cpp
     integration/test_render_regression.cpp
     integration/test_localization.cpp
+    integration/test_audio.cpp
 
     # Stress tests
     stress/test_thread_safety.cpp
