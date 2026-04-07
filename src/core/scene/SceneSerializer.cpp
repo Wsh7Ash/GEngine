@@ -310,5 +310,193 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
   return true;
 }
 
+bool SceneSerializer::SerializeWithHeader(const std::string& filepath, const savegame::SaveGameHeader& header) {
+    json root;
+    root["Header"] = {
+        {"version", header.version},
+        {"timestamp", header.timestamp},
+        {"sceneName", header.sceneName},
+        {"engineVersion", header.engineVersion}
+    };
+    root["Scene"] = header.sceneName;
+    root["Entities"] = json::array();
+
+    try {
+        for (auto const& entity : world_.Query<ecs::TagComponent>()) {
+            json entityJson;
+            
+            if (world_.HasComponent<ecs::IDComponent>(entity)) {
+                entityJson["UUID"] = (uint64_t)world_.GetComponent<ecs::IDComponent>(entity).ID;
+            }
+            if (world_.HasComponent<ecs::TagComponent>(entity)) {
+                entityJson["Tag"] = world_.GetComponent<ecs::TagComponent>(entity).tag;
+            }
+            if (world_.HasComponent<ecs::TransformComponent>(entity)) {
+                auto& tc = world_.GetComponent<ecs::TransformComponent>(entity);
+                entityJson["Transform"] = {
+                    {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
+                    {"Rotation", {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
+                    {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}
+                };
+            }
+            root["Entities"].push_back(entityJson);
+        }
+
+        std::string jsonStr = root.dump(4);
+        uint32_t checksum = savegame::SaveGameChecksum::Calculate(jsonStr);
+
+        std::ofstream fout(filepath, std::ios::binary);
+        if (!fout.is_open()) {
+            GE_LOG_ERROR("Could not open file for scene serialization: %s", filepath.c_str());
+            return false;
+        }
+
+        savegame::SaveGameHeader outHeader = header;
+        outHeader.payloadSize = static_cast<uint32_t>(jsonStr.size());
+        outHeader.checksum = checksum;
+        outHeader.sceneDataSize = outHeader.payloadSize;
+
+        fout.write(reinterpret_cast<const char*>(&outHeader), sizeof(savegame::SaveGameHeader));
+        fout.write(jsonStr.c_str(), jsonStr.size());
+
+        GE_LOG_INFO("Scene serialized with header to %s (version: %u, checksum: %u)", 
+                    filepath.c_str(), outHeader.version, outHeader.checksum);
+        return true;
+    } catch (const std::exception& e) {
+        GE_LOG_ERROR("Scene serialization with header failed: %s", e.what());
+        return false;
+    }
+}
+
+bool SceneSerializer::DeserializeWithHeader(const std::string& filepath, savegame::SaveGameHeader& outHeader) {
+    std::ifstream fin(filepath, std::ios::binary);
+    if (!fin.is_open()) {
+        GE_LOG_ERROR("Could not open save file: %s", filepath.c_str());
+        return false;
+    }
+
+    fin.read(reinterpret_cast<char*>(&outHeader), sizeof(savegame::SaveGameHeader));
+
+    if (!outHeader.IsCompatible()) {
+        GE_LOG_ERROR("Incompatible save version: %u (current: %u)", 
+                     outHeader.version, savegame::SAVEGAME_CURRENT_VERSION);
+        return false;
+    }
+
+    std::string jsonData(outHeader.sceneDataSize, ' ');
+    fin.read(&jsonData[0], outHeader.sceneDataSize);
+
+    uint32_t computedChecksum = savegame::SaveGameChecksum::Calculate(jsonData);
+    if (computedChecksum != outHeader.checksum) {
+        GE_LOG_ERROR("Save file checksum mismatch! Expected: %u, Got: %u", 
+                     outHeader.checksum, computedChecksum);
+        return false;
+    }
+
+    json data = json::parse(jsonData);
+    
+    if (!data.contains("Entities")) {
+        GE_LOG_ERROR("Save file has no entities");
+        return false;
+    }
+
+    for (auto& entityData : data["Entities"]) {
+        ecs::Entity entity;
+        if (entityData.contains("UUID")) {
+            uint64_t uuid = entityData["UUID"];
+            entity = world_.CreateEntityWithUUID(uuid);
+        } else {
+            entity = world_.CreateEntity();
+        }
+
+        if (entityData.contains("Tag")) {
+            world_.AddComponent(entity, ecs::TagComponent{entityData["Tag"]});
+        }
+        if (entityData.contains("Transform")) {
+            auto& tData = entityData["Transform"]["Translation"];
+            auto& rData = entityData["Transform"]["Rotation"];
+            auto& sData = entityData["Transform"]["Scale"];
+
+            ecs::TransformComponent tc;
+            tc.position = {(float)tData[0], (float)tData[1], (float)tData[2]};
+            tc.rotation = {(float)rData[0], (float)rData[1], (float)rData[2], (float)rData[3]};
+            tc.scale = {(float)sData[0], (float)sData[1], (float)sData[2]};
+            world_.AddComponent(entity, tc);
+        }
+    }
+
+    GE_LOG_INFO("Scene deserialized from %s (version: %u)", filepath.c_str(), outHeader.version);
+    return true;
+}
+
+std::string SceneSerializer::SerializeToString() {
+    json root;
+    root["Scene"] = "Untitled";
+    root["Version"] = savegame::SAVEGAME_CURRENT_VERSION;
+    root["Entities"] = json::array();
+
+    for (auto const& entity : world_.Query<ecs::TagComponent>()) {
+        json entityJson;
+        if (world_.HasComponent<ecs::IDComponent>(entity)) {
+            entityJson["UUID"] = (uint64_t)world_.GetComponent<ecs::IDComponent>(entity).ID;
+        }
+        if (world_.HasComponent<ecs::TagComponent>(entity)) {
+            entityJson["Tag"] = world_.GetComponent<ecs::TagComponent>(entity).tag;
+        }
+        if (world_.HasComponent<ecs::TransformComponent>(entity)) {
+            auto& tc = world_.GetComponent<ecs::TransformComponent>(entity);
+            entityJson["Transform"] = {
+                {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
+                {"Rotation", {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
+                {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}
+            };
+        }
+        root["Entities"].push_back(entityJson);
+    }
+
+    return root.dump(4);
+}
+
+bool SceneSerializer::DeserializeFromString(const std::string& data) {
+    try {
+        json root = json::parse(data);
+        
+        if (!root.contains("Entities")) {
+            GE_LOG_ERROR("Invalid scene data: no Entities field");
+            return false;
+        }
+
+        for (auto& entityData : root["Entities"]) {
+            ecs::Entity entity;
+            if (entityData.contains("UUID")) {
+                uint64_t uuid = entityData["UUID"];
+                entity = world_.CreateEntityWithUUID(uuid);
+            } else {
+                entity = world_.CreateEntity();
+            }
+
+            if (entityData.contains("Tag")) {
+                world_.AddComponent(entity, ecs::TagComponent{entityData["Tag"]});
+            }
+            if (entityData.contains("Transform")) {
+                auto& tData = entityData["Transform"]["Translation"];
+                auto& rData = entityData["Transform"]["Rotation"];
+                auto& sData = entityData["Transform"]["Scale"];
+
+                ecs::TransformComponent tc;
+                tc.position = {(float)tData[0], (float)tData[1], (float)tData[2]};
+                tc.rotation = {(float)rData[0], (float)rData[1], (float)rData[2], (float)rData[3]};
+                tc.scale = {(float)sData[0], (float)sData[1], (float)sData[2]};
+                world_.AddComponent(entity, tc);
+            }
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        GE_LOG_ERROR("Scene deserialization from string failed: %s", e.what());
+        return false;
+    }
+}
+
 } // namespace scene
 } // namespace ge
