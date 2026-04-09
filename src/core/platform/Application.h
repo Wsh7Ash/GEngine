@@ -12,9 +12,10 @@ struct ApplicationProps {
     uint32_t Height = 720;
 };
 
-/**
- * @brief Main application class that manages the engine lifecycle.
- */
+namespace debug {
+    class FrameBudgetProfiler;
+}
+
 class Application {
 public:
     Application(const ApplicationProps& props);
@@ -28,9 +29,12 @@ public:
 
     static Application& Get() { return *instance_; }
 
+    debug::FrameBudgetProfiler* GetFrameProfiler() { return frameProfiler_; }
+
 private:
     std::unique_ptr<platform::Window> window_;
     std::unique_ptr<ecs::World> world_;
+    debug::FrameBudgetProfiler* frameProfiler_ = nullptr;
     bool running_ = true;
 
     static Application* instance_;

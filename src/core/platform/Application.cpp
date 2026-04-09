@@ -6,6 +6,7 @@
 #include "../renderer/Renderer2D.h"
 #include "../renderer/ShaderVariantManager.h"
 #include "../debug/log.h"
+#include "../debug/FrameBudgetProfiler.h"
 #include "VFS.h"
 
 #include "../ecs/World.h"
@@ -51,6 +52,9 @@ Application::Application(const ApplicationProps& props) {
     
     window_ = std::make_unique<ge::platform::Window>(ge::platform::WindowProps(props.Name, props.Width, props.Height));
     world_ = std::make_unique<ge::ecs::World>();
+    
+    frameProfiler_ = new ge::debug::FrameBudgetProfiler();
+    frameProfiler_->Initialize();
     
     std::bitset<128> signature;
 
@@ -129,6 +133,11 @@ Application::Application(const ApplicationProps& props) {
 }
 
 Application::~Application() {
+    if (frameProfiler_) {
+        frameProfiler_->Shutdown();
+        delete frameProfiler_;
+        frameProfiler_ = nullptr;
+    }
     renderer::ShaderVariantManager::Get().StopBackgroundThread();
     renderer::Renderer2D::Shutdown();
 #ifndef GE_STANDALONE
@@ -146,7 +155,9 @@ void Application::Run() {
 
         window_->OnUpdate();
 
-        // 1. Logic Update
+        if (frameProfiler_) {
+            frameProfiler_->BeginFrame();
+        }
 #ifndef GE_STANDALONE
         if (editor::EditorToolbar::GetState() == editor::SceneState::Play) {
 #endif
