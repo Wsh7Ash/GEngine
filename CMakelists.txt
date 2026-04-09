@@ -450,6 +450,7 @@ endif()
 
 if(BUILD_DEMOS)
     add_subdirectory(src/demos/multiplayer)
+    add_subdirectory(src/demos/physics)
 endif()
 
 
