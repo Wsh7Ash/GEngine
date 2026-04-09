@@ -1,5 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 
+# ================================================================
+#  Version configuration
+# ================================================================
+
+# Version components (used for both CMake and runtime)
+set(GE_VERSION_MAJOR 0)
+set(GE_VERSION_MINOR 1)
+set(GE_VERSION_PATCH 0)
+set(GE_VERSION "${GE_VERSION_MAJOR}.${GE_VERSION_MINOR}.${GE_VERSION_PATCH}")
+
+# Get build date
+string(TIMESTAMP GE_BUILD_DATE "%Y-%m-%d %H:%M:%S" UTC)
+
+# Generate version header for runtime access
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/core/version.h.in
+    ${CMAKE_BINARY_DIR}/generated/version.h
+)
+
 # Platform detection must come early
 set(GE_PLATFORM_WINDOWS OFF)
 set(GE_PLATFORM_LINUX OFF)
@@ -7,10 +26,13 @@ set(GE_PLATFORM_MACOS OFF)
 
 if(WIN32)
     set(GE_PLATFORM_WINDOWS ON)
+    set(GE_PLATFORM_NAME "Windows")
 elseif(UNIX AND NOT APPLE)
     set(GE_PLATFORM_LINUX ON)
+    set(GE_PLATFORM_NAME "Linux")
 elseif(APPLE)
     set(GE_PLATFORM_MACOS ON)
+    set(GE_PLATFORM_NAME "macOS")
 endif()
 
 option(BUILD_DEMOS "Build demo applications" OFF)
@@ -371,6 +393,7 @@ target_link_libraries(ge_core PUBLIC box2d Jolt assimp::assimp glslang::glslang 
 target_include_directories(ge_core
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src/core
+        ${CMAKE_BINARY_DIR}/generated
         ${CMAKE_SOURCE_DIR}/deps/glfw/include
         ${CMAKE_SOURCE_DIR}/deps/glad/include
         ${CMAKE_SOURCE_DIR}/src/core/editor
@@ -421,6 +444,34 @@ add_custom_command(TARGET GameEngine POST_BUILD
     "$<TARGET_FILE_DIR:GameEngine>/assets"
     COMMENT "Copying assets to output directory..."
 )
+
+# Post-build: Copy LICENSE bundle for release builds
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_custom_command(TARGET GameEngine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/LICENSE.txt"
+        "$<TARGET_FILE_DIR:GameEngine>/LICENSE.txt"
+        COMMENT "Copying LICENSE bundle to output directory..."
+    )
+    
+    # Symbol stripping for release builds
+    if(MSVC)
+        add_custom_command(TARGET GameEngine POST_BUILD
+            COMMAND echo "Stripping symbols (MSVC /DEBUG:NONE)"
+            COMMENT "Stripping debug symbols for release..."
+        )
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_custom_command(TARGET GameEngine POST_BUILD
+            COMMAND ${CMAKE_STRIP} "$<TARGET_FILE_DIR:GameEngine>/GameEngine${CMAKE_EXECUTABLE_SUFFIX}"
+            COMMENT "Stripping symbols..."
+        )
+    elseif(APPLE)
+        add_custom_command(TARGET GameEngine POST_BUILD
+            COMMAND strip -x "$<TARGET_FILE_DIR:GameEngine>/GameEngine${CMAKE_EXECUTABLE_SUFFIX}"
+            COMMENT "Stripping symbols..."
+        )
+    endif()
+endif()
 
 
 # ================================================================

@@ -1,0 +1,44 @@
+#pragma once
+
+// ================================================================
+//  version.h.in
+//  Generated version configuration for GEngine.
+// ================================================================
+
+#define GE_VERSION_MAJOR @GE_VERSION_MAJOR@
+#define GE_VERSION_MINOR @GE_VERSION_MINOR@
+#define GE_VERSION_PATCH @GE_VERSION_PATCH@
+
+#define GE_VERSION_STRING "@GE_VERSION@"
+
+#define GE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define GE_BUILD_DATE "@GE_BUILD_DATE@"
+
+#ifdef GE_PLATFORM_WINDOWS
+    #define GE_PLATFORM_NAME "Windows"
+#elif defined(GE_PLATFORM_LINUX)
+    #define GE_PLATFORM_NAME "Linux"
+#elif defined(GE_PLATFORM_MACOS)
+    #define GE_PLATFORM_NAME "macOS"
+#elif defined(__EMSCRIPTEN__)
+    #define GE_PLATFORM_NAME "WebAssembly"
+#else
+    #define GE_PLATFORM_NAME "Unknown"
+#endif
+
+#include <string_view>
+
+namespace ge {
+
+struct Version {
+    static constexpr int Major = @GE_VERSION_MAJOR@;
+    static constexpr int Minor = @GE_VERSION_MINOR@;
+    static constexpr int Patch = @GE_VERSION_PATCH@;
+    
+    static constexpr std::string_view String = "@GE_VERSION@";
+    static constexpr std::string_view BuildType = "@CMAKE_BUILD_TYPE@";
+    static constexpr std::string_view BuildDate = "@GE_BUILD_DATE@";
+    static constexpr std::string_view Platform = "@GE_PLATFORM_NAME@";
+};
+
+} // namespace ge

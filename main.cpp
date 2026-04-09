@@ -1,4 +1,5 @@
 #include "src/core/platform/Application.h"
+#include "src/core/version.h"
 #include "src/core/ecs/World.h"
 #include "src/core/ecs/systems/RenderSystem.h"
 #include "src/core/renderer/Mesh.h"
@@ -148,6 +149,10 @@ public:
 
 int main() {
     ge::debug::log::Initialize();
+
+    // Log version info
+    ge::debug::log::info("GEngine v{} ({})", ge::Version::String, ge::Version::Platform);
+    ge::debug::log::info("Build: {} - {}", ge::Version::BuildType, ge::Version::BuildDate);
 
     ApplicationProps props;
     props.Name = "GEngine Production Demo";
