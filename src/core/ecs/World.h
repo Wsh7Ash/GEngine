@@ -1,10 +1,31 @@
 #pragma once
+
 // ================================================================
 //  World.h
 //  Central hub for the ECS.
 //
 //  Coordinates entities, components, and systems.
 // ================================================================
+
+/**
+ * @defgroup ecs ECS (Entity Component System)
+ * @brief Core ECS framework for GEngine.
+ * 
+ * The ECS system provides a data-oriented architecture for managing game entities.
+ * 
+ * @{
+ *   @defgroup ecs_core Core
+ *   @brief Core ECS concepts and types.
+ * @}
+ * @{
+ *   @defgroup ecs_components Components
+ *   @brief Built-in ECS components.
+ * @}
+ * @{
+ *   @defgroup ecs_systems Systems
+ *   @brief Built-in ECS systems.
+ * @}
+ */
 
 #include "../memory/allocator.h"
 #include "ComponentArray.h"
@@ -39,6 +60,34 @@ namespace ecs {
 namespace ge {
 namespace ecs {
 
+/**
+ * @brief Central hub for the ECS architecture.
+ * 
+ * The World class is the main entry point for all ECS operations. It manages:
+ * - Entity creation and destruction
+ * - Component storage and retrieval
+ * - System registration and updates
+ * - Entity hierarchies (parent/child relationships)
+ * 
+ * @note The World uses a template-based entity query system for efficient
+ *        iteration over entities with specific component combinations.
+ * 
+ * @par Example:
+ * @code
+ * ecs::World world;
+ * 
+ * // Create entities with components
+ * auto entity = world.CreateEntity();
+ * world.AddComponent(entity, TransformComponent{{1.0f, 0.0f, 0.0f}, {}, {1,1,1}});
+ * 
+ * // Query entities
+ * for (auto [transform, mesh] : world.Query<TransformComponent, MeshComponent>()) {
+ *     // Process entities with both components
+ * }
+ * @endcode
+ * 
+ * @ingroup ecs_core
+ */
 class World {
   template <typename... Comps> friend class EntityQuery;
 

@@ -466,3 +466,25 @@ if(BUILD_TESTS)
 
     add_subdirectory(tests)
 endif()
+
+
+# ================================================================
+#  API Documentation (optional — build with -DBUILD_DOCS=ON)
+# ================================================================
+
+option(BUILD_DOCS "Build API documentation" OFF)
+
+if(BUILD_DOCS)
+    find_package(Doxygen)
+    if(Doxygen_FOUND)
+        add_custom_target(docs
+            COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_SOURCE_DIR}/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM
+        )
+        message(STATUS "Doxygen found - docs target available")
+    else()
+        message(WARNING "Doxygen not found - cannot build docs")
+    endif()
+endif()
