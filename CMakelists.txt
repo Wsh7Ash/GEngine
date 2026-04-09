@@ -13,6 +13,8 @@ elseif(APPLE)
     set(GE_PLATFORM_MACOS ON)
 endif()
 
+option(BUILD_DEMOS "Build demo applications" OFF)
+
 project(GameEngine
     VERSION     0.1.0
     LANGUAGES   CXX
@@ -439,6 +441,15 @@ if(GE_DEDICATED_SERVER)
     target_include_directories(GameServer PRIVATE
         ${CMAKE_SOURCE_DIR}/src/server
     )
+endif()
+
+
+# ================================================================
+#  Demos
+# ================================================================
+
+if(BUILD_DEMOS)
+    add_subdirectory(src/demos/multiplayer)
 endif()
 
 
