@@ -2,6 +2,7 @@
 
 #include "ConsolePanel.h"
 #include "ContentBrowserPanel.h"
+#include "MemoryStatsPanel.h"
 #include "SceneHierarchyPanel.h"
 #include "ViewportPanel.h"
 #include "MaterialEditorPanel.h"
@@ -38,6 +39,9 @@ public:
   static std::shared_ptr<MaterialEditorPanel> GetMaterialEditorPanel() {
     return s_MaterialEditorPanel;
   }
+  static std::shared_ptr<MemoryStatsPanel> GetMemoryStatsPanel() {
+    return s_MemoryStatsPanel;
+  }
   static SceneState GetState() { return s_SceneState; }
 
 private:
@@ -50,6 +54,7 @@ private:
   static std::shared_ptr<ContentBrowserPanel> s_ContentBrowserPanel;
   static std::shared_ptr<ConsolePanel> s_ConsolePanel;
   static std::shared_ptr<MaterialEditorPanel> s_MaterialEditorPanel;
+  static std::shared_ptr<MemoryStatsPanel> s_MemoryStatsPanel;
   static SceneState s_SceneState;
 };
 

@@ -30,6 +30,7 @@ std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel =
     nullptr;
 std::shared_ptr<ConsolePanel> EditorToolbar::s_ConsolePanel = nullptr;
 std::shared_ptr<MaterialEditorPanel> EditorToolbar::s_MaterialEditorPanel = nullptr;
+std::shared_ptr<MemoryStatsPanel> EditorToolbar::s_MemoryStatsPanel = nullptr;
 static bool s_ShowPostProcessingPanel = true;
 SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
@@ -55,6 +56,7 @@ void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
   s_GameViewportPanel = std::make_shared<ViewportPanel>("Game", true);
   s_GameViewportPanel->SetContext(world);
   s_MaterialEditorPanel = std::make_shared<MaterialEditorPanel>();
+  s_MemoryStatsPanel = std::make_shared<MemoryStatsPanel>();
 
   ImGuiLayer::Init(windowHandle);
   InitNativeMenuBar(windowHandle);
@@ -66,6 +68,7 @@ void EditorToolbar::Shutdown() {
   s_HierarchyPanel = nullptr;
   s_ContentBrowserPanel = nullptr;
   s_ConsolePanel = nullptr;
+  s_MemoryStatsPanel = nullptr;
   ImGuiLayer::Shutdown();
 }
 
@@ -390,6 +393,9 @@ void EditorToolbar::OnImGuiRender() {
 
   if (s_MaterialEditorPanel)
     s_MaterialEditorPanel->OnImGuiRender();
+
+  if (s_MemoryStatsPanel)
+    s_MemoryStatsPanel->OnImGuiRender();
 
   // 4. Post-Processing Settings Panel
   if (s_ShowPostProcessingPanel && s_ActiveWorld) {
