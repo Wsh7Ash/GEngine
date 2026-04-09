@@ -41,6 +41,37 @@ enum class SystemPriority {
  * - WriteSignature(): Components written
  * 
  * The SystemExecutor analyzes these to parallelize execution.
+ * 
+ * @note Thread Safety: Systems execute in parallel via SystemExecutor.
+ *       Do not access World outside of Update(). Do not maintain
+ *       mutable shared state. See docs/THREADING_CONTRACT.md.
+ * 
+ * @par Example:
+ * @code
+ * class VelocitySystem : public System {
+ *     Signature GetReadSignature() const override {
+ *         Signature sig;
+ *         sig.set(GetComponentTypeID<TransformComponent>(), true);
+ *         return sig;
+ *     }
+ *     
+ *     Signature GetWriteSignature() const override {
+ *         Signature sig;
+ *         sig.set(GetComponentTypeID<VelocityComponent>(), true);
+ *         return sig;
+ *     }
+ *     
+ *     void Update(World& world, float dt) override {
+ *         for (Entity e : entities) {
+ *             auto& t = world.GetComponent<TransformComponent>(e);
+ *             auto& v = world.GetComponent<VelocityComponent>(e);
+ *             t.position += v.value * dt;
+ *         }
+ *     }
+ * };
+ * @endcode
+ * 
+ * @see docs/THREADING_CONTRACT.md
  */
 class System
 {

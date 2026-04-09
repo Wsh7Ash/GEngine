@@ -5,6 +5,31 @@
 //  Parallel system executor using thread pool.
 // ================================================================
 
+/**
+ * @file SystemExecutor.h
+ * @brief Executes ECS systems in parallel based on dependency analysis.
+ * 
+ * SystemExecutor analyzes system signatures (read/write dependencies)
+ * and builds an execution graph. Systems with non-conflicting signatures
+ * run in parallel on worker threads.
+ * 
+ * @note Thread Safety: This class manages its own worker threads.
+ *       Systems should not create additional threads that access World.
+ *       See docs/THREADING_CONTRACT.md for details.
+ * 
+ * @par Execution Flow:
+ * @code
+ * 1. BuildExecutionGraph() - Analyze system dependencies
+ * 2. Update() - Execute systems in frames:
+ *    - Frame 0: Critical systems (serialized)
+ *    - Frame 1: Parallel systems (no conflicts)
+ *    - Frame N: Remaining systems
+ * @endcode
+ * 
+ * @see docs/THREADING_CONTRACT.md
+ * @see SystemGraph
+ */
+
 #include "System.h"
 #include "SystemGraph.h"
 #include "World.h"

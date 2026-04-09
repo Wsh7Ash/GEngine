@@ -5,6 +5,33 @@
 //  Cross-platform thread pool abstraction.
 // ================================================================
 
+/**
+ * @file ThreadPool.h
+ * @brief Thread pool for async task execution.
+ * 
+ * @note Usage Guidelines:
+ * - Use for async I/O (asset loading, network, file operations)
+ * - Avoid for frame-critical work (physics, rendering, input)
+ * - Never access ecs::World from worker threads
+ * - Use Enqueue() for tasks that need results
+ * - See docs/THREADING_CONTRACT.md for details.
+ * 
+ * @par Example:
+ * @code
+ * // Async asset loading
+ * ThreadPool::GetGlobal().Submit([this]() {
+ *     auto data = LoadFile("path/to/asset");
+ *     // Process on main thread via callback or future
+ * });
+ * 
+ * // Async computation with result
+ * auto future = ThreadPool::GetGlobal().Enqueue([](int x) {
+ *     return ComputeExpensive(x);
+ * }, 42);
+ * // Check future later on main thread
+ * @endcode
+ */
+
 #include "Thread.h"
 #include <functional>
 #include <memory>

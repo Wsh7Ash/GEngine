@@ -69,8 +69,8 @@ namespace ecs {
  * - System registration and updates
  * - Entity hierarchies (parent/child relationships)
  * 
- * @note The World uses a template-based entity query system for efficient
- *        iteration over entities with specific component combinations.
+ * @note Thread Safety: World is NOT thread-safe. All operations must occur
+ *       on the main thread. See docs/THREADING_CONTRACT.md for details.
  * 
  * @par Example:
  * @code
@@ -85,6 +85,8 @@ namespace ecs {
  *     // Process entities with both components
  * }
  * @endcode
+ * 
+ * @see docs/THREADING_CONTRACT.md
  * 
  * @ingroup ecs_core
  */
