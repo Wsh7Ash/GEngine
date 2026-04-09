@@ -5,6 +5,15 @@
 //  Vulkan graphics context implementation.
 // ================================================================
 
+/**
+ * @file VulkanContext.h
+ * @brief Vulkan graphics context with pipeline cache support.
+ * 
+ * Pipeline cache is persisted to disk for faster startup times.
+ * Cache file location: %LOCALAPPDATA%/GEngine/pipeline_cache.bin (Windows)
+ *                     ~/.local/share/GEngine/pipeline_cache.bin (Linux/macOS)
+ */
+
 #include "../GraphicsContext.h"
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
@@ -69,8 +78,13 @@ public:
     void CreateSwapchainFramebuffers();
 
     VkExtent2D GetSwapExtent() const { return swapExtent_; }
+    VkPipelineCache GetPipelineCache() const { return pipelineCache_; }
+
+    static std::string GetPipelineCachePath();
 
 private:
+    bool LoadPipelineCache();
+    bool SavePipelineCache();
     void CreateInstance();
     void SetupDebugMessenger();
     void CreateSurface();
@@ -118,6 +132,8 @@ private:
     VkSemaphore imageAvailableSemaphore_ = VK_NULL_HANDLE;
     VkSemaphore renderCompleteSemaphore_ = VK_NULL_HANDLE;
     VkFence inFlightFence_ = VK_NULL_HANDLE;
+
+    VkPipelineCache pipelineCache_ = VK_NULL_HANDLE;
 
     VkRenderPass renderPass_ = VK_NULL_HANDLE;
     VkCommandPool commandPool_ = VK_NULL_HANDLE;

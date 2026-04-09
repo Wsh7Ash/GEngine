@@ -2,6 +2,9 @@
 #include "../debug/log.h"
 #include <iostream>
 #include <algorithm>
+#include <fstream>
+#include <filesystem>
+#include <cstdlib>
 
 #ifndef NDEBUG
 #define VK_CHECK(call) \
@@ -38,6 +41,11 @@ VulkanContext::VulkanContext(GLFWwindow* window) : window_(window) {
 VulkanContext::~VulkanContext() {
     if (device_ != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device_);
+    }
+
+    if (pipelineCache_ != VK_NULL_HANDLE) {
+        SavePipelineCache();
+        vkDestroyPipelineCache(device_, pipelineCache_, nullptr);
     }
 
     if (inFlightFence_ != VK_NULL_HANDLE) {
@@ -277,6 +285,8 @@ void VulkanContext::CreateLogicalDevice() {
 
     vkGetDeviceQueue(device_, queueFamilies_.graphicsFamily.value(), 0, &graphicsQueue_);
     vkGetDeviceQueue(device_, queueFamilies_.presentFamily.value(), 0, &presentQueue_);
+
+    LoadPipelineCache();
 }
 
 void VulkanContext::CreateSwapchain() {
@@ -602,6 +612,125 @@ void VulkanContext::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUt
     if (func != nullptr) {
         func(instance, callback_, pAllocator);
     }
+}
+
+std::string VulkanContext::GetPipelineCachePath() {
+    std::filesystem::path cacheDir;
+    
+#ifdef _WIN32
+    const char* localAppData = std::getenv("LOCALAPPDATA");
+    if (localAppData) {
+        cacheDir = localAppData;
+    } else {
+        cacheDir = std::filesystem::current_path();
+    }
+    cacheDir /= "GEngine";
+#elif defined(__APPLE__)
+    const char* home = std::getenv("HOME");
+    if (home) {
+        cacheDir = home;
+    } else {
+        cacheDir = std::filesystem::current_path();
+    }
+    cacheDir /= "Library/Application Support/GEngine";
+#else
+    const char* xdgCache = std::getenv("XDG_CACHE_HOME");
+    if (xdgCache) {
+        cacheDir = xdgCache;
+    } else {
+        const char* home = std::getenv("HOME");
+        if (home) {
+            cacheDir = home;
+        } else {
+            cacheDir = std::filesystem::current_path();
+        }
+        cacheDir /= ".cache";
+    }
+    cacheDir /= "GEngine";
+#endif
+
+    std::filesystem::create_directories(cacheDir);
+    return (cacheDir / "pipeline_cache.bin").string();
+}
+
+bool VulkanContext::LoadPipelineCache() {
+    std::string cachePath = GetPipelineCachePath();
+    std::ifstream file(cachePath, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        debug::log::info("No existing pipeline cache found, creating new one");
+        
+        VkPipelineCacheCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+        VK_CHECK(vkCreatePipelineCache(device_, &createInfo, nullptr, &pipelineCache_));
+        return true;
+    }
+
+    size_t cacheSize = static_cast<size_t>(file.tellg());
+    if (cacheSize == 0) {
+        debug::log::warn("Pipeline cache file is empty, creating new cache");
+        
+        VkPipelineCacheCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+        VK_CHECK(vkCreatePipelineCache(device_, &createInfo, nullptr, &pipelineCache_));
+        return true;
+    }
+
+    std::vector<char> cacheData(cacheSize);
+    file.seekg(0);
+    file.read(cacheData.data(), static_cast<std::streamsize>(cacheSize));
+    file.close();
+
+    VkPipelineCacheCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    createInfo.initialDataSize = cacheSize;
+    createInfo.pInitialData = cacheData.data();
+
+    VkResult result = vkCreatePipelineCache(device_, &createInfo, nullptr, &pipelineCache_);
+    if (result != VK_SUCCESS) {
+        debug::log::warn("Failed to load pipeline cache ({}), creating new", (int)result);
+        
+        VkPipelineCacheCreateInfo newCreateInfo{};
+        newCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+        VK_CHECK(vkCreatePipelineCache(device_, &newCreateInfo, nullptr, &pipelineCache_));
+        return false;
+    }
+
+    debug::log::info("Loaded pipeline cache ({} bytes) from {}", cacheSize, cachePath);
+    return true;
+}
+
+bool VulkanContext::SavePipelineCache() {
+    if (device_ == VK_NULL_HANDLE || pipelineCache_ == VK_NULL_HANDLE) {
+        return false;
+    }
+
+    size_t cacheSize = 0;
+    VkResult result = vkGetPipelineCacheData(device_, pipelineCache_, &cacheSize, nullptr);
+    if (result != VK_SUCCESS || cacheSize == 0) {
+        debug::log::warn("Failed to get pipeline cache data or cache is empty");
+        return false;
+    }
+
+    std::vector<char> cacheData(cacheSize);
+    result = vkGetPipelineCacheData(device_, pipelineCache_, &cacheSize, cacheData.data());
+    if (result != VK_SUCCESS) {
+        debug::log::error("Failed to retrieve pipeline cache data");
+        return false;
+    }
+
+    std::string cachePath = GetPipelineCachePath();
+    std::ofstream file(cachePath, std::ios::binary | std::ios::trunc);
+    if (!file.is_open()) {
+        debug::log::error("Failed to open pipeline cache file for writing: {}", cachePath);
+        return false;
+    }
+
+    file.write(cacheData.data(), static_cast<std::streamsize>(cacheSize));
+    file.close();
+
+    debug::log::info("Saved pipeline cache ({} bytes) to {}", cacheSize, cachePath);
+    return true;
 }
 
 } // namespace renderer
