@@ -9,12 +9,51 @@
 namespace ge {
 namespace renderer {
 
+static bool s_ContextLost = false;
+static std::function<void()> s_OnContextLost;
+static std::function<void()> s_OnContextRestored;
+
+#ifdef __EMSCRIPTEN__
+static EM_BOOL ContextLostCallback(int eventType, const void* reserved, void* userData) {
+    (void)eventType;
+    (void)reserved;
+    (void)userData;
+    
+    s_ContextLost = true;
+    GE_LOG_WARN("WebGL2 Context lost");
+    
+    if (s_OnContextLost) {
+        s_OnContextLost();
+    }
+    return EM_TRUE;
+}
+
+static EM_BOOL ContextRestoredCallback(int eventType, const void* reserved, void* userData) {
+    (void)eventType;
+    (void)reserved;
+    (void)userData;
+    
+    s_ContextLost = false;
+    GE_LOG_INFO("WebGL2 Context restored");
+    
+    if (s_OnContextRestored) {
+        s_OnContextRestored();
+    }
+    return EM_TRUE;
+}
+#endif
+
 WebGL2Context::WebGL2Context(GLFWwindow* window)
     : window_(window)
 {
 }
 
-WebGL2Context::~WebGL2Context() = default;
+WebGL2Context::~WebGL2Context() {
+#ifdef __EMSCRIPTEN__
+    emscripten_set_webglcontextlost_callback("#canvas", nullptr, EM_TRUE, nullptr);
+    emscripten_set_webglcontextrestored_callback("#canvas", nullptr, EM_TRUE, nullptr);
+#endif
+}
 
 void WebGL2Context::Init()
 {
@@ -34,6 +73,9 @@ void WebGL2Context::Init()
     attrs.powerPreference = "high-performance";
     attrs.failIfMajorPerformanceCaveat = false;
     attrs.enableExtensionsByDefault = true;
+
+    emscripten_set_webglcontextlost_callback("#canvas", nullptr, EM_TRUE, ContextLostCallback);
+    emscripten_set_webglcontextrestored_callback("#canvas", nullptr, EM_TRUE, ContextRestoredCallback);
 
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context("#canvas", &attrs);
     if (!ctx) {
@@ -64,6 +106,31 @@ void WebGL2Context::SwapBuffers()
     if (window_) {
         glfwSwapBuffers(window_);
     }
+#endif
+}
+
+void WebGL2Context::SetContextLostCallback(std::function<void()> callback) {
+    onContextLost_ = std::move(callback);
+#ifdef __EMSCRIPTEN__
+    s_OnContextLost = onContextLost_;
+#endif
+}
+
+void WebGL2Context::SetContextRestoredCallback(std::function<void()> callback) {
+    onContextRestored_ = std::move(callback);
+#ifdef __EMSCRIPTEN__
+    s_OnContextRestored = onContextRestored_;
+#endif
+}
+
+void WebGL2Context::RecreateResources() {
+    if (!contextLost_) return;
+    
+    GE_LOG_INFO("Recreating WebGL resources after context restore");
+    
+#ifdef __EMSCRIPTEN__
+    contextLost_ = false;
+    initialized_ = true;
 #endif
 }
 

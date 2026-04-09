@@ -251,9 +251,33 @@ python -m http.server 8080
 ### Web Limitations
 
 - No threading (limited by Emscripten)
+- Use async asset loading (`EmscriptenAssetLoader`) instead of threads
 - Reduced physics precision
 - Audio may have latency
-- No local file system access
+- No local file system access (use VFS with EmscriptenFileSystem)
+- Handle context loss events (see `WebGL2Context`)
+
+### Web Asset Pipeline
+
+For optimal web performance:
+
+```cpp
+// Use async loading instead of std::thread
+#include <assets/EmscriptenAssetLoader.h>
+
+// Async texture loading
+#include <renderer/webgl2/WebGL2AsyncTexture.h>
+
+WebGL2AsyncTexture::LoadAsync("textures/wood.png", 
+    [](const TextureLoadResult& result) {
+        // Handle loaded texture
+    });
+```
+
+**Build requirements:**
+- `-s USE_FETCH=1` for async file I/O
+- `-s USE_WEBGL2=1` for WebGL2 context
+- Consider `-s USE_PTHREADS=1` for multi-threaded builds
 
 ---
 
