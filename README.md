@@ -45,21 +45,23 @@ A high-performance, high-aesthetic 2D/3D game engine built with C++20 and OpenGL
 
 1. **Clone the repository**:
    ```powershell
-   git clone https://github.com/Wsh7Ash/GEngine.git
+   git clone --recurse-submodules https://github.com/Wsh7Ash/GEngine.git
    cd GEngine
    ```
+   > **Note**: Use `--recurse-submodules` to fetch all dependencies. If already cloned, run `git submodule update --init --recursive`.
 
-2. **Build & Run**:
+   2. **Build & Run**:
    ```powershell
-   cmake -B build
-   cmake --build build --config Debug
+   cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+   cmake --build build --parallel
    ./build/bin/Debug/GameEngine.exe
    ```
+   > **Tip**: Use `-G Ninja` for faster builds.
 
-3. **Run Tests**:
+   3. **Run Tests**:
    ```powershell
-   cmake -B build -DBUILD_TESTS=ON
-   cmake --build build --config Debug
+   cmake -B build -G Ninja -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+   cmake --build build --parallel
    ctest --test-dir build --output-on-failure
    ```
    Or use the convenience script:
@@ -68,11 +70,19 @@ A high-performance, high-aesthetic 2D/3D game engine built with C++20 and OpenGL
    ./scripts/run_tests.sh     # Linux/macOS
    ```
 
-4. **WebAssembly Build**:
+   4. **WebAssembly Build** (requires Emscripten):
    ```bash
-   emcmake cmake -B build-web
-   cmake --build build-web
+   source emsdk_env.sh
+   emcmake cmake -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release
+   cmake --build build-web --parallel
    # Open build-web/bin/GameEngine.html in a browser
+   ```
+
+   5. **Dedicated Server**:
+   ```powershell
+   cmake -B build -G Ninja -DGE_DEDICATED_SERVER=ON -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --parallel
+   ./build/bin/Release/GameServer.exe --help
    ```
 
 ## 🧪 Creating a New Game
@@ -106,10 +116,15 @@ The easiest way to start a new game project is to use the SDK template:
 - `src/shaders/`: GLSL shaders.
 - `assets/`: Textures and scene data.
 - `tests/`: Unit, integration, and stress tests.
+- `docs/`: API documentation and implementation guides.
 - `sdk/`: SDK examples, templates, and packaging.
 - `include/GEngine/`: Public API headers for SDK consumers.
 - `cmake/`: CMake toolchains and helper modules.
 - `build/`: CMake build output.
+
+## 🤝 Contributing
+
+For detailed contribution guidelines including build troubleshooting and test filtering, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📜 License
 
