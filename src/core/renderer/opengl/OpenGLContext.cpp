@@ -62,7 +62,7 @@ namespace renderer {
             if (severity == GL_DEBUG_SEVERITY_HIGH || severity == GL_DEBUG_SEVERITY_MEDIUM) {
                 GE_LOG_ERROR("[GL %s/%s] %s", typeStr, severityStr, message);
             } else if (severity == GL_DEBUG_SEVERITY_LOW) {
-                GE_LOG_WARN("[GL %s/%s] %s", typeStr, severityStr, message);
+                GE_LOG_WARNING("[GL %s/%s] %s", typeStr, severityStr, message);
             } else {
                 GE_LOG_DEBUG("[GL %s/%s] %s", typeStr, severityStr, message);
             }

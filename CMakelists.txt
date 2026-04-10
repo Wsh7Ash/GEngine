@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 # ================================================================
 #  Version configuration
 # ================================================================
@@ -43,7 +47,56 @@ project(GameEngine
     DESCRIPTION "GEngine — Phase 1 Foundation Layer"
 )
 
+option(GE_ENABLE_OPENGL_BACKEND "Build the OpenGL renderer backend" ON)
+option(GE_ENABLE_DX11_BACKEND "Build the DX11 renderer backend" OFF)
+option(GE_ENABLE_VULKAN_BACKEND "Build the Vulkan renderer backend" OFF)
+option(GE_ENABLE_WEBGL2_BACKEND "Build the WebGL2 renderer backend" OFF)
+option(GE_ENABLE_NETWORKING "Build experimental networking systems" OFF)
+option(GE_ENABLE_EXPERIMENTAL_3D_SYSTEMS "Build unfinished advanced 3D simulation/render systems" OFF)
+option(GE_USE_LOCAL_FETCHCONTENT_CACHE "Prefer local dependency sources over remote fetches" ON)
+
+if(NOT GE_ENABLE_OPENGL_BACKEND
+   AND NOT GE_ENABLE_DX11_BACKEND
+   AND NOT GE_ENABLE_VULKAN_BACKEND
+   AND NOT GE_ENABLE_WEBGL2_BACKEND)
+    message(FATAL_ERROR "At least one renderer backend must be enabled.")
+endif()
+
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+
+function(ge_prefer_local_fetchcontent dep_name)
+    if(NOT GE_USE_LOCAL_FETCHCONTENT_CACHE)
+        return()
+    endif()
+
+    string(TOLOWER "${dep_name}" dep_lower)
+    string(TOUPPER "${dep_name}" dep_upper)
+
+    set(local_candidates
+        "${CMAKE_SOURCE_DIR}/deps/${dep_lower}"
+        "${CMAKE_SOURCE_DIR}/build/_deps/${dep_lower}-src"
+    )
+
+    foreach(candidate IN LISTS local_candidates)
+        if(EXISTS "${candidate}")
+            set("FETCHCONTENT_SOURCE_DIR_${dep_upper}" "${candidate}" PARENT_SCOPE)
+            set("FETCHCONTENT_UPDATES_DISCONNECTED_${dep_upper}" ON PARENT_SCOPE)
+            message(STATUS "Using local ${dep_name} source from ${candidate}")
+            return()
+        endif()
+    endforeach()
+endfunction()
+
+ge_prefer_local_fetchcontent(imgui)
+ge_prefer_local_fetchcontent(imguizmo)
+ge_prefer_local_fetchcontent(json)
+ge_prefer_local_fetchcontent(box2d)
+ge_prefer_local_fetchcontent(miniaudio)
+ge_prefer_local_fetchcontent(jolt)
+ge_prefer_local_fetchcontent(assimp)
+ge_prefer_local_fetchcontent(glslang)
+
 FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -59,6 +112,7 @@ set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     json
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
 )
 FetchContent_Declare(
@@ -74,9 +128,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     jolt
     GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
-    GIT_TAG        v5.0.0
-    GIT_SHALLOW    ON
-    SOURCE_SUBDIR  Build
+    GIT_TAG        v3.0.1
 )
 FetchContent_Declare(
     assimp
@@ -102,6 +154,7 @@ set(ASSIMP_BUILD_FBX_IMPORTER ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 
 # SPIR-V Shader Compiler
+set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
 set(SPIRV_SKIP_EXAMPLES ON CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -195,14 +248,26 @@ set(GE_CORE_HEADERS
     src/core/ecs/components/TagComponent.h
     src/core/ecs/components/MeshComponent.h
     src/core/ecs/components/SpriteComponent.h
+    src/core/ecs/components/TilemapComponent.h
+    src/core/ecs/components/GridPathData.h
     src/core/ecs/components/NativeScriptComponent.h
     src/core/ecs/components/IDComponent.h
     src/core/ecs/components/Rigidbody2DComponent.h
     src/core/ecs/components/BoxCollider2DComponent.h
+    src/core/ecs/components/TopDownControllerComponent.h
+    src/core/ecs/components/InteractionComponent.h
+    src/core/ecs/components/HealthComponent.h
+    src/core/ecs/components/InventoryComponent.h
+    src/core/ecs/components/PickupComponent.h
+    src/core/ecs/components/ResourceNodeComponent.h
+    src/core/ecs/components/BuildPlacementComponent.h
+    src/core/ecs/components/WaveSpawnerComponent.h
+    src/core/ecs/components/DefenseTowerComponent.h
     src/core/ecs/components/Rigidbody3DComponent.h
     src/core/ecs/components/Collider3DComponent.h
     src/core/ecs/ScriptableEntity.h
     src/core/ecs/systems/RenderSystem.h
+    src/core/ecs/systems/TopDownGameplaySystem.h
     src/core/ecs/systems/ScriptSystem.h
     src/core/ecs/systems/Physics2DSystem.h
     src/core/ecs/systems/Physics3DSystem.h
@@ -225,6 +290,7 @@ set(GE_CORE_HEADERS
     src/core/ecs/components/AnimatorComponent.h
     src/core/platform/VFS.h
     src/core/platform/Application.h
+    src/core/gameplay/GridPathfinder.h
     # Renderer
     src/core/renderer/RendererAPI.h
     src/core/renderer/GraphicsContext.h
@@ -242,21 +308,6 @@ set(GE_CORE_HEADERS
     src/core/renderer/opengl/OpenGLMesh.h
     src/core/renderer/opengl/OpenGLTexture.h
     src/core/renderer/opengl/OpenGLFramebuffer.h
-    src/core/renderer/dx11/DX11Context.h
-    src/core/renderer/dx11/DX11Texture.h
-    src/core/renderer/dx11/DX11Shader.h
-    src/core/renderer/dx11/DX11Mesh.h
-    src/core/renderer/dx11/DX11Framebuffer.h
-    src/core/renderer/vulkan/VulkanContext.h
-    src/core/renderer/vulkan/VulkanShader.h
-    src/core/renderer/vulkan/VulkanMesh.h
-    src/core/renderer/vulkan/VulkanTexture.h
-    src/core/renderer/vulkan/VulkanFramebuffer.h
-    src/core/renderer/webgl2/WebGL2Context.h
-    src/core/renderer/webgl2/WebGL2Shader.h
-    src/core/renderer/webgl2/WebGL2Mesh.h
-    src/core/renderer/webgl2/WebGL2Texture.h
-    src/core/renderer/webgl2/WebGL2Framebuffer.h
     src/core/editor/EditorToolbar.h
     src/core/editor/SceneHierarchyPanel.h
     src/core/editor/ContentBrowserPanel.h
@@ -268,30 +319,8 @@ set(GE_CORE_HEADERS
     src/core/cmd/Command.h
     src/core/cmd/CommandHistory.h
     src/core/cmd/EntityCommands.h
-    # Networking
-    src/core/net/Socket.h
-    src/core/net/Message.h
-    src/core/net/Connection.h
-    src/core/net/NetworkManager.h
-    src/core/net/NetworkSerializer.h
-    src/core/net/NetworkStats.h
-    src/core/net/Handshake.h
-    src/core/net/GameState.h
-    src/core/net/NetworkMode.h
-    src/core/net/Replication.h
-    src/core/net/ReplicationManager.h
-    src/core/net/NetworkEntity.h
-    src/core/net/ReplicationAttributes.h
-    src/core/net/ComponentSerializer.h
-    src/core/net/DirtyTracker.h
-    src/core/net/ReplicationSystem.h
-    src/core/net/PredictionBuffer.h
-    src/core/net/CharacterState.h
-    src/core/net/ClientPredictionState.h
-    src/core/net/ClientPredictionSystem.h
-    src/core/net/EntityStateHistory.h
-    src/core/net/StateRecorder.h
-    src/core/net/LagCompensationSystem.h
+    src/core/assets/TilesetAsset.h
+    src/core/assets/TilemapAsset.h
 )
 
 set(GE_CORE_SOURCES
@@ -302,6 +331,10 @@ set(GE_CORE_SOURCES
     src/core/platform/GLFWInput.cpp
     src/core/platform/ImGuiLayer.cpp
     src/core/editor/EditorToolbar.cpp
+    src/core/editor/MaterialEditorPanel.cpp
+    src/core/editor/MemoryStatsPanel.cpp
+    src/core/editor/TransformGizmo.cpp
+    src/core/editor/PrecisionEditTool.cpp
     src/core/editor/SceneHierarchyPanel.cpp
     src/core/editor/ContentBrowserPanel.cpp
     src/core/editor/ViewportPanel.cpp
@@ -309,12 +342,15 @@ set(GE_CORE_SOURCES
     src/core/editor/VSCodeUtility.cpp
     src/core/scene/SceneSerializer.cpp
     src/core/scene/PrefabSerializer.cpp
+    src/core/savegame/SaveGameChecksum.cpp
+    src/core/savegame/SaveGameManager.cpp
     src/core/uuid/UUID.cpp
     src/core/cmd/CommandHistory.cpp
     src/core/renderer/RendererAPI.cpp
     src/core/renderer/Shader.cpp
     src/core/renderer/ShaderCompiler.cpp
     src/core/renderer/ShaderVariantManager.cpp
+    src/core/material/MaterialGraph.cpp
     src/core/renderer/Mesh.cpp
     src/core/renderer/Model.cpp
     src/core/renderer/Texture.cpp
@@ -329,34 +365,13 @@ set(GE_CORE_SOURCES
     src/core/renderer/opengl/OpenGLTexture.cpp
     src/core/renderer/opengl/OpenGLFramebuffer.cpp
     src/core/renderer/opengl/stb_image_impl.cpp
-    src/core/renderer/dx11/DX11Context.cpp
-    src/core/renderer/dx11/DX11Texture.cpp
-    src/core/renderer/dx11/DX11Shader.cpp
-    src/core/renderer/dx11/DX11Mesh.cpp
-    src/core/renderer/dx11/DX11Framebuffer.cpp
-    src/core/renderer/vulkan/VulkanContext.cpp
-    src/core/renderer/vulkan/VulkanShader.cpp
-    src/core/renderer/vulkan/VulkanMesh.cpp
-    src/core/renderer/vulkan/VulkanTexture.cpp
-    src/core/renderer/vulkan/VulkanFramebuffer.cpp
-    src/core/renderer/webgl2/WebGL2Context.cpp
-    src/core/renderer/webgl2/WebGL2Shader.cpp
-    src/core/renderer/webgl2/WebGL2Mesh.cpp
-    src/core/renderer/webgl2/WebGL2Texture.cpp
-    src/core/renderer/webgl2/WebGL2Framebuffer.cpp
-    src/core/ecs/systems/RenderSystem.cpp
+    src/core/ecs/systems/RenderSystem2D.cpp
     src/core/ecs/systems/ScriptSystem.cpp
     src/core/ecs/ScriptRegistry.cpp
     src/core/ecs/World_Helpers.cpp
     src/core/ecs/SystemManager.cpp
     src/core/ecs/systems/Physics2DSystem.cpp
     src/core/ecs/systems/Physics3DSystem.cpp
-    src/core/ecs/systems/ClothSystem.cpp
-    src/core/ecs/systems/DestructibleSystem.cpp
-    src/core/ecs/systems/BuoyancySystem.cpp
-    src/core/ecs/systems/TerrainSystem.cpp
-    src/core/ecs/systems/VehicleSystem.cpp
-    src/core/ecs/Physics3D_API.cpp
     src/core/assets/AssetManager.cpp
     src/core/assets/AssetImporter.cpp
     src/core/assets/AssetCooker.cpp
@@ -364,14 +379,12 @@ set(GE_CORE_SOURCES
     src/core/ecs/systems/AudioSystem.cpp
     src/core/ecs/systems/ParticleSystem.cpp
     src/core/ecs/systems/AnimationSystem.cpp
+    src/core/ecs/systems/TopDownGameplaySystem.cpp
     src/core/ecs/systems/PostProcessSystem.cpp
     src/core/platform/VFS.cpp
     src/core/platform/Application.cpp
     src/core/audio/AudioEngine.cpp
     src/core/audio/miniaudio_impl.cpp
-    src/core/net/NetworkMode.cpp
-    src/core/net/NetworkSerializer.cpp
-    src/core/net/ReplicationManager.cpp
     deps/glad/src/glad.c
     
     # ImGui
@@ -387,8 +400,121 @@ set(GE_CORE_SOURCES
     ${imguizmo_SOURCE_DIR}/ImGuizmo.cpp
 )
 
+if(GE_ENABLE_EXPERIMENTAL_3D_SYSTEMS)
+    list(APPEND GE_CORE_SOURCES
+        src/core/ecs/systems/ClothSystem.cpp
+        src/core/ecs/systems/DestructibleSystem.cpp
+        src/core/ecs/systems/BuoyancySystem.cpp
+        src/core/ecs/systems/TerrainSystem.cpp
+        src/core/ecs/systems/VehicleSystem.cpp
+    )
+endif()
+
+if(GE_ENABLE_NETWORKING)
+    list(APPEND GE_CORE_HEADERS
+        src/core/net/Socket.h
+        src/core/net/Message.h
+        src/core/net/Connection.h
+        src/core/net/NetworkManager.h
+        src/core/net/NetworkSerializer.h
+        src/core/net/NetworkStats.h
+        src/core/net/Handshake.h
+        src/core/net/GameState.h
+        src/core/net/NetworkMode.h
+        src/core/net/Replication.h
+        src/core/net/ReplicationManager.h
+        src/core/net/NetworkEntity.h
+        src/core/net/ReplicationAttributes.h
+        src/core/net/ComponentSerializer.h
+        src/core/net/DirtyTracker.h
+        src/core/net/ReplicationSystem.h
+        src/core/net/PredictionBuffer.h
+        src/core/net/CharacterState.h
+        src/core/net/ClientPredictionState.h
+        src/core/net/ClientPredictionSystem.h
+        src/core/net/EntityStateHistory.h
+        src/core/net/StateRecorder.h
+        src/core/net/LagCompensationSystem.h
+    )
+    list(APPEND GE_CORE_SOURCES
+        src/core/net/NetworkMode.cpp
+        src/core/net/NetworkSerializer.cpp
+        src/core/net/ReplicationManager.cpp
+    )
+endif()
+
+if(GE_ENABLE_DX11_BACKEND)
+    list(APPEND GE_CORE_HEADERS
+        src/core/renderer/dx11/DX11Context.h
+        src/core/renderer/dx11/DX11Texture.h
+        src/core/renderer/dx11/DX11Shader.h
+        src/core/renderer/dx11/DX11Mesh.h
+        src/core/renderer/dx11/DX11Framebuffer.h
+    )
+    list(APPEND GE_CORE_SOURCES
+        src/core/renderer/dx11/DX11Context.cpp
+        src/core/renderer/dx11/DX11Texture.cpp
+        src/core/renderer/dx11/DX11Shader.cpp
+        src/core/renderer/dx11/DX11Mesh.cpp
+        src/core/renderer/dx11/DX11Framebuffer.cpp
+    )
+endif()
+
+if(GE_ENABLE_VULKAN_BACKEND)
+    list(APPEND GE_CORE_HEADERS
+        src/core/renderer/vulkan/VulkanContext.h
+        src/core/renderer/vulkan/VulkanShader.h
+        src/core/renderer/vulkan/VulkanMesh.h
+        src/core/renderer/vulkan/VulkanFramebuffer.h
+    )
+    list(APPEND GE_CORE_SOURCES
+        src/core/renderer/vulkan/VulkanContext.cpp
+        src/core/renderer/vulkan/VulkanMesh.cpp
+        src/core/renderer/vulkan/VulkanFramebuffer.cpp
+    )
+endif()
+
+if(GE_ENABLE_WEBGL2_BACKEND)
+    list(APPEND GE_CORE_HEADERS
+        src/core/renderer/webgl2/WebGL2Context.h
+        src/core/renderer/webgl2/WebGL2Shader.h
+        src/core/renderer/webgl2/WebGL2Mesh.h
+        src/core/renderer/webgl2/WebGL2Texture.h
+        src/core/renderer/webgl2/WebGL2Framebuffer.h
+    )
+    list(APPEND GE_CORE_SOURCES
+        src/core/renderer/webgl2/WebGL2Context.cpp
+        src/core/renderer/webgl2/WebGL2Shader.cpp
+        src/core/renderer/webgl2/WebGL2Mesh.cpp
+        src/core/renderer/webgl2/WebGL2Texture.cpp
+        src/core/renderer/webgl2/WebGL2Framebuffer.cpp
+    )
+endif()
+
 add_library(ge_core STATIC ${GE_CORE_SOURCES} ${GE_CORE_HEADERS})
-target_link_libraries(ge_core PUBLIC box2d Jolt assimp::assimp glslang::glslang SPIRV::SPIRV-Tools-opt)
+target_link_libraries(ge_core PUBLIC box2d assimp::assimp glslang)
+
+if(TARGET glslang::glslang-default-resource-limits)
+    target_link_libraries(ge_core PUBLIC glslang::glslang-default-resource-limits)
+elseif(TARGET glslang-default-resource-limits)
+    target_link_libraries(ge_core PUBLIC glslang-default-resource-limits)
+endif()
+
+if(TARGET SPIRV::SPIRV-Tools-opt)
+    target_link_libraries(ge_core PUBLIC SPIRV::SPIRV-Tools-opt)
+endif()
+
+if(TARGET SPIRV::SPIRV)
+    target_link_libraries(ge_core PUBLIC SPIRV::SPIRV)
+endif()
+target_compile_definitions(ge_core PUBLIC
+    GE_ENABLE_OPENGL_BACKEND=$<BOOL:${GE_ENABLE_OPENGL_BACKEND}>
+    GE_ENABLE_DX11_BACKEND=$<BOOL:${GE_ENABLE_DX11_BACKEND}>
+    GE_ENABLE_VULKAN_BACKEND=$<BOOL:${GE_ENABLE_VULKAN_BACKEND}>
+    GE_ENABLE_WEBGL2_BACKEND=$<BOOL:${GE_ENABLE_WEBGL2_BACKEND}>
+    GE_ENABLE_NETWORKING=$<BOOL:${GE_ENABLE_NETWORKING}>
+    GE_ENABLE_EXPERIMENTAL_3D_SYSTEMS=$<BOOL:${GE_ENABLE_EXPERIMENTAL_3D_SYSTEMS}>
+)
 
 target_include_directories(ge_core
     PUBLIC
@@ -414,7 +540,9 @@ target_include_directories(ge_core
 # Platform-specific linking
 if(GE_PLATFORM_WINDOWS)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_WINDOWS=1)
-    target_link_libraries(ge_core PUBLIC d3d11 d3dcompiler dxgi)
+    if(GE_ENABLE_DX11_BACKEND)
+        target_link_libraries(ge_core PUBLIC d3d11 d3dcompiler dxgi)
+    endif()
 elseif(GE_PLATFORM_LINUX)
     target_compile_definitions(ge_core PUBLIC GE_PLATFORM_LINUX=1)
     target_link_libraries(ge_core PUBLIC pthread dl)
@@ -431,10 +559,10 @@ endif()
 if(EMSCRIPTEN)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
     add_executable(GameEngine main.cpp)
-    target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt assimp::assimp "-s USE_GLFW=3" "-s WASM=1" "-s USE_WEBGL2=1" "-s ALLOW_MEMORY_GROWTH=1" "-s INITIAL_MEMORY=256MB" "-s MAXIMUM_MEMORY=512MB" "-s ASYNCIFY=1" "-s ASYNCIFY_STACK_SIZE=65536")
+    target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d assimp::assimp "-s USE_GLFW=3" "-s WASM=1" "-s USE_WEBGL2=1" "-s ALLOW_MEMORY_GROWTH=1" "-s INITIAL_MEMORY=256MB" "-s MAXIMUM_MEMORY=512MB" "-s ASYNCIFY=1" "-s ASYNCIFY_STACK_SIZE=65536")
 else()
     add_executable(GameEngine main.cpp)
-    target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d Jolt assimp::assimp)
+    target_link_libraries(GameEngine PRIVATE ge_core glfw nlohmann_json::nlohmann_json box2d assimp::assimp)
 endif()
 
 # Post-build: Copy assets
@@ -479,6 +607,10 @@ endif()
 # ================================================================
 
 if(GE_DEDICATED_SERVER)
+    if(NOT GE_ENABLE_NETWORKING)
+        message(FATAL_ERROR "GE_DEDICATED_SERVER requires GE_ENABLE_NETWORKING=ON.")
+    endif()
+
     set(GE_SERVER_SOURCES
         src/server/main.cpp
         src/server/ServerApplication.cpp
@@ -500,7 +632,9 @@ endif()
 # ================================================================
 
 if(BUILD_DEMOS)
-    add_subdirectory(src/demos/multiplayer)
+    if(GE_ENABLE_NETWORKING)
+        add_subdirectory(src/demos/multiplayer)
+    endif()
     add_subdirectory(src/demos/physics)
 endif()
 

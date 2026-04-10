@@ -225,23 +225,28 @@ void OpenGLFramebuffer::Invalidate() {
       switch (colorAttachmentSpecifications_[i].TextureFormat) {
       case FramebufferTextureFormat::RGBA8:
         Utils::AttachColorTexture(resolvedColorAttachments_[i], 1, GL_RGBA8,
-                                  GL_RGBA, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i);
+                                  GL_RGBA, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RGBA16F:
         Utils::AttachColorTexture(resolvedColorAttachments_[i], 1, GL_RGBA16F,
-                                  GL_RGBA, GL_FLOAT, spec_.Width, spec_.Height, i);
+                                  GL_RGBA, GL_FLOAT, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RG16F:
         Utils::AttachColorTexture(resolvedColorAttachments_[i], 1, GL_RG16F,
-                                  GL_RG, GL_FLOAT, spec_.Width, spec_.Height, i);
+                                  GL_RG, GL_FLOAT, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RED8:
         Utils::AttachColorTexture(resolvedColorAttachments_[i], 1, GL_R8,
-                                  GL_RED, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i);
+                                  GL_RED, GL_UNSIGNED_BYTE, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       case FramebufferTextureFormat::RED_INTEGER:
         Utils::AttachColorTexture(resolvedColorAttachments_[i], 1, GL_R32I,
-                                  GL_RED_INTEGER, GL_INT, spec_.Width, spec_.Height, i);
+                                  GL_RED_INTEGER, GL_INT, spec_.Width, spec_.Height, i,
+                                  colorAttachmentSpecifications_[i]);
         break;
       }
     }

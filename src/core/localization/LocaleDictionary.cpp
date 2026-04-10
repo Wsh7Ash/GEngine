@@ -226,9 +226,10 @@ inline std::string FormatString(const std::string& templateStr, const std::vecto
     std::string result = templateStr;
     for (size_t i = 0; i < args.size(); ++i) {
         std::string placeholder = "{" + std::to_string(i) + "}";
-        size_t pos = result.find(placeholder);
-        if (pos != std::string::npos) {
+        size_t pos = 0;
+        while ((pos = result.find(placeholder, pos)) != std::string::npos) {
             result.replace(pos, placeholder.length(), args[i]);
+            pos += args[i].length();
         }
     }
     return result;

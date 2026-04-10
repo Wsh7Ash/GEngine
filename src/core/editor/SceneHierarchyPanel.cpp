@@ -12,6 +12,7 @@
 #include "../ecs/components/Collider3DComponent.h"
 #include "../ecs/components/RelationshipComponent.h"
 #include "../renderer/Renderer2D.h"
+#include "../renderer/Texture.h"
 #include "../cmd/CommandHistory.h"
 #include "../cmd/EntityCommands.h"
 #include "../math/MathUtils.h"
@@ -455,15 +456,63 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
+        ImGui::Text("Pivot");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::DragFloat2("##pivot", &sc.Pivot.x, 0.01f, 0.0f, 1.0f, "%.2f");
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Sort");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::DragInt2("##sort", &sc.SortingLayer, 0.1f);
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Y Sort");
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("##ysort", &sc.YSort);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("PPU");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::DragFloat("##ppu", &sc.PixelsPerUnit, 0.25f, 1.0f, 256.0f, "%.2f");
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Src Size");
+        ImGui::TableNextColumn();
+        ImGui::Checkbox("##usesourcesize", &sc.UseSourceSize);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
         ImGui::Text("Texture");
         ImGui::TableNextColumn();
         ImGui::PushItemWidth(-1);
-        ImGui::Button("Texture Slot", ImVec2(-1, 0));
+        const char* textureLabel = sc.TexturePath.empty() ? "Texture Slot" : sc.TexturePath.c_str();
+        ImGui::Button(textureLabel, ImVec2(-1, 0));
         ImGui::PopItemWidth();
         if (ImGui::BeginDragDropTarget()) {
           if (const ImGuiPayload *payload =
                   ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
-            GE_LOG_INFO("Texture drag-and-drop received.");
+            const wchar_t* path = static_cast<const wchar_t*>(payload->Data);
+            std::filesystem::path texturePath(path);
+            if (texturePath.has_extension()) {
+              const auto extension = texturePath.extension().string();
+              if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp") {
+                sc.TexturePath = texturePath.string();
+                renderer::TextureSpecification specification;
+                specification.PixelArt = true;
+                sc.texture = renderer::Texture::Create(sc.TexturePath, specification);
+                GE_LOG_INFO("Loaded sprite texture: %s", sc.TexturePath.c_str());
+              }
+            }
           }
           ImGui::EndDragDropTarget();
         }

@@ -32,6 +32,8 @@ public:
   Math::Vec4f GetClearColor() const { return clearColor_; }
   bool IsVisible() const { return isVisible_; }
   Math::Vec2f GetSize() const { return viewportSize_; }
+  const Math::Vec2f& GetCameraPosition() const { return cameraPosition_; }
+  bool IsGameView() const { return isGameView_; }
 
   void SetResultTexture(uint32_t id) { resultTexture_ = id; }
 

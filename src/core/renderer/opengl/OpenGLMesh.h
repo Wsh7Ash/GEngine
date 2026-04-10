@@ -17,6 +17,7 @@ namespace renderer {
         virtual void Unbind() const override;
 
         virtual void Draw() const override;
+        virtual void DrawInstanced(const std::vector<Math::Mat4f>& instances) override;
 
         virtual uint32_t GetIndexCount() const override { return indexCount_; }
         virtual void SetData(const void* vertices, uint32_t size) override;

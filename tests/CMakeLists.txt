@@ -13,18 +13,24 @@ set(GE_TEST_SOURCES
 
     # Integration tests
     integration/test_ecs.cpp
-    integration/test_network.cpp
-    integration/test_network_soak.cpp
     integration/test_physics_regression.cpp
     integration/test_render_regression.cpp
     integration/test_localization.cpp
     integration/test_audio.cpp
-    integration/test_network_security.cpp
-    integration/test_interest.cpp
+    integration/test_pixel_foundation.cpp
 
     # Stress tests
     stress/test_thread_safety.cpp
 )
+
+if(GE_ENABLE_NETWORKING)
+    list(APPEND GE_TEST_SOURCES
+        integration/test_network.cpp
+        integration/test_network_soak.cpp
+        integration/test_network_security.cpp
+        integration/test_interest.cpp
+    )
+endif()
 
 add_executable(ge_tests ${GE_TEST_SOURCES})
 
@@ -44,4 +50,4 @@ if(WIN32)
 endif()
 
 include(CTest)
-catch_discover_tests(ge_tests)
+add_test(NAME ge_tests COMMAND $<TARGET_FILE:ge_tests>)

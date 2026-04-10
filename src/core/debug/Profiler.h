@@ -125,8 +125,8 @@ private:
         float maxFPS = 0.0f;
         for (float fps : m_FPSHistory) {
             totalFPS += fps;
-            minFPS = std::min(minFPS, fps);
-            maxFPS = std::max(maxFPS, fps);
+            minFPS = (std::min)(minFPS, fps);
+            maxFPS = (std::max)(maxFPS, fps);
         }
         m_AverageFPS = totalFPS / (float)m_FPSHistory.size();
         m_MinFPS = minFPS;

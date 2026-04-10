@@ -2,146 +2,170 @@
 #include "src/core/version.h"
 #include "src/core/ecs/World.h"
 #include "src/core/ecs/systems/RenderSystem.h"
-#include "src/core/renderer/Mesh.h"
-#include "src/core/renderer/Material.h"
-#include "src/core/renderer/Shader.h"
-#include "src/core/renderer/PerspectiveCamera.h"
-#include "src/core/ecs/components/TransformComponent.h"
-#include "src/core/ecs/components/MeshComponent.h"
-#include "src/core/ecs/components/LightComponent.h"
-#include "src/core/ecs/components/PostProcessComponent.h"
+#include "src/core/renderer/OrthographicCamera.h"
+#include "src/core/ecs/components/BuildPlacementComponent.h"
+#include "src/core/ecs/components/InteractionComponent.h"
+#include "src/core/ecs/components/InventoryComponent.h"
+#include "src/core/ecs/components/PickupComponent.h"
+#include "src/core/ecs/components/ResourceNodeComponent.h"
+#include "src/core/ecs/components/SpriteComponent.h"
 #include "src/core/ecs/components/TagComponent.h"
-#include "src/core/ecs/components/Rigidbody3DComponent.h"
-#include "src/core/ecs/components/Collider3DComponent.h"
-#include "src/core/ecs/components/CharacterController3DComponent.h"
+#include "src/core/ecs/components/TilemapComponent.h"
+#include "src/core/ecs/components/TopDownControllerComponent.h"
+#include "src/core/ecs/components/TransformComponent.h"
+#include "src/core/ecs/components/WaveSpawnerComponent.h"
 
 using namespace ge;
+
+namespace {
+
+int TileIndex(int x, int y, int width) {
+    return y * width + x;
+}
+
+void PaintRect(ecs::TilemapLayer& layer, int width, int x0, int y0, int w, int h, int tileId) {
+    for (int y = y0; y < y0 + h; ++y) {
+        for (int x = x0; x < x0 + w; ++x) {
+            const int index = TileIndex(x, y, width);
+            if (index >= 0 && index < static_cast<int>(layer.Tiles.size())) {
+                layer.Tiles[static_cast<size_t>(index)] = tileId;
+            }
+        }
+    }
+}
+
+Math::Vec2f CellToWorld(const ecs::TilemapComponent& tilemap, int x, int y) {
+    return tilemap.Navigation.CellToWorldCenter({x, y});
+}
+
+} // namespace
 
 class GEngineApp : public Application {
 public:
     GEngineApp(const ApplicationProps& props) : Application(props) {
         auto& world = GetWorld();
 
-        // 1. 3D Camera
-        auto camera = std::make_shared<renderer::PerspectiveCamera>(45.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
-        camera->SetPosition({ 0.0f, 5.0f, 15.0f });
-        constexpr float DEG2RAD = 3.14159265f / 180.0f;
-        camera->SetRotation(Math::Quatf::FromEuler(-20.0f * DEG2RAD, 0.0f, 0.0f));
-        world.GetSystem<ecs::RenderSystem>()->Set3DCamera(camera);
+        auto camera = std::make_shared<renderer::OrthographicCamera>(-12.0f, 12.0f, -7.0f, 7.0f);
+        camera->SetPixelPerfectEnabled(true);
+        camera->SetPixelSnap(true);
+        camera->SetPixelsPerUnit(16.0f);
+        world.GetSystem<ecs::RenderSystem>()->Set2DCamera(camera);
 
-        // 2. Post Processing
-        {
-            auto ppEntity = world.CreateEntity();
-            world.AddComponent<ecs::TransformComponent>(ppEntity, ecs::TransformComponent{});
-            world.AddComponent<ecs::TagComponent>(ppEntity, ecs::TagComponent{"PostProcess"});
-            ecs::PostProcessComponent pp;
-            world.AddComponent<ecs::PostProcessComponent>(ppEntity, pp);
-        }
+        constexpr int mapWidth = 24;
+        constexpr int mapHeight = 14;
 
-        // 3. Directional Light (Sun)
-        {
-            auto dirLight = world.CreateEntity();
-            world.AddComponent<ecs::TransformComponent>(dirLight, ecs::TransformComponent{});
-            world.AddComponent<ecs::TagComponent>(dirLight, ecs::TagComponent{"Sun"});
-            ecs::LightComponent lc;
-            lc.Type = ecs::LightType::Directional;
-            lc.Intensity = 5.0f;
-            lc.CastShadows = true;
-            world.AddComponent<ecs::LightComponent>(dirLight, lc);
-            auto& lt = world.GetComponent<ecs::TransformComponent>(dirLight);
-            lt.rotation = Math::Quatf::FromEuler(-45.0f * DEG2RAD, -45.0f * DEG2RAD, 0.0f);
-        }
+        auto tilemapEntity = world.CreateEntity();
+        world.AddComponent(tilemapEntity, ecs::TransformComponent{});
+        world.AddComponent(tilemapEntity, ecs::TagComponent{"PixelFoundationMap"});
 
-        // 4. Point Lights
-        Math::Vec3f lightColors[] = { {1.0f, 0.2f, 0.2f}, {0.2f, 1.0f, 0.2f}, {0.2f, 0.2f, 1.0f} };
-        Math::Vec3f lightPositions[] = { {-5.0f, 2.0f, 0.0f}, {0.0f, 2.0f, 5.0f}, {5.0f, 2.0f, 0.0f} };
-        for (int i = 0; i < 3; ++i) {
-            auto pl = world.CreateEntity();
-            world.AddComponent<ecs::TransformComponent>(pl, ecs::TransformComponent{});
-            world.AddComponent<ecs::TagComponent>(pl, ecs::TagComponent{"PointLight"});
-            ecs::LightComponent lc;
-            lc.Type = ecs::LightType::Point;
-            lc.Color = lightColors[i];
-            lc.Intensity = 20.0f;
-            lc.Range = 15.0f;
-            world.AddComponent<ecs::LightComponent>(pl, lc);
-            auto& pt = world.GetComponent<ecs::TransformComponent>(pl);
-            pt.position = lightPositions[i];
-        }
+        ecs::TilemapComponent tilemap;
+        tilemap.Width = mapWidth;
+        tilemap.Height = mapHeight;
+        tilemap.TileWidth = 16;
+        tilemap.TileHeight = 16;
+        tilemap.PixelsPerUnit = 16.0f;
+        tilemap.Navigation.Resize(mapWidth, mapHeight, false);
+        tilemap.Navigation.CellSize = 1.0f;
+        tilemap.Navigation.Origin = {-12.0f, -7.0f};
+        tilemap.TilePalette = {
+            {0.19f, 0.34f, 0.19f, 1.0f},
+            {0.46f, 0.39f, 0.22f, 1.0f},
+            {0.23f, 0.27f, 0.29f, 1.0f},
+            {0.11f, 0.28f, 0.42f, 1.0f}
+        };
 
-        // 5. Shared Mesh & Material
-        auto cubeMesh = renderer::Mesh::CreateCube();
-        auto pbrShader = renderer::Shader::Create("./src/shaders/pbr.vert", "./src/shaders/pbr.frag");
-        auto baseMaterial = std::make_shared<renderer::Material>(pbrShader);
+        ecs::TilemapLayer ground;
+        ground.Name = "Ground";
+        ground.Tiles.assign(static_cast<size_t>(mapWidth * mapHeight), 0);
 
-        // 6. Floor
-        {
-            auto floor = world.CreateEntity();
-            world.AddComponent<ecs::TransformComponent>(floor, ecs::TransformComponent{});
-            world.AddComponent<ecs::TagComponent>(floor, ecs::TagComponent{"Floor"});
-            auto& ft = world.GetComponent<ecs::TransformComponent>(floor);
-            ft.position = { 0.0f, -0.5f, 0.0f };
-            ft.scale = { 50.0f, 1.0f, 50.0f };
-            ecs::MeshComponent mc;
-            mc.MeshPtr = cubeMesh;
-            mc.MaterialPtr = baseMaterial;
-            mc.AlbedoColor = { 0.2f, 0.2f, 0.2f };
-            mc.Metallic = 0.1f;
-            mc.Roughness = 0.8f;
-            world.AddComponent<ecs::MeshComponent>(floor, mc);
+        ecs::TilemapLayer obstacles;
+        obstacles.Name = "Obstacles";
+        obstacles.CollisionLayer = true;
+        obstacles.ZOffset = 0.02f;
+        obstacles.Tiles.assign(static_cast<size_t>(mapWidth * mapHeight), -1);
 
-            ecs::Rigidbody3DComponent rb;
-            rb.MotionType = ecs::Rigidbody3DMotionType::Static;
-            world.AddComponent<ecs::Rigidbody3DComponent>(floor, rb);
+        PaintRect(obstacles, mapWidth, 0, 0, mapWidth, 1, 2);
+        PaintRect(obstacles, mapWidth, 0, mapHeight - 1, mapWidth, 1, 2);
+        PaintRect(obstacles, mapWidth, 0, 0, 1, mapHeight, 2);
+        PaintRect(obstacles, mapWidth, mapWidth - 1, 0, 1, mapHeight, 2);
+        PaintRect(obstacles, mapWidth, 7, 3, 1, 6, 2);
+        PaintRect(obstacles, mapWidth, 12, 1, 1, 5, 2);
+        PaintRect(obstacles, mapWidth, 16, 6, 1, 6, 2);
+        PaintRect(obstacles, mapWidth, 9, 9, 5, 1, 2);
 
-            ecs::Collider3DComponent cc;
-            cc.ShapeType = ecs::Collider3DShapeType::Box;
-            cc.BoxHalfExtents = { 25.0f, 0.5f, 25.0f };
-            world.AddComponent<ecs::Collider3DComponent>(floor, cc);
-        }
+        tilemap.Layers.push_back(std::move(ground));
+        tilemap.Layers.push_back(std::move(obstacles));
+        world.AddComponent(tilemapEntity, std::move(tilemap));
 
-        // 7. PBR Material Grid (5x5 = 25 cubes varying metallic/roughness)
-        for (int x = -2; x <= 2; ++x) {
-            for (int z = -2; z <= 2; ++z) {
-                auto cube = world.CreateEntity();
-                world.AddComponent<ecs::TransformComponent>(cube, ecs::TransformComponent{});
-                world.AddComponent<ecs::TagComponent>(cube, ecs::TagComponent{"MatCube"});
-                auto& tc = world.GetComponent<ecs::TransformComponent>(cube);
-                tc.position = { x * 3.0f, 1.0f, z * 3.0f };
+        auto player = world.CreateEntity();
+        ecs::TransformComponent playerTransform;
+        playerTransform.position = {-8.5f, -2.5f, 0.3f};
+        playerTransform.scale = {0.8f, 0.8f, 1.0f};
+        world.AddComponent(player, playerTransform);
+        world.AddComponent(player, ecs::TagComponent{"Player"});
+        world.AddComponent(player, ecs::SpriteComponent{});
+        world.GetComponent<ecs::SpriteComponent>(player).color = {0.33f, 0.64f, 0.95f, 1.0f};
+        world.AddComponent(player, ecs::TopDownControllerComponent{4.0f});
 
-                ecs::MeshComponent mc;
-                mc.MeshPtr = cubeMesh;
-                mc.MaterialPtr = baseMaterial;
-                mc.AlbedoColor = { 0.8f, 0.1f, 0.1f };
-                mc.Metallic = (x + 2) / 4.0f;
-                float rough = (z + 2) / 4.0f;
-                mc.Roughness = rough < 0.05f ? 0.05f : rough;
-                world.AddComponent<ecs::MeshComponent>(cube, mc);
-            }
-        }
+        ecs::InventoryComponent inventory;
+        inventory.Items.push_back({"resource.wood", 2});
+        world.AddComponent(player, std::move(inventory));
+        world.AddComponent(player, ecs::InteractionComponent{1.25f, true, "Harvest"});
+        world.AddComponent(player, ecs::BuildPlacementComponent{});
 
-        // 8. Test CharacterVirtual
-        {
-            auto character = world.CreateEntity();
-            world.AddComponent<ecs::TransformComponent>(character, ecs::TransformComponent{});
-            world.AddComponent<ecs::TagComponent>(character, ecs::TagComponent{"Player"});
-            
-            auto& ct = world.GetComponent<ecs::TransformComponent>(character);
-            ct.position = { 0.0f, 5.0f, -5.0f }; // Start floating above floor
-            ct.scale = { 0.5f, 1.8f, 0.5f };
+        auto pickup = world.CreateEntity();
+        ecs::TransformComponent pickupTransform;
+        pickupTransform.position = {-6.5f, -2.5f, 0.25f};
+        pickupTransform.scale = {0.45f, 0.45f, 1.0f};
+        world.AddComponent(pickup, pickupTransform);
+        world.AddComponent(pickup, ecs::TagComponent{"StarterPickup"});
+        ecs::SpriteComponent pickupSprite;
+        pickupSprite.color = {0.95f, 0.85f, 0.30f, 1.0f};
+        world.AddComponent(pickup, pickupSprite);
+        world.AddComponent(pickup, ecs::PickupComponent{"resource.wood", 2, 0.9f});
 
-            ecs::MeshComponent mc;
-            mc.MeshPtr = cubeMesh;
-            mc.MaterialPtr = baseMaterial;
-            mc.AlbedoColor = { 0.1f, 0.8f, 0.1f }; // Green player cube
-            world.AddComponent<ecs::MeshComponent>(character, mc);
+        auto resourceNode = world.CreateEntity();
+        ecs::TransformComponent resourceTransform;
+        resourceTransform.position = {-4.5f, -1.5f, 0.25f};
+        resourceTransform.scale = {0.9f, 0.9f, 1.0f};
+        world.AddComponent(resourceNode, resourceTransform);
+        world.AddComponent(resourceNode, ecs::TagComponent{"WoodNode"});
+        ecs::SpriteComponent resourceSprite;
+        resourceSprite.color = {0.33f, 0.75f, 0.36f, 1.0f};
+        world.AddComponent(resourceNode, resourceSprite);
+        world.AddComponent(resourceNode, ecs::ResourceNodeComponent{"resource.wood", 8, 8, 1, 0.0f, 0.0f, false});
+        world.AddComponent(resourceNode, ecs::InteractionComponent{1.2f, true, "Chop"});
 
-            ecs::CharacterController3DComponent cc;
-            // Move forward and constantly try to apply downward/jumping logic via velocity
-            // As a simple test: Apply constant forward velocity
-            cc.LinearVelocity = { 0.0f, 0.0f, 2.0f };
-            world.AddComponent<ecs::CharacterController3DComponent>(character, cc);
-        }
+        auto goalMarker = world.CreateEntity();
+        ecs::TransformComponent goalTransform;
+        goalTransform.position = {10.5f, 3.5f, 0.2f};
+        goalTransform.scale = {1.0f, 1.0f, 1.0f};
+        world.AddComponent(goalMarker, goalTransform);
+        world.AddComponent(goalMarker, ecs::TagComponent{"Goal"});
+        ecs::SpriteComponent goalSprite;
+        goalSprite.color = {0.90f, 0.25f, 0.25f, 1.0f};
+        world.AddComponent(goalMarker, goalSprite);
+
+        auto waveSpawner = world.CreateEntity();
+        ecs::TransformComponent spawnerTransform;
+        spawnerTransform.position = {-10.5f, 3.5f, 0.2f};
+        spawnerTransform.scale = {0.9f, 0.9f, 1.0f};
+        world.AddComponent(waveSpawner, spawnerTransform);
+        world.AddComponent(waveSpawner, ecs::TagComponent{"WaveSpawner"});
+        ecs::SpriteComponent spawnerSprite;
+        spawnerSprite.color = {0.75f, 0.18f, 0.28f, 1.0f};
+        world.AddComponent(waveSpawner, spawnerSprite);
+
+        ecs::WaveSpawnerComponent spawner;
+        spawner.SpawnCell = {1, 10};
+        spawner.GoalCell = {22, 10};
+        spawner.SpawnInterval = 1.1f;
+        spawner.WaveInterval = 4.0f;
+        spawner.WaveTimer = 1.0f;
+        spawner.EnemySpeed = 2.0f;
+        spawner.EnemyHealth = 3;
+        spawner.EnemiesPerWave = 4;
+        world.AddComponent(waveSpawner, spawner);
     }
 
     ~GEngineApp() override = default;
@@ -150,12 +174,11 @@ public:
 int main() {
     ge::debug::log::Initialize();
 
-    // Log version info
-    ge::debug::log::info("GEngine v{} ({})", ge::Version::String, ge::Version::Platform);
-    ge::debug::log::info("Build: {} - {}", ge::Version::BuildType, ge::Version::BuildDate);
+    ge::debug::log::Info("GEngine v{} ({})", ge::Version::String, ge::Version::Platform);
+    ge::debug::log::Info("Build: {} - {}", ge::Version::BuildType, ge::Version::BuildDate);
 
     ApplicationProps props;
-    props.Name = "GEngine Production Demo";
+    props.Name = "GEngine Pixel Foundation Sample";
     props.Width = 1280;
     props.Height = 720;
 

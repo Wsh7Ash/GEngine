@@ -6,11 +6,52 @@
 #include "../../debug/assert.h"
 #include "../../platform/VFS.h"
 #include <glad/glad.h>
+#include <algorithm>
+#include <sstream>
 #include <vector>
 #include <regex>
 
 namespace ge {
 namespace renderer {
+
+namespace {
+
+std::string ApplyDefinesToSource(const std::string& source, const std::unordered_map<std::string, bool>& defines) {
+    if (defines.empty()) {
+        return source;
+    }
+
+    std::ostringstream defineBlock;
+    for (const auto& [key, enabled] : defines) {
+        if (enabled) {
+            defineBlock << "#define " << key << "\n";
+        }
+    }
+
+    const std::string defineString = defineBlock.str();
+    if (defineString.empty()) {
+        return source;
+    }
+
+    const size_t versionPos = source.find("#version");
+    if (versionPos == std::string::npos) {
+        return defineString + source;
+    }
+
+    const size_t versionLineEnd = source.find_first_of("\r\n", versionPos);
+    if (versionLineEnd == std::string::npos) {
+        return source + "\n" + defineString;
+    }
+
+    size_t insertPos = source.find_first_not_of("\r\n", versionLineEnd);
+    if (insertPos == std::string::npos) {
+        insertPos = source.size();
+    }
+
+    return source.substr(0, insertPos) + defineString + source.substr(insertPos);
+}
+
+} // anonymous namespace
 
 OpenGLShader::OpenGLShader(const std::string& filepath)
     : filepath_(filepath)
@@ -22,7 +63,7 @@ OpenGLShader::OpenGLShader(const std::string& filepath)
     
     ExtractVariantDefines(source);
     
-    useSPIRV_ = true;
+    useSPIRV_ = false;
     if (variantDefines_.empty()) {
         rendererID_ = CreateProgram(vertexSource_, fragmentSource_);
     } else {
@@ -215,7 +256,7 @@ OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fra
         }
         
         size_t numVariants = 1ULL << variantNames.size();
-        numVariants = std::min(numVariants, size_t(64));
+        numVariants = (std::min)(numVariants, size_t(64));
         
         for (size_t i = 0; i < numVariants; ++i) {
             std::unordered_map<std::string, bool> defines;
@@ -227,14 +268,11 @@ OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fra
             
             std::string key = ShaderVariantManager::Get().GetVariantKey(defines);
             
-            uint32_t vsSpirv = CompileShaderSPIRV(GL_VERTEX_SHADER, vertexSource_, defines);
-            uint32_t fsSpirv = CompileShaderSPIRV(GL_FRAGMENT_SHADER, fragmentSource_, defines);
-            
-            if (vsSpirv && fsSpirv) {
-                uint32_t program = CreateProgramSPIRV(
-                    std::as_const(std::vector<uint32_t>()),
-                    std::as_const(std::vector<uint32_t>())
-                );
+            const std::string variantVertexSource = ApplyDefinesToSource(vertexSource_, defines);
+            const std::string variantFragmentSource = ApplyDefinesToSource(fragmentSource_, defines);
+
+            uint32_t program = CreateProgram(variantVertexSource, variantFragmentSource);
+            if (program != 0) {
                 variantProgramCache_[key] = program;
             }
         }
@@ -261,67 +299,15 @@ OpenGLShader::OpenGLShader(const std::string& vertexPath, const std::string& fra
     }
 
     uint32_t OpenGLShader::CreateProgramSPIRV(std::span<const uint32_t> vertexSpirv, std::span<const uint32_t> fragmentSpirv) {
-        uint32_t program = glCreateProgram();
-        
-        if (!vertexSpirv.empty()) {
-            glShaderBinary(1, &program, GL_SPIR_V_BINARY, vertexSpirv.data(), static_cast<GLsizei>(vertexSpirv.size() * 4));
-        }
-        if (!fragmentSpirv.empty()) {
-            glShaderBinary(1, &program, GL_SPIR_V_BINARY, fragmentSpirv.data(), static_cast<GLsizei>(fragmentSpirv.size() * 4));
-        }
-        
-        glLinkProgram(program);
-        
-        int result;
-        glGetProgramiv(program, GL_LINK_STATUS, &result);
-        if (result == GL_FALSE) {
-            int length;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-            std::vector<char> message(length);
-            glGetProgramInfoLog(program, length, &length, message.data());
-            GE_LOG_ERROR("Failed to link SPIR-V shader program!");
-            GE_LOG_ERROR("%s", message.data());
-            glDeleteProgram(program);
-            return 0;
-        }
-        
-#ifndef NDEBUG
-        glObjectLabel(GL_PROGRAM, program, -1, filepath_.c_str());
-#endif
-
-        return program;
+        (void)vertexSpirv;
+        (void)fragmentSpirv;
+        GE_LOG_WARNING("SPIR-V program creation is disabled for the OpenGL milestone build");
+        return 0;
     }
 
     uint32_t OpenGLShader::CompileShaderSPIRV(uint32_t type, const std::string& source, 
                                                const std::unordered_map<std::string, bool>& defines) {
-        auto& compiler = ShaderCompiler::Get();
-        auto result = compiler.CompileWithDefines(source, type, defines);
-        
-        if (!result.success) {
-            GE_LOG_ERROR("Failed to compile SPIR-V shader: %s", result.errorLog.c_str());
-            return 0;
-        }
-        
-        uint32_t shader = glCreateShader(type);
-        glShaderBinary(1, &shader, GL_SPIR_V_BINARY, result.spirv.data(), 
-                       static_cast<GLsizei>(result.spirv.size() * 4));
-        
-        glCompileShader(shader);
-        
-        int result2;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &result2);
-        if (result2 == GL_FALSE) {
-            int length;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-            std::vector<char> message(length);
-            glGetShaderInfoLog(shader, length, &length, message.data());
-            GE_LOG_ERROR("Failed to compile SPIR-V shader!");
-            GE_LOG_ERROR("%s", message.data());
-            glDeleteShader(shader);
-            return 0;
-        }
-        
-        return shader;
+        return CompileShader(type, ApplyDefinesToSource(source, defines));
     }
 
     void OpenGLShader::ExtractVariantDefines(const std::string& source) {

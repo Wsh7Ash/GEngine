@@ -5,25 +5,8 @@
 #include "components/Collider3DComponent.h"
 #include "systems/Physics3DSystem.h"
 
-#include <Jolt/Jolt.h>
-#include <Jolt/Physics/PhysicsSystem.h>
-#include <Jolt/Physics/Body/Body.h>
-#include <Jolt/Physics/Collision/RayCast.h>
-#include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/SphereShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
-
 namespace ge {
 namespace ecs {
-
-namespace {
-
-JPH::PhysicsSystem* GetPhysicsSystem(World& world) {
-    (void)world;
-    return nullptr;
-}
-
-}
 
 bool Physics3D_API::Raycast(World& world, 
                            const Math::Vec3f& origin, 
@@ -41,10 +24,10 @@ bool Physics3D_API::Raycast(World& world,
 }
 
 bool Physics3D_API::RaycastSingle(World& world,
-                             const Math::Vec3f& origin,
-                             const Math::Vec3f& direction,
-                             float maxDistance,
-                             RaycastHit& hit) {
+                         const Math::Vec3f& origin,
+                         const Math::Vec3f& direction,
+                         float maxDistance,
+                         RaycastHit& hit) {
     (void)world;
     (void)origin;
     (void)direction;
@@ -54,11 +37,11 @@ bool Physics3D_API::RaycastSingle(World& world,
 }
 
 bool Physics3D_API::SweepBox(World& world,
-                        const Math::Vec3f& start,
-                        const Math::Vec3f& end,
-                        const Math::Vec3f& halfExtents,
-                        const Math::Quatf& rotation,
-                        std::vector<SweepHit>& hits) {
+                      const Math::Vec3f& start,
+                      const Math::Vec3f& end,
+                      const Math::Vec3f& halfExtents,
+                      const Math::Quatf& rotation,
+                      std::vector<SweepHit>& hits) {
     (void)world;
     (void)start;
     (void)end;
@@ -69,10 +52,10 @@ bool Physics3D_API::SweepBox(World& world,
 }
 
 bool Physics3D_API::SweepSphere(World& world,
-                           const Math::Vec3f& start,
-                           const Math::Vec3f& end,
-                           float radius,
-                           std::vector<SweepHit>& hits) {
+                         const Math::Vec3f& start,
+                         const Math::Vec3f& end,
+                         float radius,
+                         std::vector<SweepHit>& hits) {
     (void)world;
     (void)start;
     (void)end;
@@ -82,11 +65,11 @@ bool Physics3D_API::SweepSphere(World& world,
 }
 
 bool Physics3D_API::SweepCapsule(World& world,
-                            const Math::Vec3f& start,
-                            const Math::Vec3f& end,
-                            float radius,
-                            float halfHeight,
-                            std::vector<SweepHit>& hits) {
+                         const Math::Vec3f& start,
+                         const Math::Vec3f& end,
+                         float radius,
+                         float halfHeight,
+                         std::vector<SweepHit>& hits) {
     (void)world;
     (void)start;
     (void)end;
@@ -97,9 +80,9 @@ bool Physics3D_API::SweepCapsule(World& world,
 }
 
 bool Physics3D_API::OverlapSphere(World& world,
-                             const Math::Vec3f& position,
-                             float radius,
-                             std::vector<Entity>& overlaps) {
+                         const Math::Vec3f& position,
+                         float radius,
+                         std::vector<Entity>& overlaps) {
     (void)world;
     (void)position;
     (void)radius;
@@ -108,10 +91,10 @@ bool Physics3D_API::OverlapSphere(World& world,
 }
 
 bool Physics3D_API::OverlapBox(World& world,
-                          const Math::Vec3f& position,
-                          const Math::Vec3f& halfExtents,
-                          const Math::Quatf& rotation,
-                          std::vector<Entity>& overlaps) {
+                      const Math::Vec3f& position,
+                      const Math::Vec3f& halfExtents,
+                      const Math::Quatf& rotation,
+                      std::vector<Entity>& overlaps) {
     (void)world;
     (void)position;
     (void)halfExtents;
@@ -121,12 +104,12 @@ bool Physics3D_API::OverlapBox(World& world,
 }
 
 bool Physics3D_API::ShapeCast(World& world,
-                         const Math::Vec3f& start,
-                         const Math::Vec3f& direction,
-                         float maxDistance,
-                         const Math::Vec3f& halfExtents,
-                         const Math::Quatf& rotation,
-                         std::vector<ShapeCastHit>& hits) {
+                     const Math::Vec3f& start,
+                     const Math::Vec3f& direction,
+                     float maxDistance,
+                     const Math::Vec3f& halfExtents,
+                     const Math::Quatf& rotation,
+                     std::vector<ShapeCastHit>& hits) {
     (void)world;
     (void)start;
     (void)direction;
@@ -176,7 +159,6 @@ Math::Vec3f Physics3D_API::GetLinearVelocity(World& world, Entity entity) {
 
 void Physics3D_API::SetLinearVelocity(World& world, Entity entity, const Math::Vec3f& velocity) {
     if (!world.HasComponent<Rigidbody3DComponent>(entity)) return;
-    auto& rb = world.GetComponent<Rigidbody3DComponent>(entity);
     if (!world.HasComponent<VelocityComponent>(entity)) {
         world.AddComponent<VelocityComponent>(entity, VelocityComponent{});
     }

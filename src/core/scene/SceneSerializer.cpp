@@ -6,12 +6,24 @@
 #include "../ecs/components/LightComponent.h"
 #include "../ecs/components/NativeScriptComponent.h"
 #include "../ecs/components/SpriteComponent.h"
+#include "../ecs/components/TilemapComponent.h"
+#include "../ecs/components/GridPathData.h"
+#include "../ecs/components/TopDownControllerComponent.h"
+#include "../ecs/components/InteractionComponent.h"
+#include "../ecs/components/HealthComponent.h"
+#include "../ecs/components/InventoryComponent.h"
+#include "../ecs/components/PickupComponent.h"
+#include "../ecs/components/ResourceNodeComponent.h"
+#include "../ecs/components/BuildPlacementComponent.h"
+#include "../ecs/components/WaveSpawnerComponent.h"
+#include "../ecs/components/DefenseTowerComponent.h"
 #include "../ecs/components/Rigidbody2DComponent.h"
 #include "../ecs/components/BoxCollider2DComponent.h"
 #include "../ecs/components/RelationshipComponent.h"
 #include "../debug/log.h"
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/ScriptRegistry.h"
+#include "../renderer/Texture.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -84,9 +96,18 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
       if (world_.HasComponent<ecs::SpriteComponent>(entity)) {
         auto &sc = world_.GetComponent<ecs::SpriteComponent>(entity);
         entityJson["Sprite"] = {
+            {"TexturePath", sc.TexturePath},
             {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}},
+            {"Pivot", {sc.Pivot.x, sc.Pivot.y}},
             {"FlipX", sc.FlipX},
             {"FlipY", sc.FlipY},
+            {"SortingLayer", sc.SortingLayer},
+            {"OrderInLayer", sc.OrderInLayer},
+            {"YSort", sc.YSort},
+            {"PixelsPerUnit", sc.PixelsPerUnit},
+            {"UseSourceSize", sc.UseSourceSize},
+            {"UseAtlasRegion", sc.UseAtlasRegion},
+            {"AtlasRegion", {sc.AtlasRegion.x, sc.AtlasRegion.y, sc.AtlasRegion.z, sc.AtlasRegion.w}},
             {"isAnimated", sc.isAnimated},
             {"framesX", sc.framesX},
             {"framesY", sc.framesY},
@@ -123,6 +144,166 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
             {"Density", bc.Density},
             {"Friction", bc.Friction},
             {"Restitution", bc.Restitution}};
+      }
+
+      if (world_.HasComponent<ecs::TilemapComponent>(entity)) {
+        auto& tilemap = world_.GetComponent<ecs::TilemapComponent>(entity);
+        json layers = json::array();
+        for (const auto& layer : tilemap.Layers) {
+          layers.push_back({
+            {"Name", layer.Name},
+            {"Tiles", layer.Tiles},
+            {"Visible", layer.Visible},
+            {"CollisionLayer", layer.CollisionLayer},
+            {"ZOffset", layer.ZOffset}
+          });
+        }
+
+        json palette = json::array();
+        for (const auto& color : tilemap.TilePalette) {
+          palette.push_back({color.x, color.y, color.z, color.w});
+        }
+
+        entityJson["Tilemap"] = {
+          {"TilesetTexturePath", tilemap.TilesetTexturePath},
+          {"Width", tilemap.Width},
+          {"Height", tilemap.Height},
+          {"TileWidth", tilemap.TileWidth},
+          {"TileHeight", tilemap.TileHeight},
+          {"TilesPerRow", tilemap.TilesPerRow},
+          {"PixelsPerUnit", tilemap.PixelsPerUnit},
+          {"ChunkWidth", tilemap.ChunkWidth},
+          {"ChunkHeight", tilemap.ChunkHeight},
+          {"AutoBuildNavigation", tilemap.AutoBuildNavigation},
+          {"NavigationOrigin", {tilemap.Navigation.Origin.x, tilemap.Navigation.Origin.y}},
+          {"NavigationCellSize", tilemap.Navigation.CellSize},
+          {"TilePalette", palette},
+          {"Layers", layers}
+        };
+      }
+
+      if (world_.HasComponent<ecs::GridMapComponent>(entity)) {
+        auto& grid = world_.GetComponent<ecs::GridMapComponent>(entity).Grid;
+        entityJson["GridMap"] = {
+          {"Width", grid.Width},
+          {"Height", grid.Height},
+          {"CellSize", grid.CellSize},
+          {"Origin", {grid.Origin.x, grid.Origin.y}},
+          {"Blocked", grid.Blocked}
+        };
+      }
+
+      if (world_.HasComponent<ecs::TopDownControllerComponent>(entity)) {
+        auto& controller = world_.GetComponent<ecs::TopDownControllerComponent>(entity);
+        entityJson["TopDownController"] = {{"MoveSpeed", controller.MoveSpeed}};
+      }
+
+      if (world_.HasComponent<ecs::InteractionComponent>(entity)) {
+        auto& interaction = world_.GetComponent<ecs::InteractionComponent>(entity);
+        entityJson["Interaction"] = {
+          {"Range", interaction.Range},
+          {"Enabled", interaction.Enabled},
+          {"Prompt", interaction.Prompt}
+        };
+      }
+
+      if (world_.HasComponent<ecs::HealthComponent>(entity)) {
+        auto& health = world_.GetComponent<ecs::HealthComponent>(entity);
+        entityJson["Health"] = {
+          {"Current", health.Current},
+          {"Max", health.Max},
+          {"DestroyOnZero", health.DestroyOnZero}
+        };
+      }
+
+      if (world_.HasComponent<ecs::InventoryComponent>(entity)) {
+        auto& inventory = world_.GetComponent<ecs::InventoryComponent>(entity);
+        json items = json::array();
+        for (const auto& stack : inventory.Items) {
+          items.push_back({{"ItemId", stack.ItemId}, {"Quantity", stack.Quantity}});
+        }
+        entityJson["Inventory"] = {
+          {"Capacity", inventory.Capacity},
+          {"Items", items}
+        };
+      }
+
+      if (world_.HasComponent<ecs::PickupComponent>(entity)) {
+        auto& pickup = world_.GetComponent<ecs::PickupComponent>(entity);
+        entityJson["Pickup"] = {
+          {"ItemId", pickup.ItemId},
+          {"Quantity", pickup.Quantity},
+          {"AutoPickupRadius", pickup.AutoPickupRadius}
+        };
+      }
+
+      if (world_.HasComponent<ecs::ResourceNodeComponent>(entity)) {
+        auto& resource = world_.GetComponent<ecs::ResourceNodeComponent>(entity);
+        entityJson["ResourceNode"] = {
+          {"ItemId", resource.ItemId},
+          {"Amount", resource.Amount},
+          {"MaxAmount", resource.MaxAmount},
+          {"YieldPerInteract", resource.YieldPerInteract},
+          {"RespawnDelay", resource.RespawnDelay},
+          {"RespawnTimer", resource.RespawnTimer},
+          {"Depleted", resource.Depleted}
+        };
+      }
+
+      if (world_.HasComponent<ecs::BuildPlacementComponent>(entity)) {
+        auto& placement = world_.GetComponent<ecs::BuildPlacementComponent>(entity);
+        entityJson["BuildPlacement"] = {
+          {"BlocksPath", placement.BlocksPath},
+          {"DisallowBlockingPath", placement.DisallowBlockingPath},
+          {"PlacementCooldown", placement.PlacementCooldown},
+          {"PlacementTimer", placement.PlacementTimer},
+          {"RemainingPlacements", placement.RemainingPlacements},
+          {"DefenseColor", {placement.DefenseColor.x, placement.DefenseColor.y, placement.DefenseColor.z, placement.DefenseColor.w}}
+        };
+      }
+
+      if (world_.HasComponent<ecs::WaveSpawnerComponent>(entity)) {
+        auto& spawner = world_.GetComponent<ecs::WaveSpawnerComponent>(entity);
+        entityJson["WaveSpawner"] = {
+          {"SpawnCell", {spawner.SpawnCell.x, spawner.SpawnCell.y}},
+          {"GoalCell", {spawner.GoalCell.x, spawner.GoalCell.y}},
+          {"SpawnInterval", spawner.SpawnInterval},
+          {"SpawnTimer", spawner.SpawnTimer},
+          {"WaveInterval", spawner.WaveInterval},
+          {"WaveTimer", spawner.WaveTimer},
+          {"EnemySpeed", spawner.EnemySpeed},
+          {"EnemyHealth", spawner.EnemyHealth},
+          {"EnemiesPerWave", spawner.EnemiesPerWave},
+          {"RemainingInWave", spawner.RemainingInWave},
+          {"LoopWaves", spawner.LoopWaves},
+          {"EnemyColor", {spawner.EnemyColor.x, spawner.EnemyColor.y, spawner.EnemyColor.z, spawner.EnemyColor.w}}
+        };
+      }
+
+      if (world_.HasComponent<ecs::DefenseTowerComponent>(entity)) {
+        auto& tower = world_.GetComponent<ecs::DefenseTowerComponent>(entity);
+        entityJson["DefenseTower"] = {
+          {"Range", tower.Range},
+          {"FireInterval", tower.FireInterval},
+          {"Cooldown", tower.Cooldown},
+          {"Damage", tower.Damage}
+        };
+      }
+
+      if (world_.HasComponent<ecs::PathAgentComponent>(entity)) {
+        auto& agent = world_.GetComponent<ecs::PathAgentComponent>(entity);
+        json path = json::array();
+        for (const auto& cell : agent.Path) {
+          path.push_back({cell.x, cell.y});
+        }
+        entityJson["PathAgent"] = {
+          {"GoalCell", {agent.GoalCell.x, agent.GoalCell.y}},
+          {"MoveSpeed", agent.MoveSpeed},
+          {"NextWaypointIndex", agent.NextWaypointIndex},
+          {"DestroyAtGoal", agent.DestroyAtGoal},
+          {"RepathRequired", agent.RepathRequired},
+          {"Path", path}
+        };
       }
 
       // Serialize Hierarchy
@@ -242,12 +423,40 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
     if (entityData.contains("Sprite")) {
       auto &cData = entityData["Sprite"]["Color"];
       ecs::SpriteComponent sc;
+      if (entityData["Sprite"].contains("TexturePath")) {
+        sc.TexturePath = entityData["Sprite"]["TexturePath"];
+        if (!sc.TexturePath.empty()) {
+          renderer::TextureSpecification textureSpec;
+          textureSpec.PixelArt = true;
+          sc.texture = renderer::Texture::Create(sc.TexturePath, textureSpec);
+        }
+      }
       sc.color = {(float)cData[0], (float)cData[1], (float)cData[2],
                   (float)cData[3]};
+      if (entityData["Sprite"].contains("Pivot")) {
+        auto& pData = entityData["Sprite"]["Pivot"];
+        sc.Pivot = {(float)pData[0], (float)pData[1]};
+      }
       if (entityData["Sprite"].contains("FlipX"))
         sc.FlipX = entityData["Sprite"]["FlipX"];
       if (entityData["Sprite"].contains("FlipY"))
         sc.FlipY = entityData["Sprite"]["FlipY"];
+      if (entityData["Sprite"].contains("SortingLayer"))
+        sc.SortingLayer = entityData["Sprite"]["SortingLayer"];
+      if (entityData["Sprite"].contains("OrderInLayer"))
+        sc.OrderInLayer = entityData["Sprite"]["OrderInLayer"];
+      if (entityData["Sprite"].contains("YSort"))
+        sc.YSort = entityData["Sprite"]["YSort"];
+      if (entityData["Sprite"].contains("PixelsPerUnit"))
+        sc.PixelsPerUnit = entityData["Sprite"]["PixelsPerUnit"];
+      if (entityData["Sprite"].contains("UseSourceSize"))
+        sc.UseSourceSize = entityData["Sprite"]["UseSourceSize"];
+      if (entityData["Sprite"].contains("UseAtlasRegion"))
+        sc.UseAtlasRegion = entityData["Sprite"]["UseAtlasRegion"];
+      if (entityData["Sprite"].contains("AtlasRegion")) {
+        auto& aData = entityData["Sprite"]["AtlasRegion"];
+        sc.AtlasRegion = {(float)aData[0], (float)aData[1], (float)aData[2], (float)aData[3]};
+      }
       if (entityData["Sprite"].contains("isAnimated"))
         sc.isAnimated = entityData["Sprite"]["isAnimated"];
       if (entityData["Sprite"].contains("framesX"))
@@ -294,6 +503,191 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
       bc.Friction = entityData["BoxCollider2D"]["Friction"];
       bc.Restitution = entityData["BoxCollider2D"]["Restitution"];
       world_.AddComponent(entity, bc);
+    }
+
+    if (entityData.contains("Tilemap")) {
+      ecs::TilemapComponent tilemap;
+      auto& tilemapData = entityData["Tilemap"];
+      if (tilemapData.contains("TilesetTexturePath")) {
+        tilemap.TilesetTexturePath = tilemapData["TilesetTexturePath"];
+        if (!tilemap.TilesetTexturePath.empty()) {
+          renderer::TextureSpecification textureSpec;
+          textureSpec.PixelArt = true;
+          tilemap.TilesetTexture = renderer::Texture::Create(tilemap.TilesetTexturePath, textureSpec);
+        }
+      }
+      tilemap.Width = tilemapData.value("Width", 0);
+      tilemap.Height = tilemapData.value("Height", 0);
+      tilemap.TileWidth = tilemapData.value("TileWidth", 16);
+      tilemap.TileHeight = tilemapData.value("TileHeight", 16);
+      tilemap.TilesPerRow = tilemapData.value("TilesPerRow", 1);
+      tilemap.PixelsPerUnit = tilemapData.value("PixelsPerUnit", 16.0f);
+      tilemap.ChunkWidth = tilemapData.value("ChunkWidth", 16);
+      tilemap.ChunkHeight = tilemapData.value("ChunkHeight", 16);
+      tilemap.AutoBuildNavigation = tilemapData.value("AutoBuildNavigation", true);
+      if (tilemapData.contains("NavigationOrigin")) {
+        auto& origin = tilemapData["NavigationOrigin"];
+        tilemap.Navigation.Origin = {(float)origin[0], (float)origin[1]};
+      }
+      tilemap.Navigation.CellSize = tilemapData.value("NavigationCellSize", 1.0f);
+      tilemap.Navigation.Resize(tilemap.Width, tilemap.Height, false);
+      if (tilemapData.contains("TilePalette")) {
+        for (auto& color : tilemapData["TilePalette"]) {
+          tilemap.TilePalette.push_back({(float)color[0], (float)color[1], (float)color[2], (float)color[3]});
+        }
+      }
+      if (tilemapData.contains("Layers")) {
+        for (auto& layerData : tilemapData["Layers"]) {
+          ecs::TilemapLayer layer;
+          layer.Name = layerData.value("Name", "Layer");
+          layer.Visible = layerData.value("Visible", true);
+          layer.CollisionLayer = layerData.value("CollisionLayer", false);
+          layer.ZOffset = layerData.value("ZOffset", 0.0f);
+          if (layerData.contains("Tiles")) {
+            layer.Tiles = layerData["Tiles"].get<std::vector<int32_t>>();
+          }
+          tilemap.Layers.push_back(std::move(layer));
+        }
+      }
+      world_.AddComponent(entity, std::move(tilemap));
+    }
+
+    if (entityData.contains("GridMap")) {
+      ecs::GridMapComponent gridMap;
+      auto& gridData = entityData["GridMap"];
+      gridMap.Grid.Resize(gridData.value("Width", 0), gridData.value("Height", 0), false);
+      gridMap.Grid.CellSize = gridData.value("CellSize", 1.0f);
+      if (gridData.contains("Origin")) {
+        auto& origin = gridData["Origin"];
+        gridMap.Grid.Origin = {(float)origin[0], (float)origin[1]};
+      }
+      if (gridData.contains("Blocked")) {
+        gridMap.Grid.Blocked = gridData["Blocked"].get<std::vector<uint8_t>>();
+      }
+      world_.AddComponent(entity, std::move(gridMap));
+    }
+
+    if (entityData.contains("TopDownController")) {
+      ecs::TopDownControllerComponent controller;
+      controller.MoveSpeed = entityData["TopDownController"].value("MoveSpeed", controller.MoveSpeed);
+      world_.AddComponent(entity, controller);
+    }
+
+    if (entityData.contains("Interaction")) {
+      ecs::InteractionComponent interaction;
+      interaction.Range = entityData["Interaction"].value("Range", interaction.Range);
+      interaction.Enabled = entityData["Interaction"].value("Enabled", interaction.Enabled);
+      interaction.Prompt = entityData["Interaction"].value("Prompt", interaction.Prompt);
+      world_.AddComponent(entity, std::move(interaction));
+    }
+
+    if (entityData.contains("Health")) {
+      ecs::HealthComponent health;
+      health.Current = entityData["Health"].value("Current", health.Current);
+      health.Max = entityData["Health"].value("Max", health.Max);
+      health.DestroyOnZero = entityData["Health"].value("DestroyOnZero", health.DestroyOnZero);
+      world_.AddComponent(entity, health);
+    }
+
+    if (entityData.contains("Inventory")) {
+      ecs::InventoryComponent inventory;
+      inventory.Capacity = entityData["Inventory"].value("Capacity", inventory.Capacity);
+      if (entityData["Inventory"].contains("Items")) {
+        for (auto& itemData : entityData["Inventory"]["Items"]) {
+          inventory.Items.push_back({
+            itemData.value("ItemId", std::string{}),
+            itemData.value("Quantity", 0)
+          });
+        }
+      }
+      world_.AddComponent(entity, std::move(inventory));
+    }
+
+    if (entityData.contains("Pickup")) {
+      ecs::PickupComponent pickup;
+      pickup.ItemId = entityData["Pickup"].value("ItemId", pickup.ItemId);
+      pickup.Quantity = entityData["Pickup"].value("Quantity", pickup.Quantity);
+      pickup.AutoPickupRadius = entityData["Pickup"].value("AutoPickupRadius", pickup.AutoPickupRadius);
+      world_.AddComponent(entity, std::move(pickup));
+    }
+
+    if (entityData.contains("ResourceNode")) {
+      ecs::ResourceNodeComponent resource;
+      resource.ItemId = entityData["ResourceNode"].value("ItemId", resource.ItemId);
+      resource.Amount = entityData["ResourceNode"].value("Amount", resource.Amount);
+      resource.MaxAmount = entityData["ResourceNode"].value("MaxAmount", resource.MaxAmount);
+      resource.YieldPerInteract = entityData["ResourceNode"].value("YieldPerInteract", resource.YieldPerInteract);
+      resource.RespawnDelay = entityData["ResourceNode"].value("RespawnDelay", resource.RespawnDelay);
+      resource.RespawnTimer = entityData["ResourceNode"].value("RespawnTimer", resource.RespawnTimer);
+      resource.Depleted = entityData["ResourceNode"].value("Depleted", resource.Depleted);
+      world_.AddComponent(entity, std::move(resource));
+    }
+
+    if (entityData.contains("BuildPlacement")) {
+      ecs::BuildPlacementComponent placement;
+      placement.BlocksPath = entityData["BuildPlacement"].value("BlocksPath", placement.BlocksPath);
+      placement.DisallowBlockingPath = entityData["BuildPlacement"].value("DisallowBlockingPath", placement.DisallowBlockingPath);
+      placement.PlacementCooldown = entityData["BuildPlacement"].value("PlacementCooldown", placement.PlacementCooldown);
+      placement.PlacementTimer = entityData["BuildPlacement"].value("PlacementTimer", placement.PlacementTimer);
+      placement.RemainingPlacements = entityData["BuildPlacement"].value("RemainingPlacements", placement.RemainingPlacements);
+      if (entityData["BuildPlacement"].contains("DefenseColor")) {
+        auto& color = entityData["BuildPlacement"]["DefenseColor"];
+        placement.DefenseColor = {(float)color[0], (float)color[1], (float)color[2], (float)color[3]};
+      }
+      world_.AddComponent(entity, placement);
+    }
+
+    if (entityData.contains("WaveSpawner")) {
+      ecs::WaveSpawnerComponent spawner;
+      if (entityData["WaveSpawner"].contains("SpawnCell")) {
+        auto& cell = entityData["WaveSpawner"]["SpawnCell"];
+        spawner.SpawnCell = {(int)cell[0], (int)cell[1]};
+      }
+      if (entityData["WaveSpawner"].contains("GoalCell")) {
+        auto& cell = entityData["WaveSpawner"]["GoalCell"];
+        spawner.GoalCell = {(int)cell[0], (int)cell[1]};
+      }
+      spawner.SpawnInterval = entityData["WaveSpawner"].value("SpawnInterval", spawner.SpawnInterval);
+      spawner.SpawnTimer = entityData["WaveSpawner"].value("SpawnTimer", spawner.SpawnTimer);
+      spawner.WaveInterval = entityData["WaveSpawner"].value("WaveInterval", spawner.WaveInterval);
+      spawner.WaveTimer = entityData["WaveSpawner"].value("WaveTimer", spawner.WaveTimer);
+      spawner.EnemySpeed = entityData["WaveSpawner"].value("EnemySpeed", spawner.EnemySpeed);
+      spawner.EnemyHealth = entityData["WaveSpawner"].value("EnemyHealth", spawner.EnemyHealth);
+      spawner.EnemiesPerWave = entityData["WaveSpawner"].value("EnemiesPerWave", spawner.EnemiesPerWave);
+      spawner.RemainingInWave = entityData["WaveSpawner"].value("RemainingInWave", spawner.RemainingInWave);
+      spawner.LoopWaves = entityData["WaveSpawner"].value("LoopWaves", spawner.LoopWaves);
+      if (entityData["WaveSpawner"].contains("EnemyColor")) {
+        auto& color = entityData["WaveSpawner"]["EnemyColor"];
+        spawner.EnemyColor = {(float)color[0], (float)color[1], (float)color[2], (float)color[3]};
+      }
+      world_.AddComponent(entity, spawner);
+    }
+
+    if (entityData.contains("DefenseTower")) {
+      ecs::DefenseTowerComponent tower;
+      tower.Range = entityData["DefenseTower"].value("Range", tower.Range);
+      tower.FireInterval = entityData["DefenseTower"].value("FireInterval", tower.FireInterval);
+      tower.Cooldown = entityData["DefenseTower"].value("Cooldown", tower.Cooldown);
+      tower.Damage = entityData["DefenseTower"].value("Damage", tower.Damage);
+      world_.AddComponent(entity, tower);
+    }
+
+    if (entityData.contains("PathAgent")) {
+      ecs::PathAgentComponent agent;
+      if (entityData["PathAgent"].contains("GoalCell")) {
+        auto& goal = entityData["PathAgent"]["GoalCell"];
+        agent.GoalCell = {(int)goal[0], (int)goal[1]};
+      }
+      agent.MoveSpeed = entityData["PathAgent"].value("MoveSpeed", agent.MoveSpeed);
+      agent.NextWaypointIndex = entityData["PathAgent"].value("NextWaypointIndex", agent.NextWaypointIndex);
+      agent.DestroyAtGoal = entityData["PathAgent"].value("DestroyAtGoal", agent.DestroyAtGoal);
+      agent.RepathRequired = entityData["PathAgent"].value("RepathRequired", agent.RepathRequired);
+      if (entityData["PathAgent"].contains("Path")) {
+        for (auto& cell : entityData["PathAgent"]["Path"]) {
+          agent.Path.push_back({(int)cell[0], (int)cell[1]});
+        }
+      }
+      world_.AddComponent(entity, std::move(agent));
     }
 
     // Deserialize Parent (by UUID)

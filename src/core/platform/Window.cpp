@@ -3,9 +3,18 @@
 #include "../debug/assert.h"
 #include "../renderer/RendererAPI.h"
 #include "../renderer/opengl/OpenGLContext.h"
+
+#if defined(GE_ENABLE_DX11_BACKEND) && GE_ENABLE_DX11_BACKEND
 #include "../renderer/dx11/DX11Context.h"
+#endif
+
+#if defined(GE_ENABLE_WEBGL2_BACKEND) && GE_ENABLE_WEBGL2_BACKEND
 #include "../renderer/webgl2/WebGL2Context.h"
+#endif
+
+#if defined(GE_ENABLE_VULKAN_BACKEND) && GE_ENABLE_VULKAN_BACKEND
 #include "../renderer/vulkan/VulkanContext.h"
+#endif
 
 #include <GLFW/glfw3.h>
 
@@ -67,21 +76,33 @@ void Window::Init(const WindowProps& props)
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::DX11)
     {
+#if defined(GE_ENABLE_DX11_BACKEND) && GE_ENABLE_DX11_BACKEND
         // No client API for DX11 context
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#else
+        GE_LOG_ERROR("DX11 backend requested but not compiled into this build.");
+#endif
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::Vulkan)
     {
+#if defined(GE_ENABLE_VULKAN_BACKEND) && GE_ENABLE_VULKAN_BACKEND
         // Vulkan uses GLFW_NO_API - no OpenGL context needed
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#else
+        GE_LOG_ERROR("Vulkan backend requested but not compiled into this build.");
+#endif
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::WebGL2)
     {
+#if defined(GE_ENABLE_WEBGL2_BACKEND) && GE_ENABLE_WEBGL2_BACKEND
         // WebGL2 uses OpenGL ES 3.0 context via GLFW
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+#else
+        GE_LOG_ERROR("WebGL2 backend requested but not compiled into this build.");
+#endif
     }
 
     window_ = glfwCreateWindow((int)props.Width, (int)props.Height, data_.Title.c_str(), nullptr, nullptr);
@@ -94,15 +115,27 @@ void Window::Init(const WindowProps& props)
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::DX11)
     {
+#if defined(GE_ENABLE_DX11_BACKEND) && GE_ENABLE_DX11_BACKEND
         context_ = std::make_unique<renderer::DX11Context>(window_);
+#else
+        GE_ASSERT(false, "DX11 backend requested but not compiled into this build");
+#endif
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::Vulkan)
     {
+#if defined(GE_ENABLE_VULKAN_BACKEND) && GE_ENABLE_VULKAN_BACKEND
         context_ = std::make_unique<renderer::VulkanContext>(window_);
+#else
+        GE_ASSERT(false, "Vulkan backend requested but not compiled into this build");
+#endif
     }
     else if (renderer::RendererAPI::GetAPI() == renderer::RenderAPI::WebGL2)
     {
+#if defined(GE_ENABLE_WEBGL2_BACKEND) && GE_ENABLE_WEBGL2_BACKEND
         context_ = std::make_unique<renderer::WebGL2Context>(window_);
+#else
+        GE_ASSERT(false, "WebGL2 backend requested but not compiled into this build");
+#endif
     }
 
     context_->Init();

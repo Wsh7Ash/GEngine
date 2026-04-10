@@ -1,5 +1,8 @@
 #include "../catch_amalgamated.hpp"
 
+#include <cctype>
+#include <iomanip>
+#include <sstream>
 #include <unordered_map>
 #include <string>
 #include <vector>
@@ -100,7 +103,7 @@ TEST_CASE("Localization - Pluralization Replace N", "[localization]")
     
     size_t pos = templateStr.find("{n}");
     if (pos != std::string::npos) {
-        templateStr.replace(pos, 2, std::to_string(count));
+        templateStr.replace(pos, 3, std::to_string(count));
     }
     
     REQUIRE(templateStr == "42 items");
@@ -127,7 +130,20 @@ TEST_CASE("Localization - Number Formatting", "[localization]")
 TEST_CASE("Localization - Currency Formatting", "[localization]")
 {
     auto formatCurrency = [](double amount, const std::string& symbol) -> std::string {
-        return symbol + std::to_string(amount);
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(2) << amount;
+
+        std::string value = stream.str();
+        if (value.find('.') != std::string::npos) {
+            while (!value.empty() && value.back() == '0') {
+                value.pop_back();
+            }
+            if (!value.empty() && value.back() == '.') {
+                value.pop_back();
+            }
+        }
+
+        return symbol + value;
     };
     
     REQUIRE(formatCurrency(9.99, "$") == "$9.99");
@@ -247,8 +263,8 @@ TEST_CASE("Localization - Escape Sequences", "[localization]")
 TEST_CASE("Localization - Unicode Handling", "[localization]")
 {
     std::string english = "Hello";
-    std::string japanese = u8"\u3053\u3093\u306b\u3061\u306f";
-    std::string arabic = u8"\u0627\u0644\u0633\u0644\u0627\u0645";
+    std::string japanese = reinterpret_cast<const char*>(u8"\u3053\u3093\u306b\u3061\u306f");
+    std::string arabic = reinterpret_cast<const char*>(u8"\u0627\u0644\u0633\u0644\u0627\u0645");
     
     REQUIRE(english.size() == 5);
     REQUIRE(japanese.size() > 5);
@@ -320,17 +336,15 @@ TEST_CASE("Localization - Format String Injection Prevention", "[localization]")
                     std::string inner = str.substr(i + 1, close - i - 1);
                     bool isNumber = true;
                     for (char c : inner) {
-                        if (!std::isdigit(c)) {
+                        if (!std::isdigit(static_cast<unsigned char>(c))) {
                             isNumber = false;
                             break;
                         }
                     }
                     if (isNumber) {
                         result += str.substr(i, close - i + 1);
-                        i = close;
-                    } else {
-                        result += str[i];
                     }
+                    i = close;
                 }
             } else {
                 result += str[i];
@@ -393,9 +407,9 @@ TEST_CASE("Localization - Argument Type Coercion", "[localization]")
     }
     
     std::string result = templateStr;
-    result.replace(result.find("{n}"), 2, args[0]);
-    result.replace(result.find("{s}"), 2, args[1]);
-    result.replace(result.find("{d}"), 2, args[2]);
+    result.replace(result.find("{n}"), 3, args[0]);
+    result.replace(result.find("{s}"), 3, args[1]);
+    result.replace(result.find("{d}"), 3, args[2]);
     
     REQUIRE(result == "Count: 42, Text: test, Decimal: 3.14");
 }

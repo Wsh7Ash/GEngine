@@ -4,7 +4,6 @@
 #include "../../renderer/Shader.h"
 #include "../System.h"
 #include "../World.h"
-#include "../../renderer/SSGIPass.h"
 #include <memory>
 
 namespace ge {
@@ -32,7 +31,6 @@ namespace ecs {
         std::shared_ptr<renderer::Shader> m_ThresholdShader;
         std::shared_ptr<renderer::Shader> m_BlurShader;
         std::shared_ptr<renderer::Shader> m_CompositeShader;
-        std::shared_ptr<renderer::SSGIPass> m_SSGIPass; // SSGI pass
 
         uint32_t m_Width = 1280, m_Height = 720;
         

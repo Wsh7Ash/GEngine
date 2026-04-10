@@ -6,7 +6,9 @@
 // ================================================================
 
 #include "Asset.h"
+#include <algorithm>
 #include <filesystem>
+#include <string>
 #include <vector>
 
 namespace ge {
@@ -27,6 +29,10 @@ inline AssetFlags operator|(AssetFlags a, AssetFlags b) {
 
 inline AssetFlags operator&(AssetFlags a, AssetFlags b) {
     return static_cast<AssetFlags>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+}
+
+inline AssetFlags operator~(AssetFlags flags) {
+    return static_cast<AssetFlags>(~static_cast<uint32_t>(flags));
 }
 
 struct AssetMetadata

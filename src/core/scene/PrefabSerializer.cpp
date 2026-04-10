@@ -13,6 +13,7 @@
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/ScriptRegistry.h"
 #include "../debug/log.h"
+#include "../renderer/Texture.h"
 #include <fstream>
 
 namespace ge {
@@ -82,9 +83,18 @@ json PrefabSerializer::SerializeEntity(ecs::World& world, ecs::Entity entity) {
     if (world.HasComponent<ecs::SpriteComponent>(entity)) {
         auto& sc = world.GetComponent<ecs::SpriteComponent>(entity);
         entityJson["Sprite"] = {
+            {"TexturePath", sc.TexturePath},
             {"Color", {sc.color.x, sc.color.y, sc.color.z, sc.color.w}},
+            {"Pivot", {sc.Pivot.x, sc.Pivot.y}},
             {"FlipX", sc.FlipX},
             {"FlipY", sc.FlipY},
+            {"SortingLayer", sc.SortingLayer},
+            {"OrderInLayer", sc.OrderInLayer},
+            {"YSort", sc.YSort},
+            {"PixelsPerUnit", sc.PixelsPerUnit},
+            {"UseSourceSize", sc.UseSourceSize},
+            {"UseAtlasRegion", sc.UseAtlasRegion},
+            {"AtlasRegion", {sc.AtlasRegion.x, sc.AtlasRegion.y, sc.AtlasRegion.z, sc.AtlasRegion.w}},
             {"isAnimated", sc.isAnimated},
             {"framesX", sc.framesX},
             {"framesY", sc.framesY},
@@ -205,9 +215,31 @@ ecs::Entity PrefabSerializer::DeserializeEntity(ecs::World& world, const json& d
     if (data.contains("Sprite")) {
         ecs::SpriteComponent sc;
         auto& cJson = data["Sprite"]["Color"];
+        if (data["Sprite"].contains("TexturePath")) {
+            sc.TexturePath = data["Sprite"]["TexturePath"];
+            if (!sc.TexturePath.empty()) {
+                renderer::TextureSpecification textureSpec;
+                textureSpec.PixelArt = true;
+                sc.texture = renderer::Texture::Create(sc.TexturePath, textureSpec);
+            }
+        }
         sc.color = {cJson[0], cJson[1], cJson[2], cJson[3]};
+        if (data["Sprite"].contains("Pivot")) {
+            auto& pJson = data["Sprite"]["Pivot"];
+            sc.Pivot = {pJson[0], pJson[1]};
+        }
         sc.FlipX = data["Sprite"]["FlipX"];
         sc.FlipY = data["Sprite"]["FlipY"];
+        if (data["Sprite"].contains("SortingLayer")) sc.SortingLayer = data["Sprite"]["SortingLayer"];
+        if (data["Sprite"].contains("OrderInLayer")) sc.OrderInLayer = data["Sprite"]["OrderInLayer"];
+        if (data["Sprite"].contains("YSort")) sc.YSort = data["Sprite"]["YSort"];
+        if (data["Sprite"].contains("PixelsPerUnit")) sc.PixelsPerUnit = data["Sprite"]["PixelsPerUnit"];
+        if (data["Sprite"].contains("UseSourceSize")) sc.UseSourceSize = data["Sprite"]["UseSourceSize"];
+        if (data["Sprite"].contains("UseAtlasRegion")) sc.UseAtlasRegion = data["Sprite"]["UseAtlasRegion"];
+        if (data["Sprite"].contains("AtlasRegion")) {
+            auto& aJson = data["Sprite"]["AtlasRegion"];
+            sc.AtlasRegion = {aJson[0], aJson[1], aJson[2], aJson[3]};
+        }
         sc.isAnimated = data["Sprite"]["isAnimated"];
         sc.framesX = data["Sprite"]["framesX"];
         sc.framesY = data["Sprite"]["framesY"];

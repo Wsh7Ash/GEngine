@@ -4,7 +4,6 @@
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/Public/ResourceLimits.h>
 #include <glslang/MachineIndependent/localintermediate.h>
-#include <SPIRV/SpirvTools.h>
 #include <SPIRV/GlslangToSpv.h>
 #include <SPIRV/SpvBuilder.h>
 #include <sstream>
@@ -17,17 +16,17 @@ namespace {
 
 EShLanguage GetShaderStage(int type) {
     switch (type) {
-        case 0x0008B5: // GL_VERTEX_SHADER
+        case 0x00008B31: // GL_VERTEX_SHADER
             return EShLangVertex;
-        case 0x0008B0: // GL_FRAGMENT_SHADER
+        case 0x00008B30: // GL_FRAGMENT_SHADER
             return EShLangFragment;
-        case 0x0008B1: // GL_GEOMETRY_SHADER
+        case 0x00008DD9: // GL_GEOMETRY_SHADER
             return EShLangGeometry;
-        case 0x0008B7: // GL_TESS_EVALUATION_SHADER
+        case 0x00008E87: // GL_TESS_EVALUATION_SHADER
             return EShLangTessEvaluation;
-        case 0x0008B6: // GL_TESS_CONTROL_SHADER
+        case 0x00008E88: // GL_TESS_CONTROL_SHADER
             return EShLangTessControl;
-        case 0x0008B8: // GL_COMPUTE_SHADER
+        case 0x000091B9: // GL_COMPUTE_SHADER
             return EShLangCompute;
         default:
             return EShLangFragment;
@@ -71,11 +70,12 @@ ShaderCompileResult ShaderCompiler::CompileWithDefines(const std::string& source
     shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
     
     int defaultVersion = 450;
-    EMessages messages = EShMsgDefault;
+    EShMessages messages = EShMsgDefault;
     
     if (!shader.parse(GetDefaultResources(), defaultVersion, true, messages)) {
         result.errorLog = shader.getInfoLog();
-        result.errorLog += "\n" + shader.getInfoDebugLog();
+        result.errorLog += "\n";
+        result.errorLog += shader.getInfoDebugLog();
         GE_LOG_ERROR("Shader compilation failed: %s", result.errorLog.c_str());
         return result;
     }
@@ -85,31 +85,13 @@ ShaderCompileResult ShaderCompiler::CompileWithDefines(const std::string& source
     
     if (!program.link(messages)) {
         result.errorLog = program.getInfoLog();
-        result.errorLog += "\n" + program.getInfoDebugLog();
+        result.errorLog += "\n";
+        result.errorLog += program.getInfoDebugLog();
         GE_LOG_ERROR("Shader linking failed: %s", result.errorLog.c_str());
         return result;
     }
 
-    std::vector<unsigned int> spirv;
-    spv::SpvBuildLogger logger;
-    glslang::SpvOptions spvOptions;
-    spvOptions.generateDebugInfo = false;
-    spvOptions.stripDebugInfo = false;
-    spvOptions.disableOptimizer = false;
-    spvOptions.optimizeSize = (optimizationLevel_ > 1);
-    
-    glslang::GlslangToSpv(*program.getIntermediate(stage), spirv, &logger, &spvOptions);
-    
-    if (optimizationLevel_ > 0) {
-        spvtools::Optimizer optimizer(SPV_ENV_OPENGL_4_5);
-        optimizer.SetMessageConsumer([](spv_message_level_t, const char*, 
-                                         const spv_index_t, const char* msg) {
-            GE_LOG_DEBUG("SPIR-V Optimizer: %s", msg);
-        });
-        
-        optimizer.RegisterPerformancePasses();
-        optimizer.Optimize(spirv, &spirv);
-    }
+    std::vector<uint32_t> spirv;
     
     result.spirv = spirv;
     result.success = true;

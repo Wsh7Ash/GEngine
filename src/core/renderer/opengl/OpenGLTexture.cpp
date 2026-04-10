@@ -10,8 +10,34 @@
 namespace ge {
 namespace renderer {
 
-    OpenGLTexture::OpenGLTexture(const std::string& path)
-        : path_(path), width_(0), height_(0), rendererID_(0)
+    namespace {
+
+    GLenum TextureFilterToGL(TextureFilter filter) {
+        switch (filter) {
+            case TextureFilter::Nearest: return GL_NEAREST;
+            case TextureFilter::Linear: return GL_LINEAR;
+            case TextureFilter::NearestMipmapNearest: return GL_NEAREST_MIPMAP_NEAREST;
+            case TextureFilter::LinearMipmapNearest: return GL_LINEAR_MIPMAP_NEAREST;
+            case TextureFilter::NearestMipmapLinear: return GL_NEAREST_MIPMAP_LINEAR;
+            case TextureFilter::LinearMipmapLinear: return GL_LINEAR_MIPMAP_LINEAR;
+            default: return GL_LINEAR;
+        }
+    }
+
+    GLenum TextureWrapToGL(TextureWrap wrap) {
+        switch (wrap) {
+            case TextureWrap::Repeat: return GL_REPEAT;
+            case TextureWrap::ClampToEdge: return GL_CLAMP_TO_EDGE;
+            case TextureWrap::ClampToBorder: return GL_CLAMP_TO_BORDER;
+            case TextureWrap::MirrorRepeat: return GL_MIRRORED_REPEAT;
+            default: return GL_CLAMP_TO_EDGE;
+        }
+    }
+
+    } // namespace
+
+    OpenGLTexture::OpenGLTexture(const std::string& path, const TextureSpecification& specification)
+        : path_(path), width_(0), height_(0), rendererID_(0), specification_(specification)
     {
         GE_LOG_INFO("Loading texture via VFS: %s", path.c_str());
         
@@ -56,11 +82,7 @@ namespace renderer {
 
             glCreateTextures(GL_TEXTURE_2D, 1, &rendererID_);
             glTextureStorage2D(rendererID_, 1, internalFormat_, width_, height_);
-
-            glTextureParameteri(rendererID_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTextureParameteri(rendererID_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            ApplySpecification();
 
             glTextureSubImage2D(rendererID_, 0, 0, 0, width_, height_, dataFormat_, type, data);
 
@@ -73,8 +95,8 @@ namespace renderer {
         }
     }
 
-    OpenGLTexture::OpenGLTexture(uint32_t width, uint32_t height, void* data, uint32_t size)
-        : width_(width), height_(height)
+    OpenGLTexture::OpenGLTexture(uint32_t width, uint32_t height, void* data, uint32_t size, const TextureSpecification& specification)
+        : width_(width), height_(height), rendererID_(0), specification_(specification)
     {
         (void)size;
         internalFormat_ = GL_RGBA8;
@@ -82,12 +104,7 @@ namespace renderer {
 
         glCreateTextures(GL_TEXTURE_2D, 1, &rendererID_);
         glTextureStorage2D(rendererID_, 1, internalFormat_, width_, height_);
-
-        glTextureParameteri(rendererID_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTextureParameteri(rendererID_, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        ApplySpecification();
 
         glTextureSubImage2D(rendererID_, 0, 0, 0, width_, height_, dataFormat_, GL_UNSIGNED_BYTE, data);
     }
@@ -105,6 +122,17 @@ namespace renderer {
     void OpenGLTexture::Unbind() const
     {
         glBindTextureUnit(0, 0);
+    }
+
+    void OpenGLTexture::ApplySpecification()
+    {
+        TextureFilter minFilter = specification_.PixelArt ? TextureFilter::Nearest : specification_.MinFilter;
+        TextureFilter magFilter = specification_.PixelArt ? TextureFilter::Nearest : specification_.MagFilter;
+
+        glTextureParameteri(rendererID_, GL_TEXTURE_MIN_FILTER, TextureFilterToGL(minFilter));
+        glTextureParameteri(rendererID_, GL_TEXTURE_MAG_FILTER, TextureFilterToGL(magFilter));
+        glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_S, TextureWrapToGL(specification_.WrapU));
+        glTextureParameteri(rendererID_, GL_TEXTURE_WRAP_T, TextureWrapToGL(specification_.WrapV));
     }
 
     bool OpenGLTexture::Reload()

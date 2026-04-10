@@ -52,7 +52,7 @@ void MaterialEditorPanel::OnImGuiRender() {
         ImGui::NextColumn();
         DrawGraphCanvas();
         
-        ImGui::EndColumns();
+        // ImGui::EndColumns() removed in newer ImGui version
         
         if (selectedNodeId_ >= 0) {
             ImGui::Separator();
@@ -282,7 +282,7 @@ void MaterialEditorPanel::DrawGraphCanvas() {
         }
     }
     
-    if (ImGui::IsMouseDown(0) && !ImGui::IsMouseHoveringAnyWindow()) {
+    if (ImGui::IsMouseDown(0) && !ImGui::GetIO().WantCaptureMouse) {
         for (const auto& node : graph_->GetNodes()) {
             ImVec2 nodePos = ImVec2(canvasPos.x + node.Position.x, canvasPos.y + node.Position.y);
             ImVec2 nodeSize = ImVec2(NODE_WIDTH, NODE_HEADER_HEIGHT + node.Inputs.size() * 20.0f + node.Outputs.size() * 20.0f + 8.0f);

@@ -58,41 +58,5 @@ inline void MemoryStatsPanel::RenderProgressBar(float current, float max, const 
     ImGui::PopStyleColor();
 }
 
-void MemoryStatsPanel::RenderAllocatorRow(const AllocatorStats& stats) {
-    float utilization = stats.capacityBytes > 0.0f ? 
-        static_cast<float>(stats.allocatedBytes) / static_cast<float>(stats.capacityBytes) : 0.0f;
-
-    ImGui::TableNextRow();
-
-    ImGui::TableSetColumnIndex(0);
-    ImGui::Text("%s", stats.name.c_str());
-    if (stats.isDefault) {
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), " (Default)");
-    }
-
-    ImGui::TableSetColumnIndex(1);
-    ImGui::Text("%s", stats.type.c_str());
-
-    ImGui::TableSetColumnIndex(2);
-    ImGui::Text("%.2f MB", stats.allocatedBytes / (1024.0 * 1024.0));
-
-    ImGui::TableSetColumnIndex(3);
-    ImGui::Text("%.2f MB", stats.capacityBytes / (1024.0 * 1024.0));
-
-    ImGui::TableSetColumnIndex(4);
-    RenderProgressBar(static_cast<float>(stats.allocatedBytes), 
-                      static_cast<float>(stats.capacityBytes), 
-                      "##utilization");
-
-    if (stats.type == "PoolAllocator") {
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::Text("  Blocks: %zu / %zu", stats.allocatedCount, stats.allocatedCount + stats.freeCount);
-        ImGui::TableSetColumnIndex(1);
-        ImGui::Text("  Block size: %zu B", stats.blockSize);
-    }
-}
-
 } // namespace editor
 } // namespace ge

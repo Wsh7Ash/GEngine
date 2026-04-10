@@ -54,6 +54,10 @@ struct SaveMetadata {
     uint32_t playTimeSeconds = 0;
     uint32_t checksum = 0;
     uint32_t size = 0;
+
+    bool IsValid() const {
+        return !saveName.empty() && timestamp > 0;
+    }
 };
 
 struct SaveSlotInfo {

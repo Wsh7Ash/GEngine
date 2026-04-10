@@ -13,6 +13,8 @@ namespace assets {
         None = 0,
         Scene,
         Texture,
+        Tileset,
+        Tilemap,
         Mesh,
         Shader,
         Material,

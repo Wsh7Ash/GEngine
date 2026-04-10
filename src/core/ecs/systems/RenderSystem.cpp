@@ -27,8 +27,6 @@
 #include "../../math/BoundingVolumes.h"
 
 // Decal shaders
-#include "../../../shaders/decal.vert.glsl"
-#include "../../../shaders/decal.frag.glsl"
 #include "../components/SkyboxComponent.h"
 #include <vector>
 #include <random>

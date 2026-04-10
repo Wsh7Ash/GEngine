@@ -7,6 +7,9 @@
 
 #include <string>
 #include <cstdint>
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace ge {
 namespace testing {
@@ -24,6 +27,36 @@ struct ComparisonResult {
 
 class ImageComparator {
 public:
+    static ComparisonResult ComparePixels(
+        const std::vector<uint8_t>& goldenPixels,
+        const std::vector<uint8_t>& outputPixels
+    ) {
+        const size_t sampleCount = (std::min)(goldenPixels.size(), outputPixels.size());
+        const size_t comparedChannels = sampleCount;
+        const size_t extraChannels =
+            goldenPixels.size() > outputPixels.size()
+                ? goldenPixels.size() - outputPixels.size()
+                : outputPixels.size() - goldenPixels.size();
+
+        float totalDifference = 0.0f;
+        for (size_t i = 0; i < sampleCount; ++i) {
+            totalDifference += std::abs(static_cast<int>(goldenPixels[i]) -
+                                        static_cast<int>(outputPixels[i])) / 255.0f;
+        }
+
+        totalDifference += static_cast<float>(extraChannels);
+
+        const size_t totalChannels = comparedChannels + extraChannels;
+        const float normalizedDifference =
+            totalChannels > 0 ? totalDifference / static_cast<float>(totalChannels) : 0.0f;
+
+        ComparisonResult result{};
+        result.similarityPercent = 1.0f - normalizedDifference;
+        result.differentPixels = static_cast<uint32_t>(std::round(totalDifference));
+        result.totalPixels = static_cast<uint32_t>(totalChannels);
+        return result;
+    }
+
     static ComparisonResult Compare(
         const std::string& goldenPath,
         const std::string& outputPath,

@@ -73,8 +73,8 @@ public:
     virtual void Trim() = 0;
 
     template<typename Func, typename... Args>
-    auto Enqueue(Func&& func, Args&&... args) -> std::future<typename std::result_of<Func(Args...)>::type> {
-        using ReturnType = typename std::result_of<Func(Args...)>::type;
+    auto Enqueue(Func&& func, Args&&... args) -> std::future<decltype(func(std::forward<Args>(args)...))> {
+        using ReturnType = decltype(func(std::forward<Args>(args)...));
         
         auto task = std::make_shared<std::packaged_task<ReturnType()>>(
             [func, args...]()

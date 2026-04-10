@@ -41,7 +41,7 @@ void ScriptSystem::Update(World &world, float ts) {
 }
 
 void ScriptSystem::UpdateManagedScripts(World& world, float ts) {
-    auto managedEntities = world.Query<scripting::ManagedScriptComponent, TransformComponent>();
+    auto managedEntities = world.Query<scripting::ManagedScriptComponent>();
     
     for (auto entity : managedEntities) {
         auto& msc = world.GetComponent<scripting::ManagedScriptComponent>(entity);

@@ -51,9 +51,20 @@
 #include "ecs/components/MeshComponent.h"
 #include "ecs/components/NativeScriptComponent.h"
 #include "ecs/components/SpriteComponent.h"
+#include "ecs/components/TilemapComponent.h"
+#include "ecs/components/GridPathData.h"
 #include "ecs/components/TagComponent.h"
 #include "ecs/components/TransformComponent.h"
 #include "ecs/components/VelocityComponent.h"
+#include "ecs/components/TopDownControllerComponent.h"
+#include "ecs/components/InteractionComponent.h"
+#include "ecs/components/HealthComponent.h"
+#include "ecs/components/InventoryComponent.h"
+#include "ecs/components/PickupComponent.h"
+#include "ecs/components/ResourceNodeComponent.h"
+#include "ecs/components/BuildPlacementComponent.h"
+#include "ecs/components/WaveSpawnerComponent.h"
+#include "ecs/components/DefenseTowerComponent.h"
 #include "ecs/components/RectTransformComponent.h"
 #include "ecs/components/CanvasComponent.h"
 #include "ecs/components/UIImageComponent.h"
@@ -62,6 +73,7 @@
 #include "ecs/components/AudioListenerComponent.h"
 #include "ecs/components/ParticleEmitterComponent.h"
 #include "ecs/systems/RenderSystem.h"
+#include "ecs/systems/TopDownGameplaySystem.h"
 #include "ecs/systems/ScriptSystem.h"
 
 
@@ -82,3 +94,6 @@
 
 // Scene
 #include "scene/SceneSerializer.h"
+
+// Gameplay
+#include "gameplay/GridPathfinder.h"

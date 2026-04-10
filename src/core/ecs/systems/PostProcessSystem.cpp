@@ -10,7 +10,6 @@ namespace ecs {
         m_ThresholdShader = renderer::Shader::Create("assets/shaders/PostProcessThreshold.glsl");
         m_BlurShader = renderer::Shader::Create("assets/shaders/PostProcessBlur.glsl");
         m_CompositeShader = renderer::Shader::Create("assets/shaders/PostProcessComposite.glsl");
-        m_SSGIPass = std::make_shared<renderer::SSGIPass>();
     }
 
     void PostProcessSystem::Init(uint32_t width, uint32_t height) {

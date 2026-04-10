@@ -6,7 +6,6 @@
 #include "../renderer/Renderer2D.h"
 #include "../renderer/ShaderVariantManager.h"
 #include "../debug/log.h"
-#include "../debug/FrameBudgetProfiler.h"
 #include "VFS.h"
 
 #include "../ecs/World.h"
@@ -22,6 +21,7 @@
 #include "../ecs/systems/AnimationSystem.h"
 #include "../ecs/systems/PostProcessSystem.h"
 #include "../ecs/systems/RenderSystem.h"
+#include "../ecs/systems/TopDownGameplaySystem.h"
 
 #include "../ecs/components/Rigidbody2DComponent.h"
 #include "../ecs/components/Rigidbody3DComponent.h"
@@ -31,6 +31,7 @@
 #include "../ecs/components/AnimatorComponent.h"
 #include "../ecs/components/SpriteComponent.h"
 #include "../ecs/components/TransformComponent.h"
+#include "../ecs/components/TopDownControllerComponent.h"
 
 #ifndef GE_STANDALONE
 #include "../editor/EditorToolbar.h"
@@ -52,9 +53,6 @@ Application::Application(const ApplicationProps& props) {
     
     window_ = std::make_unique<ge::platform::Window>(ge::platform::WindowProps(props.Name, props.Width, props.Height));
     world_ = std::make_unique<ge::ecs::World>();
-    
-    frameProfiler_ = new ge::debug::FrameBudgetProfiler();
-    frameProfiler_->Initialize();
     
     std::bitset<128> signature;
 
@@ -111,13 +109,17 @@ Application::Application(const ApplicationProps& props) {
         world_->SetSystemSignature<ecs::RenderSystem>(signature);
     }
 
+    auto topDownGameplaySystem = world_->RegisterSystem<ecs::TopDownGameplaySystem>();
+    {
+        signature.reset();
+        world_->SetSystemSignature<ecs::TopDownGameplaySystem>(signature);
+    }
+
     auto postProcessSystem = world_->RegisterSystem<ecs::PostProcessSystem>();
 
     auto scriptSystem = world_->RegisterSystem<ecs::ScriptSystem>();
     {
         signature.reset();
-        signature.set(ecs::GetComponentTypeID<ecs::NativeScriptComponent>());
-        signature.set(ecs::GetComponentTypeID<scripting::ManagedScriptComponent>());
         signature.set(ecs::GetComponentTypeID<ecs::TransformComponent>());
         world_->SetSystemSignature<ecs::ScriptSystem>(signature);
     }
@@ -133,11 +135,6 @@ Application::Application(const ApplicationProps& props) {
 }
 
 Application::~Application() {
-    if (frameProfiler_) {
-        frameProfiler_->Shutdown();
-        delete frameProfiler_;
-        frameProfiler_ = nullptr;
-    }
     renderer::ShaderVariantManager::Get().StopBackgroundThread();
     renderer::Renderer2D::Shutdown();
 #ifndef GE_STANDALONE
@@ -155,9 +152,6 @@ void Application::Run() {
 
         window_->OnUpdate();
 
-        if (frameProfiler_) {
-            frameProfiler_->BeginFrame();
-        }
 #ifndef GE_STANDALONE
         if (editor::EditorToolbar::GetState() == editor::SceneState::Play) {
 #endif
@@ -167,14 +161,38 @@ void Application::Run() {
             world_->GetSystem<ecs::AudioSystem>()->Update(*world_, dt);
             world_->GetSystem<ecs::ParticleSystem>()->Update(*world_, dt);
             world_->GetSystem<ecs::AnimationSystem>()->Update(*world_, dt);
+            world_->GetSystem<ecs::TopDownGameplaySystem>()->Update(*world_, dt);
 #ifndef GE_STANDALONE
         }
 #endif
 
         // 2. Render Pass
 #ifndef GE_STANDALONE
+        auto renderSystem = world_->GetSystem<ecs::RenderSystem>();
+        renderer::Renderer2D::ResetStats();
+
+        for (const auto& viewport : editor::EditorToolbar::GetViewports()) {
+            if (!viewport) {
+                continue;
+            }
+
+            Math::Vec2f cameraPosition = viewport->IsGameView()
+                ? Math::Vec2f{0.0f, 0.0f}
+                : viewport->GetCameraPosition();
+
+            renderSystem->RenderToFramebuffer(
+                *world_,
+                viewport->GetFramebuffer(),
+                viewport->GetClearColor(),
+                cameraPosition,
+                dt);
+            viewport->SetResultTexture(0);
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, window_->GetWidth(), window_->GetHeight());
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         ImGuiLayer::Begin();
         editor::EditorToolbar::OnImGuiRender();
@@ -182,6 +200,10 @@ void Application::Run() {
 #else
         // Standalone rendering logic
         auto renderSystem = world_->GetSystem<ecs::RenderSystem>();
+        renderer::Renderer2D::ResetStats();
+        glViewport(0, 0, window_->GetWidth(), window_->GetHeight());
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderSystem->Render(*world_, dt);
 #endif
     }

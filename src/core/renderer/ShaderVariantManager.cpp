@@ -54,9 +54,47 @@ std::pair<std::string, std::string> SplitShaderSource(const std::string& source)
     return {vertexSource, fragmentSource};
 }
 
+std::string ApplyDefinesToSource(const std::string& source, const std::unordered_map<std::string, bool>& defines) {
+    if (defines.empty()) {
+        return source;
+    }
+
+    std::ostringstream defineBlock;
+    for (const auto& [key, enabled] : defines) {
+        if (enabled) {
+            defineBlock << "#define " << key << "\n";
+        }
+    }
+
+    const std::string defineString = defineBlock.str();
+    if (defineString.empty()) {
+        return source;
+    }
+
+    const size_t versionPos = source.find("#version");
+    if (versionPos == std::string::npos) {
+        return defineString + source;
+    }
+
+    const size_t versionLineEnd = source.find_first_of("\r\n", versionPos);
+    if (versionLineEnd == std::string::npos) {
+        return source + "\n" + defineString;
+    }
+
+    size_t insertPos = source.find_first_not_of("\r\n", versionLineEnd);
+    if (insertPos == std::string::npos) {
+        insertPos = source.size();
+    }
+
+    return source.substr(0, insertPos) + defineString + source.substr(insertPos);
+}
+
 } // anonymous namespace
 
 ShaderVariantManager::ShaderVariantManager() : running_(false) {
+}
+
+ShaderVariantManager::~ShaderVariantManager() {
 }
 
 ShaderVariantManager& ShaderVariantManager::Get() {
@@ -150,24 +188,25 @@ void ShaderVariantManager::SetDefines(const std::string& shaderPath, const std::
 }
 
 void ShaderVariantManager::CompileVariants(const std::string& shaderPath) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    auto it = shaderInfos_.find(shaderPath);
-    if (it == shaderInfos_.end() || it->second.defines.empty()) {
-        return;
-    }
-    
-    const auto& defines = it->second.defines;
-    
     std::vector<std::string> variantDefines;
-    for (const auto& def : defines) {
-        if (def.allowVariant) {
-            variantDefines.push_back(def.name);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        auto it = shaderInfos_.find(shaderPath);
+        if (it == shaderInfos_.end() || it->second.defines.empty()) {
+            return;
+        }
+
+        const auto& defines = it->second.defines;
+        for (const auto& def : defines) {
+            if (def.allowVariant) {
+                variantDefines.push_back(def.name);
+            }
         }
     }
-    
+
     size_t numVariants = 1ULL << variantDefines.size();
-    numVariants = std::min(numVariants, size_t(64));
+    numVariants = (std::min)(numVariants, size_t(64));
     
     for (size_t i = 0; i < numVariants; ++i) {
         std::unordered_map<std::string, bool> definesMap;
@@ -179,8 +218,14 @@ void ShaderVariantManager::CompileVariants(const std::string& shaderPath) {
         
         CompileVariant(shaderPath, definesMap);
     }
-    
-    it->second.compiled = true;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = shaderInfos_.find(shaderPath);
+        if (it != shaderInfos_.end()) {
+            it->second.compiled = true;
+        }
+    }
     GE_LOG_INFO("Compiled %zu variants for shader: %s", numVariants, shaderPath.c_str());
 }
 
@@ -203,8 +248,11 @@ bool ShaderVariantManager::CompileVariantInternal(const std::string& shaderPath,
         }
     }
     
-    ShaderCompileResult vertResult = ShaderCompiler::Get().CompileWithDefines(vertexSrc, 0x8B30, allDefines);
-    ShaderCompileResult fragResult = ShaderCompiler::Get().CompileWithDefines(fragmentSrc, 0x8B46, allDefines);
+    const std::string processedVertexSrc = ApplyDefinesToSource(vertexSrc, allDefines);
+    const std::string processedFragmentSrc = ApplyDefinesToSource(fragmentSrc, allDefines);
+
+    ShaderCompileResult vertResult = ShaderCompiler::Get().Compile(processedVertexSrc, GL_VERTEX_SHADER);
+    ShaderCompileResult fragResult = ShaderCompiler::Get().Compile(processedFragmentSrc, GL_FRAGMENT_SHADER);
     
     if (!vertResult.success || !fragResult.success) {
         GE_LOG_ERROR("Failed to compile variant for %s: VS=%s, FS=%s", 
@@ -215,11 +263,13 @@ bool ShaderVariantManager::CompileVariantInternal(const std::string& shaderPath,
     }
     
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, vertexSrc);
+    const char* vertexSourcePtr = processedVertexSrc.c_str();
+    glShaderSource(vs, 1, &vertexSourcePtr, nullptr);
     glCompileShader(vs);
     
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, fragmentSrc);
+    const char* fragmentSourcePtr = processedFragmentSrc.c_str();
+    glShaderSource(fs, 1, &fragmentSourcePtr, nullptr);
     glCompileShader(fs);
     
     uint32_t programId = glCreateProgram();
@@ -277,7 +327,7 @@ void ShaderVariantManager::CompileVariant(const std::string& shaderPath,
 
 void ShaderVariantManager::CompileVariantAsync(const std::string& shaderPath, 
                                                 const std::unordered_map<std::string, bool>& defines) {
-    std::lock_guard<std::mutex> queueMutex_;
+    std::lock_guard<std::mutex> queueLock(queueMutex_);
     
     auto it = shaderInfos_.find(shaderPath);
     if (it == shaderInfos_.end()) {

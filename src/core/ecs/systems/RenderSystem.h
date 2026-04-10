@@ -105,6 +105,11 @@ struct InstanceBatch {
 class RenderSystem : public System {
 public:
   void Render(World &world, float dt = 0.0f);
+  void RenderToFramebuffer(World& world,
+                           const std::shared_ptr<renderer::Framebuffer>& target,
+                           const Math::Vec4f& clearColor,
+                           const Math::Vec2f& cameraPosition = {0.0f, 0.0f},
+                           float dt = 0.0f);
   void ExecuteSSAOPass(World& world);
   void ExecuteCSMPass(World& world);
   void ExecuteVolumetricPass(World& world);

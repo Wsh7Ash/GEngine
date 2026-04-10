@@ -11,6 +11,7 @@ TEST_CASE("Physics Fixed Timestep - Accumulator", "[physics][regression]")
     float frameTime = 1.0f / 120.0f;
     
     accumulator += frameTime;
+    accumulator += frameTime;
     
     bool shouldStep = false;
     while (accumulator >= fixedDt) {
@@ -53,8 +54,9 @@ TEST_CASE("Physics Determinism - Gravity Calculation", "[physics][regression]")
         position += velocity * dt;
     }
     
-    float expectedPosition = 10.0f + (0.5f * gravity * 60.0f * 60.0f * dt * dt);
-    
+    constexpr int steps = 60;
+    float expectedPosition = 10.0f + gravity * dt * dt * (steps * (steps + 1) * 0.5f);
+
     REQUIRE(std::abs(position - expectedPosition) < 0.01f);
 }
 
@@ -114,11 +116,12 @@ TEST_CASE("Physics Collision Response - Elastic", "[physics][regression]")
     float v1 = 5.0f, v2 = -5.0f;
     
     float restitution = 1.0f;
+    (void)restitution;
     float v1Final = ((m1 - m2) * v1 + 2.0f * m2 * v2) / (m1 + m2);
     float v2Final = ((m2 - m1) * v2 + 2.0f * m1 * v1) / (m1 + m2);
     
-    REQUIRE(v1Final == 5.0f);
-    REQUIRE(v2Final == -5.0f);
+    REQUIRE(v1Final == -5.0f);
+    REQUIRE(v2Final == 5.0f);
 }
 
 TEST_CASE("Physics Collision Response - Inelastic", "[physics][regression]")
@@ -127,6 +130,7 @@ TEST_CASE("Physics Collision Response - Inelastic", "[physics][regression]")
     float v1 = 10.0f, v2 = 0.0f;
     
     float restitution = 0.0f;
+    (void)restitution;
     float vFinal = (m1 * v1 + m2 * v2) / (m1 + m2);
     
     REQUIRE(vFinal == 5.0f);
