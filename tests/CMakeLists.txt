@@ -19,6 +19,7 @@ set(GE_TEST_SOURCES
     integration/test_audio.cpp
     integration/test_pixel_foundation.cpp
     integration/test_editor_regression.cpp
+    integration/test_level_authoring.cpp
 
     # Stress tests
     stress/test_thread_safety.cpp
@@ -40,7 +41,7 @@ target_include_directories(ge_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
 )
 
-target_link_libraries(ge_tests PRIVATE ge_core)
+target_link_libraries(ge_tests PRIVATE ge_core glfw)
 
 target_compile_definitions(ge_tests PRIVATE
     CATCH_CONFIG_NO_WINDOWS_SEH

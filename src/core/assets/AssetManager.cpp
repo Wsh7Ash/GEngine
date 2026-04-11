@@ -1,4 +1,5 @@
 #include "AssetManager.h"
+#include "../editor/EditorPaths.h"
 #include "../debug/log.h"
 
 #include "TextureAsset.h"
@@ -12,6 +13,23 @@
 
 namespace ge {
 namespace assets {
+
+    namespace {
+
+    std::filesystem::path NormalizeAssetPath(const std::filesystem::path& path) {
+        if (path.empty()) {
+            return {};
+        }
+
+        std::filesystem::path normalized = path;
+        if (normalized.is_relative()) {
+            normalized = editor::EditorPaths::ResolveAssetRoot() / normalized;
+        }
+
+        return editor::EditorPaths::NormalizePath(normalized);
+    }
+
+    } // namespace
 
     std::map<AssetHandle, AssetMetadata> AssetManager::s_AssetRegistry;
     std::map<AssetHandle, std::shared_ptr<Asset>> AssetManager::s_LoadedAssets;
@@ -53,14 +71,21 @@ namespace assets {
 
     void AssetManager::RegisterMetadata(const AssetMetadata& metadata)
     {
-        s_AssetRegistry[metadata.Handle] = metadata;
+        AssetMetadata normalized = metadata;
+        normalized.FilePath = NormalizeAssetPath(metadata.FilePath);
+        std::error_code ec;
+        if (std::filesystem::exists(normalized.FilePath, ec)) {
+            normalized.LastWriteTime = std::filesystem::last_write_time(normalized.FilePath, ec);
+        }
+        s_AssetRegistry[normalized.Handle] = std::move(normalized);
     }
 
     AssetHandle AssetManager::GetHandleFromPath(const std::filesystem::path& path)
     {
+        const auto normalizedPath = NormalizeAssetPath(path);
         for (const auto& [handle, metadata] : s_AssetRegistry)
         {
-            if (metadata.FilePath == path)
+            if (NormalizeAssetPath(metadata.FilePath) == normalizedPath)
                 return handle;
         }
         return 0;

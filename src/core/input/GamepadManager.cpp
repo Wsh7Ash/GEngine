@@ -147,7 +147,7 @@ void HapticFeedbackManager::TriggerDualMotor(int gamepadId, float leftIntensity,
     if (!rumbleEnabled_) return;
     
     HapticChannel& channel = channels_[gamepadId][0];
-    channel.effect.intensity = std::max(leftIntensity, rightIntensity);
+    channel.effect.intensity = (std::max)(leftIntensity, rightIntensity);
     channel.effect.duration = duration;
     channel.effect.elapsed = 0.0f;
     channel.effect.isActive = true;
@@ -172,7 +172,7 @@ void HapticFeedbackManager::StopAll(int gamepadId) {
 
 void HapticFeedbackManager::StopAll() {
     for (auto& gamepadChannels : channels_) {
-        for (auto& channel : gamepadChannels) {
+        for (auto& channel : gamepadChannels.second) {
             channel.effect.isActive = false;
             channel.effect.elapsed = 0.0f;
         }
@@ -182,7 +182,7 @@ void HapticFeedbackManager::StopAll() {
 void HapticFeedbackManager::Update(float deltaTime) {
     for (auto& gamepadChannels : channels_) {
         for (int i = 0; i < 4; ++i) {
-            UpdateChannel(0, i, deltaTime);
+            UpdateChannel(gamepadChannels.first, i, deltaTime);
         }
     }
 }

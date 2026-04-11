@@ -44,6 +44,8 @@ private:
   char search_filter_[256] = "";
   char component_search_[128] = "";
   std::string component_clipboard_;
+  int tilemap_active_layer_ = 0;
+  int tilemap_selected_tile_ = 0;
 };
 
 } // namespace editor

@@ -1,5 +1,7 @@
 #include "SceneHierarchyPanel.h"
 #include "EditorToolbar.h"
+#include "EditorPaths.h"
+#include "PrecisionEditTool.h"
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/components/MeshComponent.h"
 #include "../ecs/components/LightComponent.h"
@@ -12,6 +14,7 @@
 #include "../ecs/components/Rigidbody3DComponent.h"
 #include "../ecs/components/Collider3DComponent.h"
 #include "../ecs/components/RelationshipComponent.h"
+#include "../ecs/components/TilemapComponent.h"
 #include "../renderer/Renderer2D.h"
 #include "../renderer/Texture.h"
 #include "../cmd/CommandHistory.h"
@@ -32,6 +35,132 @@ using json = nlohmann::json;
 
 namespace ge {
 namespace editor {
+
+namespace {
+
+std::filesystem::path ResolveAssetPath(const std::string& storedPath) {
+  if (storedPath.empty()) {
+    return {};
+  }
+
+  std::filesystem::path path(storedPath);
+  if (path.is_relative()) {
+    const auto assetRoot = EditorToolbar::GetAssetRoot().empty()
+                               ? EditorPaths::ResolveAssetRoot()
+                               : EditorToolbar::GetAssetRoot();
+    path = assetRoot / path;
+  }
+
+  return EditorPaths::NormalizePath(path);
+}
+
+std::string MakeAssetRelativePath(const std::filesystem::path& path) {
+  if (path.empty()) {
+    return {};
+  }
+
+  const auto normalizedPath = EditorPaths::NormalizePath(path);
+  const auto assetRoot = EditorToolbar::GetAssetRoot().empty()
+                             ? EditorPaths::ResolveAssetRoot()
+                             : EditorToolbar::GetAssetRoot();
+
+  if (!assetRoot.empty()) {
+    std::error_code ec;
+    const auto relativePath = std::filesystem::relative(normalizedPath, assetRoot, ec);
+    const auto relativeString = relativePath.generic_string();
+    if (!ec && !relativeString.empty() && relativeString.rfind("..", 0) != 0) {
+      return relativePath.generic_string();
+    }
+  }
+
+  return normalizedPath.generic_string();
+}
+
+void ResizeTilemapStorage(ecs::TilemapComponent& tilemap, int width, int height) {
+  tilemap.Width = (std::max)(0, width);
+  tilemap.Height = (std::max)(0, height);
+
+  const size_t cellCount =
+      static_cast<size_t>((std::max)(0, tilemap.Width) * (std::max)(0, tilemap.Height));
+
+  for (auto& layer : tilemap.Layers) {
+    layer.Tiles.resize(cellCount, -1);
+  }
+
+  tilemap.Navigation.Resize(tilemap.Width, tilemap.Height, false);
+}
+
+void EnsureTilemapStorage(ecs::TilemapComponent& tilemap) {
+  if (tilemap.Layers.empty()) {
+    ecs::TilemapLayer layer;
+    layer.Name = "Ground";
+    layer.Tiles.resize(static_cast<size_t>((std::max)(0, tilemap.Width) * (std::max)(0, tilemap.Height)), -1);
+    tilemap.Layers.push_back(std::move(layer));
+  }
+
+  ResizeTilemapStorage(tilemap, tilemap.Width, tilemap.Height);
+}
+
+void RebuildTilemapNavigation(ecs::TilemapComponent& tilemap) {
+  if (tilemap.Width <= 0 || tilemap.Height <= 0) {
+    tilemap.Navigation.Resize(0, 0, false);
+    return;
+  }
+
+  tilemap.Navigation.Resize(tilemap.Width, tilemap.Height, false);
+  tilemap.Navigation.CellSize = tilemap.PixelsPerUnit > 0.0f
+      ? static_cast<float>(tilemap.TileWidth) / tilemap.PixelsPerUnit
+      : 1.0f;
+
+  std::fill(tilemap.Navigation.Blocked.begin(), tilemap.Navigation.Blocked.end(), 0u);
+  for (const auto& layer : tilemap.Layers) {
+    if (!layer.CollisionLayer) {
+      continue;
+    }
+
+    for (int y = 0; y < tilemap.Height; ++y) {
+      for (int x = 0; x < tilemap.Width; ++x) {
+        const int index = y * tilemap.Width + x;
+        if (index >= 0 && index < static_cast<int>(layer.Tiles.size()) &&
+            layer.Tiles[static_cast<size_t>(index)] >= 0) {
+          tilemap.Navigation.Blocked[static_cast<size_t>(index)] = 1u;
+        }
+      }
+    }
+  }
+}
+
+std::shared_ptr<renderer::Texture> LoadPixelTexture(const std::string& texturePath) {
+  if (texturePath.empty()) {
+    return nullptr;
+  }
+
+  renderer::TextureSpecification specification;
+  specification.PixelArt = true;
+  return renderer::Texture::Create(ResolveAssetPath(texturePath).string(), specification);
+}
+
+bool PushTransformCommandIfChanged(ecs::World& world,
+                                   ecs::Entity entity,
+                                   const Math::Vec3f& oldPos,
+                                   const Math::Vec3f& newPos,
+                                   const Math::Quatf& oldRot,
+                                   const Math::Quatf& newRot,
+                                   const Math::Vec3f& oldScale,
+                                   const Math::Vec3f& newScale) {
+  const bool changed = !oldPos.ApproxEqual(newPos, 0.0001f) ||
+                       !oldRot.RotationEqual(newRot, 0.0001f) ||
+                       !oldScale.ApproxEqual(newScale, 0.0001f);
+  if (!changed) {
+    return false;
+  }
+
+  cmd::CommandHistory::PushCommand(std::make_unique<cmd::CommandChangeTransform>(
+      world, entity, oldPos, newPos, oldRot, newRot, oldScale, newScale));
+  return true;
+}
+
+} // namespace
 
 SceneHierarchyPanel::SceneHierarchyPanel() = default;
 
@@ -518,8 +647,10 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
   if (context_->HasComponent<ecs::TransformComponent>(entity)) {
     DrawComponentControl<ecs::TransformComponent>("Transform", entity, [&]() {
       auto &tc = context_->GetComponent<ecs::TransformComponent>(entity);
-      
-      // Capture state before edit
+
+      auto& precisionTool = PrecisionEditTool::Get();
+      precisionTool.Update();
+
       Math::Vec3f oldPos = tc.position;
       Math::Quatf oldRot = tc.rotation;
       Math::Vec3f oldScale = tc.scale;
@@ -532,27 +663,33 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
                                 80.0f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
-        if (DrawVec3Control("Position", tc.position)) changed = true;
+        precisionTool.SetMode(GizmoMode::Translate);
+        if (DrawVec3Control("Position", tc.position)) {
+          tc.position = precisionTool.SnapPosition(tc.position);
+          changed = true;
+        }
 
         Math::Vec3f euler = tc.rotation.ToEuler();
         Math::Vec3f degrees = { Math::RadiansToDegrees(euler.x), Math::RadiansToDegrees(euler.y), Math::RadiansToDegrees(euler.z) };
         if (DrawVec3Control("Rotation", degrees)) {
+            precisionTool.SetMode(GizmoMode::Rotate);
+            degrees = precisionTool.SnapRotation(degrees);
             tc.rotation = Math::Quatf::FromEuler(Math::DegreesToRadians(degrees.x), Math::DegreesToRadians(degrees.y), Math::DegreesToRadians(degrees.z));
             changed = true;
         }
 
-        if (DrawVec3Control("Scale", tc.scale, 1.0f)) changed = true;
+        precisionTool.SetMode(GizmoMode::Scale);
+        if (DrawVec3Control("Scale", tc.scale, 1.0f)) {
+          tc.scale = precisionTool.SnapScale(tc.scale);
+          changed = true;
+        }
 
         ImGui::EndTable();
       }
 
       if (changed) {
-        cmd::CommandHistory::PushCommand(std::make_unique<cmd::CommandChangeTransform>(
-          *context_, entity, 
-          oldPos, tc.position,
-          oldRot, tc.rotation,
-          oldScale, tc.scale
-        ));
+        PushTransformCommandIfChanged(*context_, entity, oldPos, tc.position,
+                                      oldRot, tc.rotation, oldScale, tc.scale);
       }
     });
   }
@@ -627,10 +764,8 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
             if (texturePath.has_extension()) {
               const auto extension = texturePath.extension().string();
               if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp") {
-                sc.TexturePath = texturePath.string();
-                renderer::TextureSpecification specification;
-                specification.PixelArt = true;
-                sc.texture = renderer::Texture::Create(sc.TexturePath, specification);
+                sc.TexturePath = MakeAssetRelativePath(texturePath);
+                sc.texture = LoadPixelTexture(sc.TexturePath);
                 GE_LOG_INFO("Loaded sprite texture: %s", sc.TexturePath.c_str());
               }
             }
@@ -639,6 +774,259 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         }
 
         ImGui::EndTable();
+      }
+    });
+  }
+
+  if (context_->HasComponent<ecs::TilemapComponent>(entity)) {
+    DrawComponentControl<ecs::TilemapComponent>("Tilemap", entity, [&]() {
+      auto& tilemap = context_->GetComponent<ecs::TilemapComponent>(entity);
+      EnsureTilemapStorage(tilemap);
+
+      int width = tilemap.Width;
+      int height = tilemap.Height;
+
+      if (ImGui::BeginTable("TilemapTable", 2,
+                            ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_BordersInnerV)) {
+        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 110.0f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Tileset");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        const char* textureLabel =
+            tilemap.TilesetTexturePath.empty() ? "Drop Tileset Texture" : tilemap.TilesetTexturePath.c_str();
+        ImGui::Button(textureLabel, ImVec2(-1, 0));
+        ImGui::PopItemWidth();
+        if (ImGui::BeginDragDropTarget()) {
+          if (const ImGuiPayload* payload =
+                  ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM")) {
+            const wchar_t* path = static_cast<const wchar_t*>(payload->Data);
+            std::filesystem::path texturePath(path);
+            if (texturePath.has_extension()) {
+              const auto extension = texturePath.extension().string();
+              if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp") {
+                tilemap.TilesetTexturePath = MakeAssetRelativePath(texturePath);
+                tilemap.TilesetTexture = LoadPixelTexture(tilemap.TilesetTexturePath);
+              }
+            }
+          }
+          ImGui::EndDragDropTarget();
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Dimensions");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        if (ImGui::DragInt2("##dimensions", &width, 1.0f, 1, 256)) {
+          ResizeTilemapStorage(tilemap, width, height);
+          RebuildTilemapNavigation(tilemap);
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Tile Size");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::DragInt2("##tilesize", &tilemap.TileWidth, 1.0f, 1, 512);
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Tiles/Row");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::DragInt("##tilesperrow", &tilemap.TilesPerRow, 1.0f, 1, 512);
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Pixel Scale");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        if (ImGui::DragFloat("##pixelsperunit", &tilemap.PixelsPerUnit, 0.25f, 1.0f, 256.0f, "%.2f")) {
+          RebuildTilemapNavigation(tilemap);
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Chunk");
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::DragInt2("##chunksize", &tilemap.ChunkWidth, 1.0f, 1, 256);
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Auto Nav");
+        ImGui::TableNextColumn();
+        if (ImGui::Checkbox("##autobuildnav", &tilemap.AutoBuildNavigation)) {
+          if (tilemap.AutoBuildNavigation) {
+            RebuildTilemapNavigation(tilemap);
+          }
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("Layers");
+        ImGui::TableNextColumn();
+        if (ImGui::Button("Add Layer")) {
+          ecs::TilemapLayer layer;
+          layer.Name = "Layer " + std::to_string(tilemap.Layers.size() + 1);
+          layer.Tiles.resize(static_cast<size_t>(tilemap.Width * tilemap.Height), -1);
+          tilemap.Layers.push_back(std::move(layer));
+          tilemap_active_layer_ = static_cast<int>(tilemap.Layers.size()) - 1;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Bake Navigation")) {
+          RebuildTilemapNavigation(tilemap);
+        }
+
+        ImGui::EndTable();
+      }
+
+      if (!tilemap.Layers.empty()) {
+        tilemap_active_layer_ =
+            Math::Clamp(tilemap_active_layer_, 0, static_cast<int>(tilemap.Layers.size()) - 1);
+        auto& activeLayer = tilemap.Layers[static_cast<size_t>(tilemap_active_layer_)];
+
+        ImGui::Separator();
+        ImGui::Text("Layer Authoring");
+        if (ImGui::BeginCombo("Active Layer", activeLayer.Name.c_str())) {
+          for (int i = 0; i < static_cast<int>(tilemap.Layers.size()); ++i) {
+            const bool selected = tilemap_active_layer_ == i;
+            if (ImGui::Selectable(tilemap.Layers[static_cast<size_t>(i)].Name.c_str(), selected)) {
+              tilemap_active_layer_ = i;
+            }
+            if (selected) {
+              ImGui::SetItemDefaultFocus();
+            }
+          }
+          ImGui::EndCombo();
+        }
+
+        char layerName[64];
+        std::snprintf(layerName, sizeof(layerName), "%s", activeLayer.Name.c_str());
+        if (ImGui::InputText("Layer Name", layerName, sizeof(layerName))) {
+          activeLayer.Name = layerName;
+        }
+
+        ImGui::Checkbox("Visible", &activeLayer.Visible);
+        ImGui::SameLine();
+        if (ImGui::Checkbox("Collision Layer", &activeLayer.CollisionLayer)) {
+          RebuildTilemapNavigation(tilemap);
+        }
+        ImGui::DragFloat("Z Offset", &activeLayer.ZOffset, 0.01f, -10.0f, 10.0f, "%.2f");
+
+        ImGui::Spacing();
+        ImGui::Text("Palette");
+        if (tilemap.TilePalette.empty()) {
+          tilemap.TilePalette.push_back(Math::Vec4f{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
+        if (ImGui::Button("Add Palette Color")) {
+          tilemap.TilePalette.push_back(Math::Vec4f{1.0f, 1.0f, 1.0f, 1.0f});
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Fill Layer")) {
+          std::fill(activeLayer.Tiles.begin(), activeLayer.Tiles.end(), tilemap_selected_tile_);
+          RebuildTilemapNavigation(tilemap);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear Layer")) {
+          std::fill(activeLayer.Tiles.begin(), activeLayer.Tiles.end(), -1);
+          RebuildTilemapNavigation(tilemap);
+        }
+
+        for (size_t i = 0; i < tilemap.TilePalette.size(); ++i) {
+          ImGui::PushID(static_cast<int>(i));
+          if (i > 0) {
+            ImGui::SameLine();
+          }
+          if (ImGui::ColorButton("##palette", ImVec4(tilemap.TilePalette[i].x, tilemap.TilePalette[i].y,
+                                                      tilemap.TilePalette[i].z, tilemap.TilePalette[i].w),
+                                 ImGuiColorEditFlags_NoTooltip, ImVec2(20, 20))) {
+            tilemap_selected_tile_ = static_cast<int>(i);
+          }
+          ImGui::PopID();
+        }
+
+        tilemap_selected_tile_ = Math::Clamp(
+            tilemap_selected_tile_, -1, static_cast<int>(tilemap.TilePalette.size()) - 1);
+        ImGui::Text("Selected Tile: %d", tilemap_selected_tile_);
+
+        if (tilemap.Width > 0 && tilemap.Height > 0) {
+          ImGui::Spacing();
+          ImGui::Text("Paint Grid");
+          const float cellSize = 24.0f;
+          const int displayWidth = (std::min)(tilemap.Width, 24);
+          const int displayHeight = (std::min)(tilemap.Height, 24);
+          bool gridEdited = false;
+
+          if (displayWidth != tilemap.Width || displayHeight != tilemap.Height) {
+            ImGui::TextDisabled("Showing first %dx%d cells for quick editing.", displayWidth, displayHeight);
+          }
+
+          for (int y = 0; y < displayHeight; ++y) {
+            for (int x = 0; x < displayWidth; ++x) {
+              const int tileIndex = y * tilemap.Width + x;
+              ImGui::PushID(tileIndex);
+
+              const int tileValue = activeLayer.Tiles[static_cast<size_t>(tileIndex)];
+              ImVec4 buttonColor = ImVec4(0.15f, 0.16f, 0.18f, 1.0f);
+              if (tileValue >= 0 && tileValue < static_cast<int>(tilemap.TilePalette.size())) {
+                const auto& color = tilemap.TilePalette[static_cast<size_t>(tileValue)];
+                buttonColor = ImVec4(color.x, color.y, color.z, color.w);
+              }
+
+              ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
+              ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(
+                  (std::min)(buttonColor.x + 0.1f, 1.0f),
+                  (std::min)(buttonColor.y + 0.1f, 1.0f),
+                  (std::min)(buttonColor.z + 0.1f, 1.0f),
+                  buttonColor.w));
+              ImGui::PushStyleColor(ImGuiCol_ButtonActive, buttonColor);
+
+              char label[8];
+              std::snprintf(label, sizeof(label), "%d", tileValue);
+              if (tileValue < 0) {
+                std::snprintf(label, sizeof(label), ".");
+              }
+
+              if (ImGui::Button(label, ImVec2(cellSize, cellSize))) {
+                activeLayer.Tiles[static_cast<size_t>(tileIndex)] = tilemap_selected_tile_;
+                gridEdited = true;
+                if (activeLayer.CollisionLayer) {
+                  RebuildTilemapNavigation(tilemap);
+                }
+              }
+              if (ImGui::IsItemHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                activeLayer.Tiles[static_cast<size_t>(tileIndex)] = tilemap_selected_tile_;
+                gridEdited = true;
+              }
+              if (ImGui::IsItemHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+                activeLayer.Tiles[static_cast<size_t>(tileIndex)] = -1;
+                gridEdited = true;
+              }
+
+              ImGui::PopStyleColor(3);
+              ImGui::PopID();
+              if (x + 1 < displayWidth) {
+                ImGui::SameLine();
+              }
+            }
+          }
+
+          if (gridEdited && activeLayer.CollisionLayer) {
+            RebuildTilemapNavigation(tilemap);
+          }
+        }
       }
     });
   }

@@ -1,4 +1,5 @@
 #include "SceneSerializer.h"
+#include "../editor/EditorPaths.h"
 #include "../ecs/components/IDComponent.h"
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
@@ -31,6 +32,23 @@ namespace ge {
 namespace scene {
 
 using json = nlohmann::json;
+
+namespace {
+
+std::filesystem::path ResolveAssetPath(const std::string& storedPath) {
+  if (storedPath.empty()) {
+    return {};
+  }
+
+  std::filesystem::path path(storedPath);
+  if (path.is_relative()) {
+    path = editor::EditorPaths::ResolveAssetRoot() / path;
+  }
+
+  return editor::EditorPaths::NormalizePath(path);
+}
+
+} // namespace
 
 SceneSerializer::SceneSerializer(ecs::World &world) : world_(world) {}
 
@@ -431,7 +449,8 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
         if (!sc.TexturePath.empty()) {
           renderer::TextureSpecification textureSpec;
           textureSpec.PixelArt = true;
-          sc.texture = renderer::Texture::Create(sc.TexturePath, textureSpec);
+          sc.texture = renderer::Texture::Create(
+              ResolveAssetPath(sc.TexturePath).string(), textureSpec);
         }
       }
       sc.color = {(float)cData[0], (float)cData[1], (float)cData[2],
@@ -516,7 +535,8 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
         if (!tilemap.TilesetTexturePath.empty()) {
           renderer::TextureSpecification textureSpec;
           textureSpec.PixelArt = true;
-          tilemap.TilesetTexture = renderer::Texture::Create(tilemap.TilesetTexturePath, textureSpec);
+          tilemap.TilesetTexture = renderer::Texture::Create(
+              ResolveAssetPath(tilemap.TilesetTexturePath).string(), textureSpec);
         }
       }
       tilemap.Width = tilemapData.value("Width", 0);
@@ -833,70 +853,42 @@ bool SceneSerializer::DeserializeWithHeader(const std::string& filepath, savegam
 }
 
 std::string SceneSerializer::SerializeToString() {
-    json root;
-    root["Scene"] = "Untitled";
-    root["Version"] = savegame::SAVEGAME_CURRENT_VERSION;
-    root["Entities"] = json::array();
-
-    for (auto const& entity : world_.Query<ecs::TagComponent>()) {
-        json entityJson;
-        if (world_.HasComponent<ecs::IDComponent>(entity)) {
-            entityJson["UUID"] = (uint64_t)world_.GetComponent<ecs::IDComponent>(entity).ID;
-        }
-        if (world_.HasComponent<ecs::TagComponent>(entity)) {
-            entityJson["Tag"] = world_.GetComponent<ecs::TagComponent>(entity).tag;
-        }
-        if (world_.HasComponent<ecs::TransformComponent>(entity)) {
-            auto& tc = world_.GetComponent<ecs::TransformComponent>(entity);
-            entityJson["Transform"] = {
-                {"Translation", {tc.position.x, tc.position.y, tc.position.z}},
-                {"Rotation", {tc.rotation.w, tc.rotation.x, tc.rotation.y, tc.rotation.z}},
-                {"Scale", {tc.scale.x, tc.scale.y, tc.scale.z}}
-            };
-        }
-        root["Entities"].push_back(entityJson);
+    std::error_code ec;
+    const auto tempPath = std::filesystem::temp_directory_path(ec) /
+        ("ge_scene_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".json");
+    if (!Serialize(tempPath.string())) {
+        return {};
     }
 
-    return root.dump(4);
+    std::ifstream input(tempPath, std::ios::binary);
+    if (!input.is_open()) {
+        std::filesystem::remove(tempPath, ec);
+        return {};
+    }
+
+    std::string serialized((std::istreambuf_iterator<char>(input)),
+                           std::istreambuf_iterator<char>());
+    input.close();
+    std::filesystem::remove(tempPath, ec);
+    return serialized;
 }
 
 bool SceneSerializer::DeserializeFromString(const std::string& data) {
     try {
-        json root = json::parse(data);
-        
-        if (!root.contains("Entities")) {
-            GE_LOG_ERROR("Invalid scene data: no Entities field");
+        std::error_code ec;
+        const auto tempPath = std::filesystem::temp_directory_path(ec) /
+            ("ge_scene_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "_in.json");
+        std::ofstream output(tempPath, std::ios::binary | std::ios::trunc);
+        if (!output.is_open()) {
             return false;
         }
 
-        world_.Clear();
+        output << data;
+        output.close();
 
-        for (auto& entityData : root["Entities"]) {
-            ecs::Entity entity;
-            if (entityData.contains("UUID")) {
-                uint64_t uuid = entityData["UUID"];
-                entity = world_.CreateEntityWithUUID(uuid);
-            } else {
-                entity = world_.CreateEntity();
-            }
-
-            if (entityData.contains("Tag")) {
-                world_.AddComponent(entity, ecs::TagComponent{entityData["Tag"]});
-            }
-            if (entityData.contains("Transform")) {
-                auto& tData = entityData["Transform"]["Translation"];
-                auto& rData = entityData["Transform"]["Rotation"];
-                auto& sData = entityData["Transform"]["Scale"];
-
-                ecs::TransformComponent tc;
-                tc.position = {(float)tData[0], (float)tData[1], (float)tData[2]};
-                tc.rotation = {(float)rData[0], (float)rData[1], (float)rData[2], (float)rData[3]};
-                tc.scale = {(float)sData[0], (float)sData[1], (float)sData[2]};
-                world_.AddComponent(entity, tc);
-            }
-        }
-
-        return true;
+        const bool result = Deserialize(tempPath.string());
+        std::filesystem::remove(tempPath, ec);
+        return result;
     } catch (const std::exception& e) {
         GE_LOG_ERROR("Scene deserialization from string failed: %s", e.what());
         return false;

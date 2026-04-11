@@ -1,6 +1,9 @@
 #pragma once
 
 #include "InputAction.h"
+#include <array>
+#include <cmath>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <functional>

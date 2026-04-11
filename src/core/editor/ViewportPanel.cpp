@@ -7,6 +7,7 @@
 #include "../editor/EditorToolbar.h"
 #include "../cmd/CommandHistory.h"
 #include "../cmd/EntityCommands.h"
+#include "../math/MathUtils.h"
 #include <ImGuizmo.h>
 #include <imgui.h>
 #include <algorithm>
@@ -19,6 +20,73 @@ namespace {
 
 constexpr float kEditorPixelsPerUnit = 16.0f;
 constexpr float kEditorZoom = 1.0f;
+
+GizmoMode ToGizmoMode(int mode) {
+  switch (mode) {
+    case 1:
+      return GizmoMode::Rotate;
+    case 2:
+      return GizmoMode::Scale;
+    default:
+      return GizmoMode::Translate;
+  }
+}
+
+ImGuizmo::OPERATION ToImGuizmoOperation(GizmoMode mode) {
+  switch (mode) {
+    case GizmoMode::Rotate:
+      return ImGuizmo::ROTATE;
+    case GizmoMode::Scale:
+      return ImGuizmo::SCALE;
+    case GizmoMode::Translate:
+    default:
+      return ImGuizmo::TRANSLATE;
+  }
+}
+
+Math::Vec3f ExtractScale(const Math::Mat4f& transform) {
+  auto columnLength = [](const Math::Vec4f& column) {
+    return std::sqrt(column.x * column.x + column.y * column.y + column.z * column.z);
+  };
+
+  return {
+      (std::max)(columnLength(transform.cols[0]), 0.0001f),
+      (std::max)(columnLength(transform.cols[1]), 0.0001f),
+      (std::max)(columnLength(transform.cols[2]), 0.0001f)};
+}
+
+Math::Quatf ExtractRotation(const Math::Mat4f& transform, const Math::Vec3f& scale) {
+  Math::Mat4f rotationMatrix = transform;
+  rotationMatrix.cols[3] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+  rotationMatrix.cols[0].x /= scale.x;
+  rotationMatrix.cols[0].y /= scale.x;
+  rotationMatrix.cols[0].z /= scale.x;
+  rotationMatrix.cols[0].w = 0.0f;
+
+  rotationMatrix.cols[1].x /= scale.y;
+  rotationMatrix.cols[1].y /= scale.y;
+  rotationMatrix.cols[1].z /= scale.y;
+  rotationMatrix.cols[1].w = 0.0f;
+
+  rotationMatrix.cols[2].x /= scale.z;
+  rotationMatrix.cols[2].y /= scale.z;
+  rotationMatrix.cols[2].z /= scale.z;
+  rotationMatrix.cols[2].w = 0.0f;
+
+  return Math::Quatf::FromMat4x4(rotationMatrix);
+}
+
+bool HasTransformChanged(const Math::Vec3f& oldPosition,
+                         const Math::Vec3f& newPosition,
+                         const Math::Quatf& oldRotation,
+                         const Math::Quatf& newRotation,
+                         const Math::Vec3f& oldScale,
+                         const Math::Vec3f& newScale) {
+  return !oldPosition.ApproxEqual(newPosition, 0.0001f) ||
+         !oldRotation.RotationEqual(newRotation, 0.0001f) ||
+         !oldScale.ApproxEqual(newScale, 0.0001f);
+}
 
 Math::Vec2f GetViewportWorldSize(const Math::Vec2f& viewportSize) {
   return {
@@ -114,6 +182,13 @@ ViewportPanel::ViewportPanel(const std::string& name, bool isGameView)
     renderer::FramebufferTextureFormat::Depth
   };
   framebuffer_ = renderer::Framebuffer::Create(spec);
+
+  precisionTool_.Initialize();
+  precisionTool_.SetMode(GizmoMode::Translate);
+  precisionTool_.EnableSnap(false);
+  gizmo_.Initialize();
+  gizmo_.SetMode(GizmoMode::Translate);
+  gizmo_.SetSpace(GizmoSpace::Local);
 }
 
 void ViewportPanel::OnImGuiRender() {
@@ -160,6 +235,8 @@ void ViewportPanel::OnImGuiRender() {
                ImVec2{1, 0});
 
   if (!isGameView_) {
+      precisionTool_.Update();
+
       // ── Viewport Toolbar ──
       ImGui::SetCursorPos(ImVec2(10, 30));
 
@@ -174,8 +251,11 @@ void ViewportPanel::OnImGuiRender() {
           ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.35f, 0.90f));
         }
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.00f, 0.40f, 0.75f, 1.00f));
-        if (ImGui::Button(label, ImVec2(28, 22)))
+        if (ImGui::Button(label, ImVec2(28, 22))) {
           gizmoMode_ = mode;
+          gizmo_.SetMode(ToGizmoMode(gizmoMode_));
+          precisionTool_.SetMode(ToGizmoMode(gizmoMode_));
+        }
         ImGui::PopStyleColor(3);
       };
 
@@ -190,15 +270,25 @@ void ViewportPanel::OnImGuiRender() {
         if (ImGui::IsKeyPressed(ImGuiKey_E)) gizmoMode_ = 1;
         if (ImGui::IsKeyPressed(ImGuiKey_R)) gizmoMode_ = 2;
       }
+      gizmo_.SetMode(ToGizmoMode(gizmoMode_));
+      precisionTool_.SetMode(ToGizmoMode(gizmoMode_));
 
       ImGui::Checkbox("Grid", &showGrid_);
       ImGui::SameLine();
-      ImGui::Checkbox("Snap", &snap_);
+      if (ImGui::Checkbox("Snap", &snap_)) {
+        precisionTool_.EnableSnap(snap_);
+      }
       if (snap_) {
         ImGui::SameLine();
         ImGui::SetNextItemWidth(50);
-        ImGui::DragFloat("##SnapValue", &snapValue_, 0.05f, 0.05f, 5.0f, "%.2f");
+        if (ImGui::DragFloat("##SnapValue", &snapValue_, 0.05f, 0.05f, 5.0f, "%.2f")) {
+          precisionTool_.SetPositionSnap(snapValue_);
+          precisionTool_.SetScaleSnap(snapValue_);
+        }
       }
+      precisionTool_.EnableSnap(snap_);
+      precisionTool_.SetPositionSnap(snapValue_);
+      precisionTool_.SetScaleSnap(snapValue_);
       ImGui::SameLine(ImGui::GetWindowWidth() - 80.0f);
       ImGui::SetNextItemWidth(60);
       ImGui::ColorEdit4("##Clear", &clearColor_.x,
@@ -255,19 +345,35 @@ void ViewportPanel::OnImGuiRender() {
     
         auto &tc =
             sceneContext_->GetComponent<ecs::TransformComponent>(selectedEntity);
+        gizmo_.SetCamera(camera.GetViewMatrix(), camera.GetProjectionMatrix(),
+                         viewportSize_.y > 0.0f ? viewportSize_.x / viewportSize_.y : 1.0f);
+        gizmo_.SetTransform(tc.position, tc.rotation, tc.scale);
+        gizmo_.SetScreenPosition(
+            {(viewportBounds_[0].x + viewportBounds_[1].x) * 0.5f,
+             (viewportBounds_[0].y + viewportBounds_[1].y) * 0.5f});
         Math::Mat4f transform = Math::Mat4f::Translate(tc.position) *
                                 tc.rotation.ToMat4x4() *
                                 Math::Mat4f::Scale(tc.scale);
     
-        float snapValues[3] = {snapValue_, snapValue_, snapValue_};
+        float snapValues[3] = {
+            precisionTool_.GetSnapSettings().GetEffectivePositionSnap(),
+            precisionTool_.GetSnapSettings().GetEffectivePositionSnap(),
+            precisionTool_.GetSnapSettings().GetEffectivePositionSnap()};
 
-        ImGuizmo::OPERATION op = ImGuizmo::TRANSLATE;
-        if (gizmoMode_ == 1) op = ImGuizmo::ROTATE;
-        else if (gizmoMode_ == 2) op = ImGuizmo::SCALE;
+        const GizmoMode gizmoMode = ToGizmoMode(gizmoMode_);
+        if (gizmoMode == GizmoMode::Rotate) {
+          snapValues[0] = precisionTool_.GetSnapSettings().GetEffectiveRotationSnap();
+          snapValues[1] = snapValues[0];
+          snapValues[2] = snapValues[0];
+        } else if (gizmoMode == GizmoMode::Scale) {
+          snapValues[0] = precisionTool_.GetSnapSettings().GetEffectiveScaleSnap();
+          snapValues[1] = snapValues[0];
+          snapValues[2] = snapValues[0];
+        }
 
-        ImGuizmo::Manipulate(view, projection, op, ImGuizmo::LOCAL,
+        ImGuizmo::Manipulate(view, projection, ToImGuizmoOperation(gizmoMode), ImGuizmo::LOCAL,
                              transform.Data(), nullptr,
-                             snap_ ? snapValues : nullptr);
+                             precisionTool_.IsSnapEnabled() ? snapValues : nullptr);
     
         if (ImGuizmo::IsUsing()) {
           if (!isUsingGizmo_) {
@@ -276,31 +382,59 @@ void ViewportPanel::OnImGuiRender() {
             startingRotation_ = tc.rotation;
             startingScale_ = tc.scale;
             isUsingGizmo_ = true;
+            gizmo_.HandleMouseDown({mx, my}, 0);
+            precisionTool_.OnGizmoDragBegin();
           }
 
-          // Extract position from column 3
-          tc.position = {transform.cols[3].x, transform.cols[3].y,
-                         transform.cols[3].z};
-          // For scale: extract column lengths
-          if (gizmoMode_ == 2) {
-            auto colLen = [](const Math::Vec4f& c) {
-              return sqrtf(c.x * c.x + c.y * c.y + c.z * c.z);
-            };
-            tc.scale.x = colLen(transform.cols[0]);
-            tc.scale.y = colLen(transform.cols[1]);
-            tc.scale.z = colLen(transform.cols[2]);
+          Math::Vec3f newPosition = {transform.cols[3].x, transform.cols[3].y,
+                                     transform.cols[3].z};
+          Math::Vec3f newScale = ExtractScale(transform);
+          Math::Quatf newRotation = ExtractRotation(transform, newScale);
+
+          if (gizmoMode == GizmoMode::Translate && precisionTool_.IsSnapEnabled()) {
+            newPosition = precisionTool_.SnapPosition(newPosition);
           }
-          // Note: Extraction for rotation is more complex and would involve
-          // DecomposeMatrix; skipping for now as rotations are locked to Z in 2D
-          // but if implemented, it would go here.
+
+          if (gizmoMode == GizmoMode::Rotate) {
+            Math::Vec3f euler = newRotation.ToEuler();
+            Math::Vec3f degrees = {
+                0.0f,
+                0.0f,
+                Math::RadiansToDegrees(euler.z)};
+
+            if (precisionTool_.IsSnapEnabled()) {
+              degrees = precisionTool_.SnapRotation(degrees);
+            }
+
+            newRotation = Math::Quatf::FromEuler(
+                Math::DegreesToRadians(degrees.x),
+                Math::DegreesToRadians(degrees.y),
+                Math::DegreesToRadians(degrees.z));
+          }
+
+          if (gizmoMode == GizmoMode::Scale && precisionTool_.IsSnapEnabled()) {
+            newScale = precisionTool_.SnapScale(newScale);
+          }
+
+          tc.position = newPosition;
+          tc.rotation = newRotation;
+          tc.scale = newScale;
+          gizmo_.SetTransform(tc.position, tc.rotation, tc.scale);
+          gizmo_.HandleMouseMove({mx, my});
         } else if (isUsingGizmo_) {
           // Just stopped using gizmo - push final command
-          cmd::CommandHistory::PushCommand(std::make_unique<cmd::CommandChangeTransform>(
-              *sceneContext_, selectedEntity, 
-              startingPosition_, tc.position,
-              startingRotation_, tc.rotation,
-              startingScale_, tc.scale
-          ));
+          if (HasTransformChanged(startingPosition_, tc.position,
+                                  startingRotation_, tc.rotation,
+                                  startingScale_, tc.scale)) {
+            cmd::CommandHistory::PushCommand(std::make_unique<cmd::CommandChangeTransform>(
+                *sceneContext_, selectedEntity,
+                startingPosition_, tc.position,
+                startingRotation_, tc.rotation,
+                startingScale_, tc.scale
+            ));
+          }
+          gizmo_.HandleMouseUp(0);
+          precisionTool_.OnGizmoDragEnd();
           isUsingGizmo_ = false;
         }
       }

@@ -16,11 +16,10 @@
 #include "../components/TopDownControllerComponent.h"
 #include "../components/TransformComponent.h"
 #include "../components/WaveSpawnerComponent.h"
+#include "../../input/InputManager.h"
 #include "../../gameplay/GridPathfinder.h"
-#include "../../platform/Input.h"
 #include "../../scene/SceneSerializer.h"
 
-#include <GLFW/glfw3.h>
 #include <cmath>
 #include <limits>
 
@@ -122,6 +121,11 @@ float LengthSquared(const Math::Vec2f& a, const Math::Vec2f& b) {
 } // namespace
 
 void TopDownGameplaySystem::Update(World& world, float dt) {
+    auto& inputManager = input::InputManager::Get();
+    if (!inputManager.IsContextEnabled(input::InputContext::Gameplay)) {
+        return;
+    }
+
     Entity gridEntity = FindPrimaryGridEntity(world);
     gameplay::GridPathData* grid = ResolveGrid(world, gridEntity);
 
@@ -137,10 +141,10 @@ void TopDownGameplaySystem::Update(World& world, float dt) {
         }
     }
 
-    const bool interactPressed = platform::Input::IsKeyPressed(GLFW_KEY_E);
-    const bool buildPressed = platform::Input::IsKeyPressed(GLFW_KEY_SPACE);
-    const bool savePressed = platform::Input::IsKeyPressed(GLFW_KEY_F5);
-    const bool loadPressed = platform::Input::IsKeyPressed(GLFW_KEY_F9);
+    const bool interactPressed = inputManager.IsActionJustPressed("Interact");
+    const bool buildPressed = inputManager.IsActionJustPressed("Build");
+    const bool savePressed = inputManager.IsActionJustPressed("SaveGame");
+    const bool loadPressed = inputManager.IsActionJustPressed("LoadGame");
 
     bool performLoad = false;
 
@@ -148,11 +152,7 @@ void TopDownGameplaySystem::Update(World& world, float dt) {
         auto& transform = world.GetComponent<TransformComponent>(entity);
         auto& controller = world.GetComponent<TopDownControllerComponent>(entity);
 
-        Math::Vec2f move = {0.0f, 0.0f};
-        if (platform::Input::IsKeyPressed(GLFW_KEY_A)) move.x -= 1.0f;
-        if (platform::Input::IsKeyPressed(GLFW_KEY_D)) move.x += 1.0f;
-        if (platform::Input::IsKeyPressed(GLFW_KEY_W)) move.y += 1.0f;
-        if (platform::Input::IsKeyPressed(GLFW_KEY_S)) move.y -= 1.0f;
+        Math::Vec2f move = inputManager.GetAxis2D("Move");
 
         const float lengthSquared = move.x * move.x + move.y * move.y;
         if (lengthSquared > 0.0f) {
@@ -163,7 +163,7 @@ void TopDownGameplaySystem::Update(World& world, float dt) {
             transform.position.y += move.y * controller.MoveSpeed * dt;
         }
 
-        if (interactPressed && !interactHeldLastFrame_) {
+        if (interactPressed) {
             for (auto nodeEntity : world.Query<TransformComponent, ResourceNodeComponent, InteractionComponent>()) {
                 auto& nodeTransform = world.GetComponent<TransformComponent>(nodeEntity);
                 auto& node = world.GetComponent<ResourceNodeComponent>(nodeEntity);
@@ -201,7 +201,7 @@ void TopDownGameplaySystem::Update(World& world, float dt) {
             }
         }
 
-        if (world.HasComponent<BuildPlacementComponent>(entity) && buildPressed && !buildHeldLastFrame_ && grid != nullptr) {
+        if (world.HasComponent<BuildPlacementComponent>(entity) && buildPressed && grid != nullptr) {
             auto& placement = world.GetComponent<BuildPlacementComponent>(entity);
             if (placement.PlacementTimer <= 0.0f && (placement.RemainingPlacements != 0)) {
                 const gameplay::GridCoord cell = grid->WorldToCell(ToVec2(transform.position));
@@ -404,12 +404,12 @@ void TopDownGameplaySystem::Update(World& world, float dt) {
         }
     }
 
-    if (savePressed && !saveHeldLastFrame_) {
+    if (savePressed) {
         scene::SceneSerializer serializer(world);
         serializer.Serialize("pixel_foundation_save.json");
     }
 
-    if (loadPressed && !loadHeldLastFrame_) {
+    if (loadPressed) {
         performLoad = true;
     }
 
@@ -418,11 +418,6 @@ void TopDownGameplaySystem::Update(World& world, float dt) {
         world.Clear();
         serializer.Deserialize("pixel_foundation_save.json");
     }
-
-    interactHeldLastFrame_ = interactPressed;
-    buildHeldLastFrame_ = buildPressed;
-    saveHeldLastFrame_ = savePressed;
-    loadHeldLastFrame_ = loadPressed;
 }
 
 } // namespace ecs

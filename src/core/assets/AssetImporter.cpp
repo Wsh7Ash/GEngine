@@ -1,5 +1,6 @@
 #include "AssetImporter.h"
 #include "AssetManager.h"
+#include "../editor/EditorPaths.h"
 #include "../debug/log.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -14,9 +15,27 @@ using json = nlohmann::json;
 namespace ge {
 namespace assets {
 
+    namespace {
+
+    std::filesystem::path NormalizeAssetPath(const std::filesystem::path& path) {
+        if (path.empty()) {
+            return {};
+        }
+
+        std::filesystem::path normalized = path;
+        if (normalized.is_relative()) {
+            normalized = editor::EditorPaths::ResolveAssetRoot() / normalized;
+        }
+
+        return editor::EditorPaths::NormalizePath(normalized);
+    }
+
+    } // namespace
+
     AssetHandle AssetImporter::ImportAsset(const std::filesystem::path& path)
     {
-        std::filesystem::path metadataPath = path.string() + ".geasset";
+        const std::filesystem::path normalizedPath = NormalizeAssetPath(path);
+        std::filesystem::path metadataPath = normalizedPath.string() + ".geasset";
 
         AssetMetadata metadata;
         if (std::filesystem::exists(metadataPath))
@@ -27,9 +46,9 @@ namespace assets {
                 json data = json::parse(f);
                 metadata.Handle = AssetHandle(data["Handle"].get<uint64_t>());
                 metadata.Type = (AssetType)data["Type"].get<uint16_t>();
-                metadata.FilePath = path;
+                metadata.FilePath = normalizedPath;
             } catch (...) {
-                GE_LOG_ERROR("Failed to parse metadata for: %s", path.string().c_str());
+                GE_LOG_ERROR("Failed to parse metadata for: %s", normalizedPath.string().c_str());
                 return 0;
             }
         }
@@ -37,8 +56,8 @@ namespace assets {
         {
             // Create new metadata
             metadata.Handle = AssetHandle(); // Generates new UUID
-            metadata.Type = GetTypeFromExtension(path.extension().string());
-            metadata.FilePath = path;
+            metadata.Type = GetTypeFromExtension(normalizedPath.extension().string());
+            metadata.FilePath = normalizedPath;
 
             if (metadata.Type != AssetType::None)
             {
@@ -53,17 +72,17 @@ namespace assets {
 
         if (metadata.Type != AssetType::None)
         {
-            if (metadata.Type == AssetType::Mesh && path.extension() != ".gmesh") {
-                std::filesystem::path cookedPath = path.string() + ".gmesh";
+            if (metadata.Type == AssetType::Mesh && normalizedPath.extension() != ".gmesh") {
+                std::filesystem::path cookedPath = normalizedPath.string() + ".gmesh";
                 bool needsCook = true;
                 if (std::filesystem::exists(cookedPath) && 
-                    std::filesystem::last_write_time(cookedPath) >= std::filesystem::last_write_time(path)) {
+                    std::filesystem::last_write_time(cookedPath) >= std::filesystem::last_write_time(normalizedPath)) {
                     needsCook = false;
                 }
 
                 if (needsCook) {
                     GE_LOG_INFO("AssetImporter: Cooking model to %s", cookedPath.string().c_str());
-                    auto tempModel = std::make_shared<renderer::Model>(path.string());
+                    auto tempModel = std::make_shared<renderer::Model>(normalizedPath.string());
                     AssetCooker::CookModel(tempModel, cookedPath);
                 }
             }

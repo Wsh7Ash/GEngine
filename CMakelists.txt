@@ -330,6 +330,9 @@ set(GE_CORE_SOURCES
     src/core/platform/platform.cpp
     src/core/platform/Window.cpp
     src/core/platform/GLFWInput.cpp
+    src/core/input/GamepadManager.cpp
+    src/core/input/InputMapping.cpp
+    src/core/input/InputManager.cpp
     src/core/platform/ImGuiLayer.cpp
     src/core/editor/EditorToolbar.cpp
     src/core/editor/EditorPaths.cpp

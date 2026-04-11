@@ -22,7 +22,7 @@ struct SnapSettings {
     float scaleScaleFactor = 1.0f;
     
     bool snapEnabled = true;
-    bool uniformScale = true;
+    bool uniformScale = false;
     
     float GetEffectivePositionSnap() const { return positionSnap * positionScaleFactor; }
     float GetEffectiveRotationSnap() const { return rotationSnap * rotationScaleFactor; }

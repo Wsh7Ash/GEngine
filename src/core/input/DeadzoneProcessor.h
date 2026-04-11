@@ -54,7 +54,7 @@ public:
                 float magnitude = std::sqrt(x * x + y * y);
                 if (magnitude > deadzone_) {
                     float scale = (magnitude - deadzone_) / (1.0f - deadzone_);
-                    scale = std::min(scale, 1.0f);
+                    scale = (std::min)(scale, 1.0f);
                     processed.x = (x / magnitude) * scale;
                     processed.y = (y / magnitude) * scale;
                 }

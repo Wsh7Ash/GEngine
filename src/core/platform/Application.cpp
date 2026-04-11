@@ -3,10 +3,13 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "ImGuiLayer.h"
+#include "GLFWInput.h"
 #include "../renderer/Renderer2D.h"
 #include "../renderer/ShaderVariantManager.h"
 #include "../debug/log.h"
 #include "VFS.h"
+#include "../assets/AssetManager.h"
+#include "../input/InputManager.h"
 
 #include "../ecs/World.h"
 #include "../ecs/SystemManager.h"
@@ -15,7 +18,6 @@
 #include "../ecs/systems/Physics3DSystem.h"
 #include "../ecs/systems/UISystem.h"
 #include "../ecs/systems/ScriptSystem.h"
-#include "../ecs/systems/AudioSystem.h"
 #include "../ecs/systems/AudioSystem.h"
 #include "../ecs/systems/ParticleSystem.h"
 #include "../ecs/systems/AnimationSystem.h"
@@ -52,6 +54,9 @@ Application::Application(const ApplicationProps& props) {
     core::VFS::Init();
     
     window_ = std::make_unique<ge::platform::Window>(ge::platform::WindowProps(props.Name, props.Width, props.Height));
+    platform::InitializeInput(window_.get());
+    assets::AssetManager::Init();
+    input::InputManager::Get().Initialize();
     world_ = std::make_unique<ge::ecs::World>();
     
     std::bitset<128> signature;
@@ -136,10 +141,12 @@ Application::Application(const ApplicationProps& props) {
 
 Application::~Application() {
     renderer::ShaderVariantManager::Get().StopBackgroundThread();
-    renderer::Renderer2D::Shutdown();
 #ifndef GE_STANDALONE
     editor::EditorToolbar::Shutdown();
 #endif
+    input::InputManager::Get().Shutdown();
+    assets::AssetManager::Shutdown();
+    renderer::Renderer2D::Shutdown();
 }
 
 void Application::Run() {
@@ -151,6 +158,18 @@ void Application::Run() {
         lastTime = time;
 
         window_->OnUpdate();
+
+        auto& inputManager = input::InputManager::Get();
+#ifndef GE_STANDALONE
+        inputManager.SetContextEnabled(input::InputContext::Editor, true);
+        inputManager.SetContextEnabled(
+            input::InputContext::Gameplay,
+            editor::EditorToolbar::GetState() == editor::SceneState::Play);
+#else
+        inputManager.SetContextEnabled(input::InputContext::Editor, false);
+        inputManager.SetContextEnabled(input::InputContext::Gameplay, true);
+#endif
+        inputManager.Update();
 
 #ifndef GE_STANDALONE
         if (editor::EditorToolbar::GetState() == editor::SceneState::Play) {

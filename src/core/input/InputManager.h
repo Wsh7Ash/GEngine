@@ -9,6 +9,11 @@
 namespace ge {
 namespace input {
 
+enum class InputContext {
+    Editor,
+    Gameplay
+};
+
 class InputManager {
 public:
     static InputManager& Get();
@@ -45,7 +50,7 @@ public:
     const InputMapping* GetMapping() const { return mapping_.get(); }
     
     GamepadManager* GetGamepadManager() { return &gamepadManager_; }
-    const GamepadManager* GetGamepadManager() const { return gamepadManager_; }
+    const GamepadManager* GetGamepadManager() const { return &gamepadManager_; }
     
     void SetMousePosition(const Math::Vec2f& position);
     void SetMouseDelta(const Math::Vec2f& delta);
@@ -58,6 +63,12 @@ public:
     void OnCharInput(unsigned int codepoint);
     
     void RegisterDefaultMappings();
+
+    void SetContextEnabled(InputContext context, bool enabled);
+    bool IsContextEnabled(InputContext context) const;
+
+    void EnablePlatformPolling(bool enabled) { pollPlatformState_ = enabled; }
+    bool IsPlatformPollingEnabled() const { return pollPlatformState_; }
     
     void SetInputMode(InputDevice device);
     InputDevice GetCurrentInputDevice() const { return currentDevice_; }
@@ -69,6 +80,7 @@ public:
     bool IsMouseLocked() const { return isMouseLocked_; }
     
 private:
+    void PollPlatformState();
     void ProcessKeyboardInput();
     void ProcessMouseInput();
     void ProcessGamepadInput();
@@ -89,6 +101,9 @@ private:
     InputDevice currentDevice_ = InputDevice::Keyboard;
     bool isEnabled_ = true;
     bool isMouseLocked_ = false;
+    bool editorContextEnabled_ = true;
+    bool gameplayContextEnabled_ = true;
+    bool pollPlatformState_ = true;
     
     bool isInitialized_ = false;
 };
