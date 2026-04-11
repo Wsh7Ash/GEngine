@@ -289,8 +289,10 @@ void EntityQuery<Components...>::Iterator::FindNext() {
       typename std::tuple_element<0, std::tuple<Components...>>::type;
   auto *storage = world_->template GetComponentArray<FirstType>();
   const auto &entities = storage->GetEntities();
+  const auto liveSize = entities.Size();
+  const auto scanLimit = end_index_ < liveSize ? end_index_ : liveSize;
 
-  while (index_ < entities.Size()) {
+  while (index_ < scanLimit) {
     Entity e = entities[index_];
     // Check if entity has all OTHER components in the list
     if ((world_->template HasComponent<Components>(e) && ...)) {
@@ -298,6 +300,8 @@ void EntityQuery<Components...>::Iterator::FindNext() {
     }
     ++index_;
   }
+
+  index_ = end_index_;
 }
 
 template <typename... Components>
@@ -305,13 +309,24 @@ Entity EntityQuery<Components...>::Iterator::operator*() const {
   using FirstType =
       typename std::tuple_element<0, std::tuple<Components...>>::type;
   auto *storage = world_->template GetComponentArray<FirstType>();
-  return storage->GetEntities()[index_];
+  const auto &entities = storage->GetEntities();
+  GE_ASSERT(index_ < entities.Size(),
+            "Attempted to dereference an ECS query iterator at or past end.");
+  if (index_ >= entities.Size()) {
+    return INVALID_ENTITY;
+  }
+
+  return entities[index_];
 }
 
 template <typename... Components>
 typename EntityQuery<Components...>::Iterator
 EntityQuery<Components...>::begin() {
-  return Iterator(world_, 0);
+  using FirstType =
+      typename std::tuple_element<0, std::tuple<Components...>>::type;
+  auto *storage = world_->template GetComponentArray<FirstType>();
+  const auto size = storage->Size();
+  return Iterator(world_, 0, size);
 }
 
 template <typename... Components>
@@ -320,7 +335,8 @@ EntityQuery<Components...>::end() {
   using FirstType =
       typename std::tuple_element<0, std::tuple<Components...>>::type;
   auto *storage = world_->template GetComponentArray<FirstType>();
-  return Iterator(world_, storage->Size());
+  const auto size = storage->Size();
+  return Iterator(world_, size, size, false);
 }
 
 } // namespace ecs

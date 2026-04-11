@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -278,8 +279,15 @@ void SceneHierarchyPanel::OnImGuiRender() {
   std::transform(filter.begin(), filter.end(), filter.begin(),
                  [](unsigned char c) { return std::tolower(c); });
 
+  std::vector<ecs::Entity> rootEntities;
   for (auto entity : context_->Query<ecs::TagComponent>()) {
     if (IsRootEntity(entity)) {
+      rootEntities.push_back(entity);
+    }
+  }
+
+  for (auto entity : rootEntities) {
+    if (context_->IsAlive(entity) && IsRootEntity(entity)) {
       DrawEntityNode(entity, filter);
     }
   }
@@ -407,8 +415,9 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity,
 
   if (opened) {
     if (context_->HasComponent<ecs::RelationshipComponent>(entity)) {
-        auto& rc = context_->GetComponent<ecs::RelationshipComponent>(entity);
-        for (auto child : rc.Children) {
+        const auto children =
+            context_->GetComponent<ecs::RelationshipComponent>(entity).Children;
+        for (auto child : children) {
             DrawEntityNode(child, filter);
         }
     }
@@ -783,8 +792,9 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
       auto& tilemap = context_->GetComponent<ecs::TilemapComponent>(entity);
       EnsureTilemapStorage(tilemap);
 
-      int width = tilemap.Width;
-      int height = tilemap.Height;
+      int dimensions[2] = {tilemap.Width, tilemap.Height};
+      int tileSize[2] = {tilemap.TileWidth, tilemap.TileHeight};
+      int chunkSize[2] = {tilemap.ChunkWidth, tilemap.ChunkHeight};
 
       if (ImGui::BeginTable("TilemapTable", 2,
                             ImGuiTableFlags_Resizable |
@@ -822,8 +832,8 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::Text("Dimensions");
         ImGui::TableNextColumn();
         ImGui::PushItemWidth(-1);
-        if (ImGui::DragInt2("##dimensions", &width, 1.0f, 1, 256)) {
-          ResizeTilemapStorage(tilemap, width, height);
+        if (ImGui::DragInt2("##dimensions", dimensions, 1.0f, 1, 256)) {
+          ResizeTilemapStorage(tilemap, dimensions[0], dimensions[1]);
           RebuildTilemapNavigation(tilemap);
         }
         ImGui::PopItemWidth();
@@ -833,7 +843,11 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::Text("Tile Size");
         ImGui::TableNextColumn();
         ImGui::PushItemWidth(-1);
-        ImGui::DragInt2("##tilesize", &tilemap.TileWidth, 1.0f, 1, 512);
+        if (ImGui::DragInt2("##tilesize", tileSize, 1.0f, 1, 512)) {
+          tilemap.TileWidth = tileSize[0];
+          tilemap.TileHeight = tileSize[1];
+          RebuildTilemapNavigation(tilemap);
+        }
         ImGui::PopItemWidth();
 
         ImGui::TableNextRow();
@@ -859,7 +873,10 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         ImGui::Text("Chunk");
         ImGui::TableNextColumn();
         ImGui::PushItemWidth(-1);
-        ImGui::DragInt2("##chunksize", &tilemap.ChunkWidth, 1.0f, 1, 256);
+        if (ImGui::DragInt2("##chunksize", chunkSize, 1.0f, 1, 256)) {
+          tilemap.ChunkWidth = chunkSize[0];
+          tilemap.ChunkHeight = chunkSize[1];
+        }
         ImGui::PopItemWidth();
 
         ImGui::TableNextRow();

@@ -69,9 +69,16 @@
 #include "ecs/components/CanvasComponent.h"
 #include "ecs/components/UIImageComponent.h"
 #include "ecs/components/UIButtonComponent.h"
+#include "ecs/components/TextComponent.h"
 #include "ecs/components/AudioSourceComponent.h"
 #include "ecs/components/AudioListenerComponent.h"
 #include "ecs/components/ParticleEmitterComponent.h"
+#include "ecs/components/BoxCollider2DComponent.h"
+#include "ecs/components/Rigidbody2DComponent.h"
+#include "ecs/components/InputStateComponent.h"
+#include "ecs/components/IDComponent.h"
+#include "ecs/components/RelationshipComponent.h"
+#include "ecs/components/PrefabOverrideComponent.h"
 #include "ecs/systems/RenderSystem.h"
 #include "ecs/systems/TopDownGameplaySystem.h"
 #include "ecs/systems/ScriptSystem.h"
@@ -97,3 +104,9 @@
 
 // Gameplay
 #include "gameplay/GridPathfinder.h"
+
+// Input
+#include "input/GamepadManager.h"
+#include "input/InputAction.h"
+#include "input/InputMapping.h"
+#include "input/InputManager.h"

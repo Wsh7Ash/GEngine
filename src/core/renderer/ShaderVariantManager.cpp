@@ -29,29 +29,43 @@ std::string HashDefines(const std::unordered_map<std::string, bool>& defines) {
 }
 
 std::pair<std::string, std::string> SplitShaderSource(const std::string& source) {
-    const std::string vertexToken = "#type vertex";
-    const std::string fragmentToken = "#type fragment";
-    
-    size_t vertPos = source.find(vertexToken);
-    size_t fragPos = source.find(fragmentToken);
-    
-    std::string vertexSource, fragmentSource;
-    
-    if (vertPos != std::string::npos) {
-        size_t start = vertPos + vertexToken.length();
-        size_t end = source.find('#', start);
-        if (end == std::string::npos) end = source.length();
-        vertexSource = source.substr(start, end - start);
-    }
-    
-    if (fragPos != std::string::npos) {
-        size_t start = fragPos + fragmentToken.length();
-        size_t end = source.find('#', start);
-        if (end == std::string::npos) end = source.length();
-        fragmentSource = source.substr(start, end - start);
+    std::string vertexSource;
+    std::string fragmentSource;
+
+    const char* typeToken = "#type";
+    const size_t typeTokenLength = std::char_traits<char>::length(typeToken);
+    size_t pos = source.find(typeToken, 0);
+    while (pos != std::string::npos) {
+        const size_t eol = source.find_first_of("\r\n", pos);
+        if (eol == std::string::npos) {
+            break;
+        }
+
+        const size_t begin = pos + typeTokenLength + 1;
+        const std::string type = source.substr(begin, eol - begin);
+        const size_t nextLinePos = source.find_first_not_of("\r\n", eol);
+        if (nextLinePos == std::string::npos) {
+            break;
+        }
+
+        pos = source.find(typeToken, nextLinePos);
+        const std::string stageSource = (pos == std::string::npos)
+            ? source.substr(nextLinePos)
+            : source.substr(nextLinePos, pos - nextLinePos);
+
+        if (type == "vertex") {
+            vertexSource = stageSource;
+        } else if (type == "fragment" || type == "pixel") {
+            fragmentSource = stageSource;
+        }
     }
     
     return {vertexSource, fragmentSource};
+}
+
+bool IsCombinedShaderSource(const std::string& source) {
+    const auto [vertexSource, fragmentSource] = SplitShaderSource(source);
+    return !vertexSource.empty() && !fragmentSource.empty();
 }
 
 std::string ApplyDefinesToSource(const std::string& source, const std::unordered_map<std::string, bool>& defines) {
@@ -113,6 +127,16 @@ void ShaderVariantManager::RegisterShader(const std::string& shaderPath) {
     info.source = core::VFS::ReadString(shaderPath);
     info.lastModified = 0;
     info.compiled = false;
+
+    if (info.source.empty()) {
+        GE_LOG_WARNING("Skipping shader variant registration for %s because the source could not be loaded.", shaderPath.c_str());
+        return;
+    }
+
+    if (!IsCombinedShaderSource(info.source)) {
+        GE_LOG_WARNING("Skipping shader variant registration for %s because shader variants currently require a combined source file with both '#type vertex' and '#type fragment' blocks.", shaderPath.c_str());
+        return;
+    }
     
     auto [vertexSrc, fragmentSrc] = SplitShaderSource(info.source);
     
@@ -238,8 +262,16 @@ bool ShaderVariantManager::CompileVariantInternal(const std::string& shaderPath,
     }
     
     const std::string& source = it->second.source;
+    if (source.empty()) {
+        GE_LOG_ERROR("Failed to compile variant for %s: shader source is empty.", shaderPath.c_str());
+        return false;
+    }
     
     auto [vertexSrc, fragmentSrc] = SplitShaderSource(source);
+    if (vertexSrc.empty() || fragmentSrc.empty()) {
+        GE_LOG_ERROR("Failed to compile variant for %s: expected a combined shader source with both '#type vertex' and '#type fragment' stages.", shaderPath.c_str());
+        return false;
+    }
     
     std::unordered_map<std::string, bool> allDefines = defines;
     for (const auto& [key, val] : defines) {
@@ -251,26 +283,41 @@ bool ShaderVariantManager::CompileVariantInternal(const std::string& shaderPath,
     const std::string processedVertexSrc = ApplyDefinesToSource(vertexSrc, allDefines);
     const std::string processedFragmentSrc = ApplyDefinesToSource(fragmentSrc, allDefines);
 
-    ShaderCompileResult vertResult = ShaderCompiler::Get().Compile(processedVertexSrc, GL_VERTEX_SHADER);
-    ShaderCompileResult fragResult = ShaderCompiler::Get().Compile(processedFragmentSrc, GL_FRAGMENT_SHADER);
-    
-    if (!vertResult.success || !fragResult.success) {
-        GE_LOG_ERROR("Failed to compile variant for %s: VS=%s, FS=%s", 
-            shaderPath.c_str(), 
-            vertResult.errorLog.c_str(), 
-            fragResult.errorLog.c_str());
+    auto compileStage = [&shaderPath](GLenum stage, const std::string& source, const char* stageName) -> GLuint {
+        GLuint shader = glCreateShader(stage);
+        const char* sourcePtr = source.c_str();
+        glShaderSource(shader, 1, &sourcePtr, nullptr);
+        glCompileShader(shader);
+
+        GLint compileStatus = GL_FALSE;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &compileStatus);
+        if (compileStatus == GL_TRUE) {
+            return shader;
+        }
+
+        GLint logLength = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+        std::string log((size_t)(logLength > 0 ? logLength : 1), '\0');
+        glGetShaderInfoLog(shader, logLength, nullptr, log.data());
+        GE_LOG_ERROR("Shader compile error for %s [%s]: %s",
+            shaderPath.c_str(),
+            stageName,
+            log.c_str());
+        glDeleteShader(shader);
+        return 0;
+    };
+
+    GLuint vs = compileStage(GL_VERTEX_SHADER, processedVertexSrc, "vertex");
+    GLuint fs = compileStage(GL_FRAGMENT_SHADER, processedFragmentSrc, "fragment");
+    if (vs == 0 || fs == 0) {
+        if (vs != 0) {
+            glDeleteShader(vs);
+        }
+        if (fs != 0) {
+            glDeleteShader(fs);
+        }
         return false;
     }
-    
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    const char* vertexSourcePtr = processedVertexSrc.c_str();
-    glShaderSource(vs, 1, &vertexSourcePtr, nullptr);
-    glCompileShader(vs);
-    
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    const char* fragmentSourcePtr = processedFragmentSrc.c_str();
-    glShaderSource(fs, 1, &fragmentSourcePtr, nullptr);
-    glCompileShader(fs);
     
     uint32_t programId = glCreateProgram();
     glAttachShader(programId, vs);
@@ -595,18 +642,13 @@ void ShaderWarmUp::WarmUp() {
     GE_LOG_INFO("Starting shader warm-up...");
     
     std::vector<std::string> shaderPaths = {
-        "assets/shaders/pbr.frag",
+        "assets/shaders/PostProcessThreshold.glsl",
+        "assets/shaders/PostProcessBlur.glsl",
+        "assets/shaders/PostProcessComposite.glsl",
     };
     
     std::vector<std::unordered_map<std::string, bool>> commonVariants = {
         {},
-        {{"USE_IBL", true}},
-        {{"USE_IBL", true}, {"USE_SCREEN_SPACE_REFLECTIONS", true}},
-        {{"USE_IBL", true}, {"USE_SSS", true}},
-        {{"USE_FORWARD_PLUS", true}},
-        {{"USE_FORWARD_PLUS", true}, {"USE_IBL", true}},
-        {{"USE_GLOBAL_ILLUMINATION", true}},
-        {{"USE_IBL", true}, {"USE_SCREEN_SPACE_REFLECTIONS", true}, {"USE_SSS", true}},
     };
     
     for (const auto& path : shaderPaths) {

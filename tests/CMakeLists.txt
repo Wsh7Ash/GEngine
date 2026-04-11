@@ -20,6 +20,7 @@ set(GE_TEST_SOURCES
     integration/test_pixel_foundation.cpp
     integration/test_editor_regression.cpp
     integration/test_level_authoring.cpp
+    integration/test_component_registry.cpp
 
     # Stress tests
     stress/test_thread_safety.cpp

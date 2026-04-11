@@ -11,13 +11,139 @@
 #include "components/SkyboxComponent.h"
 #include "components/IDComponent.h"
 #include "components/RelationshipComponent.h"
+#include "components/NativeScriptComponent.h"
+#include "components/TilemapComponent.h"
+#include "components/GridPathData.h"
+#include "components/VelocityComponent.h"
+#include "components/TopDownControllerComponent.h"
+#include "components/InteractionComponent.h"
+#include "components/HealthComponent.h"
+#include "components/InventoryComponent.h"
+#include "components/PickupComponent.h"
+#include "components/ResourceNodeComponent.h"
+#include "components/BuildPlacementComponent.h"
+#include "components/WaveSpawnerComponent.h"
+#include "components/DefenseTowerComponent.h"
+#include "components/BoxCollider2DComponent.h"
+#include "components/Rigidbody2DComponent.h"
+#include "components/RectTransformComponent.h"
+#include "components/CanvasComponent.h"
+#include "components/UIImageComponent.h"
+#include "components/UIButtonComponent.h"
+#include "components/TextComponent.h"
+#include "components/AudioSourceComponent.h"
+#include "components/AudioListenerComponent.h"
+#include "components/ParticleEmitterComponent.h"
+#include "components/InputStateComponent.h"
+#include "components/PrefabOverrideComponent.h"
 #include "SystemManager.h"
 #include <algorithm>
-#include <vector>
 #include <cstring>
+#include <unordered_map>
+#include <vector>
 
 namespace ge {
 namespace ecs {
+
+namespace {
+
+struct ComponentRuntimeBinding {
+    void (*add)(World&, Entity) = nullptr;
+    void (*remove)(World&, Entity) = nullptr;
+};
+
+std::unordered_map<ComponentTypeID, ComponentRuntimeBinding>& GetComponentRuntimeBindings() {
+    static std::unordered_map<ComponentTypeID, ComponentRuntimeBinding> bindings;
+    return bindings;
+}
+
+template <typename T>
+void AddDefaultComponentBinding(World& world, Entity entity) {
+    if (!world.IsAlive(entity) || world.HasComponent<T>(entity)) {
+        return;
+    }
+
+    world.AddComponent<T>(entity, T{});
+}
+
+template <typename T>
+void RemoveComponentBinding(World& world, Entity entity) {
+    if (!world.IsAlive(entity) || !world.HasComponent<T>(entity)) {
+        return;
+    }
+
+    world.RemoveComponent<T>(entity);
+}
+
+template <typename T>
+void RegisterComponentBinding() {
+    const ComponentTypeID id = GetComponentTypeID<T>();
+    auto& bindings = GetComponentRuntimeBindings();
+    bindings.emplace(id, ComponentRuntimeBinding{
+        &AddDefaultComponentBinding<T>,
+        &RemoveComponentBinding<T>
+    });
+}
+
+void EnsureComponentBindingsRegistered() {
+    static const bool s_registered = []() {
+        RegisterComponentBinding<TransformComponent>();
+        RegisterComponentBinding<MeshComponent>();
+        RegisterComponentBinding<ModelComponent>();
+        RegisterComponentBinding<LightComponent>();
+        RegisterComponentBinding<PostProcessComponent>();
+        RegisterComponentBinding<TagComponent>();
+        RegisterComponentBinding<SpriteComponent>();
+        RegisterComponentBinding<AnimatorComponent>();
+        RegisterComponentBinding<SkyboxComponent>();
+        RegisterComponentBinding<IDComponent>();
+        RegisterComponentBinding<RelationshipComponent>();
+        RegisterComponentBinding<NativeScriptComponent>();
+        RegisterComponentBinding<TilemapComponent>();
+        RegisterComponentBinding<GridMapComponent>();
+        RegisterComponentBinding<PathAgentComponent>();
+        RegisterComponentBinding<VelocityComponent>();
+        RegisterComponentBinding<TopDownControllerComponent>();
+        RegisterComponentBinding<InteractionComponent>();
+        RegisterComponentBinding<HealthComponent>();
+        RegisterComponentBinding<InventoryComponent>();
+        RegisterComponentBinding<PickupComponent>();
+        RegisterComponentBinding<ResourceNodeComponent>();
+        RegisterComponentBinding<BuildPlacementComponent>();
+        RegisterComponentBinding<WaveSpawnerComponent>();
+        RegisterComponentBinding<DefenseTowerComponent>();
+        RegisterComponentBinding<BoxCollider2DComponent>();
+        RegisterComponentBinding<Rigidbody2DComponent>();
+        RegisterComponentBinding<RectTransformComponent>();
+        RegisterComponentBinding<CanvasComponent>();
+        RegisterComponentBinding<UIImageComponent>();
+        RegisterComponentBinding<UIButtonComponent>();
+        RegisterComponentBinding<TextComponent>();
+        RegisterComponentBinding<AudioSourceComponent>();
+        RegisterComponentBinding<AudioListenerComponent>();
+        RegisterComponentBinding<ParticleEmitterComponent>();
+        RegisterComponentBinding<InputStateComponent>();
+        RegisterComponentBinding<PrefabOverrideComponent>();
+        RegisterComponentBinding<PrefabLinkComponent>();
+        return true;
+    }();
+
+    (void)s_registered;
+}
+
+const ComponentRuntimeBinding* FindComponentBinding(ComponentTypeID id) {
+    EnsureComponentBindingsRegistered();
+
+    const auto& bindings = GetComponentRuntimeBindings();
+    const auto it = bindings.find(id);
+    if (it != bindings.end()) {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+} // namespace
 
 TransformComponent& World::GetTransform(Entity e) { return GetComponent<TransformComponent>(e); }
 MeshComponent& World::GetMesh(Entity e) { return GetComponent<MeshComponent>(e); }
@@ -40,7 +166,12 @@ bool World::HasSkybox(Entity e) const { return HasComponent<SkyboxComponent>(e);
 bool World::HasRelationship(Entity e) const { return HasComponent<RelationshipComponent>(e); }
 
 bool World::HasComponentByName(Entity e, const char* componentName) const {
-    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (!IsAlive(e)) {
+        return false;
+    }
+
+    EnsureComponentBindingsRegistered();
+    const ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
     if (id >= componentArrays_.size() || !componentArrays_[id]) {
         return false;
     }
@@ -48,7 +179,12 @@ bool World::HasComponentByName(Entity e, const char* componentName) const {
 }
 
 void* World::GetComponentPointerByName(Entity e, const char* componentName) {
-    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (!IsAlive(e)) {
+        return nullptr;
+    }
+
+    EnsureComponentBindingsRegistered();
+    const ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
     if (id >= componentArrays_.size() || !componentArrays_[id]) {
         return nullptr;
     }
@@ -56,16 +192,33 @@ void* World::GetComponentPointerByName(Entity e, const char* componentName) {
 }
 
 void World::AddComponentByName(Entity e, const char* componentName) {
-    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
-    if (id >= componentArrays_.size()) {
+    if (!IsAlive(e)) {
         return;
     }
-    // This is a placeholder - actual implementation would need to instantiate the component
-    (void)e;
+
+    EnsureComponentBindingsRegistered();
+    const ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    const ComponentRuntimeBinding* binding = FindComponentBinding(id);
+    if (binding == nullptr || binding->add == nullptr) {
+        return;
+    }
+
+    binding->add(*this, e);
 }
 
 void World::RemoveComponentByName(Entity e, const char* componentName) {
-    ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (!IsAlive(e)) {
+        return;
+    }
+
+    EnsureComponentBindingsRegistered();
+    const ComponentTypeID id = internal::GetComponentTypeIDByName(componentName);
+    if (const ComponentRuntimeBinding* binding = FindComponentBinding(id);
+        binding != nullptr && binding->remove != nullptr) {
+        binding->remove(*this, e);
+        return;
+    }
+
     if (id >= componentArrays_.size() || !componentArrays_[id]) {
         return;
     }
@@ -79,10 +232,18 @@ void World::RemoveComponentByName(Entity e, const char* componentName) {
 }
 
 const char* World::GetComponentTypeName(ComponentTypeID id) const {
+    EnsureComponentBindingsRegistered();
+    if (const char* componentName = internal::GetComponentNameByID(id)) {
+        return componentName;
+    }
     return "Unknown";
 }
 
 const char* World::GetComponentTypeNameStatic(ComponentTypeID id) {
+    EnsureComponentBindingsRegistered();
+    if (const char* componentName = internal::GetComponentNameByID(id)) {
+        return componentName;
+    }
     return "Unknown";
 }
 

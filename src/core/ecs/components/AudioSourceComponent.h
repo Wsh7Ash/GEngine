@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include <cmath>
 #include "../../math/VecTypes.h"
 #include "../../audio/AudioCategory.h"
 

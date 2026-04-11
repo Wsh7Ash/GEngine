@@ -64,6 +64,8 @@ ShaderCompileResult ShaderCompiler::CompileWithDefines(const std::string& source
     
     const char* sources[] = { processedSource.c_str() };
     shader.setStrings(sources, 1);
+    shader.setEntryPoint("main");
+    shader.setSourceEntryPoint("main");
     
     shader.setEnvInput(glslang::EShSourceGlsl, stage, glslang::EShClientOpenGL, 450);
     shader.setEnvClient(glslang::EShClientOpenGL, glslang::EShTargetOpenGL_450);
@@ -77,17 +79,6 @@ ShaderCompileResult ShaderCompiler::CompileWithDefines(const std::string& source
         result.errorLog += "\n";
         result.errorLog += shader.getInfoDebugLog();
         GE_LOG_ERROR("Shader compilation failed: %s", result.errorLog.c_str());
-        return result;
-    }
-
-    glslang::TProgram program;
-    program.addShader(&shader);
-    
-    if (!program.link(messages)) {
-        result.errorLog = program.getInfoLog();
-        result.errorLog += "\n";
-        result.errorLog += program.getInfoDebugLog();
-        GE_LOG_ERROR("Shader linking failed: %s", result.errorLog.c_str());
         return result;
     }
 

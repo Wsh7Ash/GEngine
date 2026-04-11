@@ -2,8 +2,9 @@
 
 #include "../../math/VecTypes.h"
 #include "../../math/quaternion.h"
-#include <string>
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace ge {
 namespace ecs {

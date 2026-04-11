@@ -7,6 +7,7 @@
 
 #include "../../uuid/UUID.h"
 #include "../../math/VecTypes.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 

@@ -27,10 +27,13 @@ class EntityQuery
 public:
     struct Iterator
     {
-        Iterator(World* world, std::size_t index)
-            : world_(world), index_(index)
+        Iterator(World* world, std::size_t index, std::size_t endIndex, bool seek = true)
+            : world_(world), index_(index), end_index_(endIndex)
         {
-            FindNext();
+            if (seek)
+            {
+                FindNext();
+            }
         }
 
         Entity operator*() const;
@@ -42,14 +45,20 @@ public:
             return *this;
         }
 
-        bool operator==(const Iterator& other) const { return index_ == other.index_; }
-        bool operator!=(const Iterator& other) const { return index_ != other.index_; }
+        bool operator==(const Iterator& other) const
+        {
+            return world_ == other.world_ && index_ == other.index_ &&
+                   end_index_ == other.end_index_;
+        }
+
+        bool operator!=(const Iterator& other) const { return !(*this == other); }
 
     private:
         void FindNext();
 
         World* world_;
         std::size_t index_;
+        std::size_t end_index_;
     };
 
     explicit EntityQuery(World* world) : world_(world) {}
