@@ -358,6 +358,9 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
   if (!data.contains("Entities"))
     return false;
 
+  world_.Clear();
+  std::vector<std::pair<ecs::Entity, UUID>> pendingParents;
+
   for (auto &entityData : data["Entities"]) {
     ecs::Entity entity;
     if (entityData.contains("UUID")) {
@@ -693,10 +696,14 @@ bool SceneSerializer::Deserialize(const std::string &filepath) {
     // Deserialize Parent (by UUID)
     if (entityData.contains("Parent")) {
       UUID parentUUID = entityData["Parent"].get<uint64_t>();
-      ecs::Entity parent = world_.GetEntityByUUID(parentUUID);
-      if (parent != ecs::INVALID_ENTITY) {
-        world_.SetParent(entity, parent);
-      }
+      pendingParents.emplace_back(entity, parentUUID);
+    }
+  }
+
+  for (const auto& [entity, parentUUID] : pendingParents) {
+    ecs::Entity parent = world_.GetEntityByUUID(parentUUID);
+    if (parent != ecs::INVALID_ENTITY) {
+      world_.SetParent(entity, parent);
     }
   }
 
@@ -794,6 +801,8 @@ bool SceneSerializer::DeserializeWithHeader(const std::string& filepath, savegam
         return false;
     }
 
+    world_.Clear();
+
     for (auto& entityData : data["Entities"]) {
         ecs::Entity entity;
         if (entityData.contains("UUID")) {
@@ -859,6 +868,8 @@ bool SceneSerializer::DeserializeFromString(const std::string& data) {
             GE_LOG_ERROR("Invalid scene data: no Entities field");
             return false;
         }
+
+        world_.Clear();
 
         for (auto& entityData : root["Entities"]) {
             ecs::Entity entity;

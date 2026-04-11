@@ -3,14 +3,105 @@
 #include "../ecs/components/TagComponent.h"
 #include "../ecs/components/TransformComponent.h"
 #include "../renderer/Renderer2D.h"
+#include "../renderer/OrthographicCamera.h"
 #include "../editor/EditorToolbar.h"
 #include "../cmd/CommandHistory.h"
 #include "../cmd/EntityCommands.h"
 #include <ImGuizmo.h>
 #include <imgui.h>
+#include <algorithm>
+#include <cmath>
 
 namespace ge {
 namespace editor {
+
+namespace {
+
+constexpr float kEditorPixelsPerUnit = 16.0f;
+constexpr float kEditorZoom = 1.0f;
+
+Math::Vec2f GetViewportWorldSize(const Math::Vec2f& viewportSize) {
+  return {
+      viewportSize.x / (kEditorPixelsPerUnit * kEditorZoom),
+      viewportSize.y / (kEditorPixelsPerUnit * kEditorZoom)};
+}
+
+renderer::OrthographicCamera BuildEditorCamera(const Math::Vec2f& viewportSize,
+                                               const Math::Vec2f& cameraPosition) {
+  renderer::OrthographicCamera camera(-1.0f, 1.0f, -1.0f, 1.0f);
+  camera.SetPixelPerfectEnabled(true);
+  camera.SetPixelSnap(true);
+  camera.SetPixelsPerUnit(kEditorPixelsPerUnit);
+  camera.SetZoom(kEditorZoom);
+  camera.SetViewportSize(viewportSize.x, viewportSize.y);
+  camera.SetPosition({cameraPosition.x, cameraPosition.y, 0.0f});
+  return camera;
+}
+
+ImVec2 WorldToScreen(const Math::Vec3f& worldPosition,
+                     const Math::Vec2f viewportBounds[2],
+                     const Math::Vec2f& viewportSize,
+                     const Math::Vec2f& cameraPosition) {
+  const Math::Vec2f worldSize = GetViewportWorldSize(viewportSize);
+  const float left = cameraPosition.x - worldSize.x * 0.5f;
+  const float bottom = cameraPosition.y - worldSize.y * 0.5f;
+  const float normalizedX = (worldPosition.x - left) / worldSize.x;
+  const float normalizedY = (worldPosition.y - bottom) / worldSize.y;
+
+  return {
+      viewportBounds[0].x + normalizedX * viewportSize.x,
+      viewportBounds[0].y + (1.0f - normalizedY) * viewportSize.y};
+}
+
+void DrawGridOverlay(ImDrawList* drawList,
+                     const Math::Vec2f viewportBounds[2],
+                     const Math::Vec2f& viewportSize,
+                     const Math::Vec2f& cameraPosition) {
+  if (!drawList || viewportSize.x <= 0.0f || viewportSize.y <= 0.0f) {
+    return;
+  }
+
+  const Math::Vec2f worldSize = GetViewportWorldSize(viewportSize);
+  const float left = cameraPosition.x - worldSize.x * 0.5f;
+  const float right = cameraPosition.x + worldSize.x * 0.5f;
+  const float bottom = cameraPosition.y - worldSize.y * 0.5f;
+  const float top = cameraPosition.y + worldSize.y * 0.5f;
+
+  drawList->PushClipRect(ImVec2(viewportBounds[0].x, viewportBounds[0].y),
+                         ImVec2(viewportBounds[1].x, viewportBounds[1].y), true);
+
+  for (int x = (int)std::floor(left); x <= (int)std::ceil(right); ++x) {
+    const bool isAxis = (x == 0);
+    const bool isMajor = (x % 4 == 0);
+    const ImU32 color = isAxis
+                            ? IM_COL32(70, 170, 220, 200)
+                            : (isMajor ? IM_COL32(95, 95, 100, 130)
+                                       : IM_COL32(60, 60, 64, 90));
+    const ImVec2 start = WorldToScreen({(float)x, bottom, 0.0f}, viewportBounds,
+                                       viewportSize, cameraPosition);
+    const ImVec2 end = WorldToScreen({(float)x, top, 0.0f}, viewportBounds,
+                                     viewportSize, cameraPosition);
+    drawList->AddLine(start, end, color, isAxis ? 1.8f : 1.0f);
+  }
+
+  for (int y = (int)std::floor(bottom); y <= (int)std::ceil(top); ++y) {
+    const bool isAxis = (y == 0);
+    const bool isMajor = (y % 4 == 0);
+    const ImU32 color = isAxis
+                            ? IM_COL32(220, 120, 90, 200)
+                            : (isMajor ? IM_COL32(95, 95, 100, 130)
+                                       : IM_COL32(60, 60, 64, 90));
+    const ImVec2 start = WorldToScreen({left, (float)y, 0.0f}, viewportBounds,
+                                       viewportSize, cameraPosition);
+    const ImVec2 end = WorldToScreen({right, (float)y, 0.0f}, viewportBounds,
+                                     viewportSize, cameraPosition);
+    drawList->AddLine(start, end, color, isAxis ? 1.8f : 1.0f);
+  }
+
+  drawList->PopClipRect();
+}
+
+} // namespace
 
 ViewportPanel::ViewportPanel(const std::string& name, bool isGameView)
     : name_(name), isGameView_(isGameView) {
@@ -59,10 +150,8 @@ void ViewportPanel::OnImGuiRender() {
   // Viewport Panning
   if (!isGameView_ && isHovered_ && ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
     ImVec2 delta = ImGui::GetIO().MouseDelta;
-    if (viewportSize_.x > 0)
-      cameraPosition_.x -= delta.x * (2.0f / viewportSize_.x);
-    if (viewportSize_.y > 0)
-      cameraPosition_.y += delta.y * (2.0f / viewportSize_.y);
+    cameraPosition_.x -= delta.x / (kEditorPixelsPerUnit * kEditorZoom);
+    cameraPosition_.y += delta.y / (kEditorPixelsPerUnit * kEditorZoom);
   }
 
   uint32_t textureID = resultTexture_ != 0 ? resultTexture_ : framebuffer_->GetColorAttachmentRendererID();
@@ -114,24 +203,10 @@ void ViewportPanel::OnImGuiRender() {
       ImGui::SetNextItemWidth(60);
       ImGui::ColorEdit4("##Clear", &clearColor_.x,
                         ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
-    
+
       if (showGrid_ && viewportSize_.x > 0 && viewportSize_.y > 0) {
-        float aspectRatio = viewportSize_.x / viewportSize_.y;
-        renderer::Renderer2D::BeginScene(
-            renderer::OrthographicCamera(-aspectRatio, aspectRatio, -1.0f, 1.0f));
-    
-        float gridSpacing = 1.0f;
-        Math::Vec4f gridColor = {0.3f, 0.3f, 0.3f, 1.0f};
-    
-        for (float x = -10.0f; x <= 10.0f; x += gridSpacing) {
-          renderer::Renderer2D::DrawQuad({x, 0.0f, -0.1f}, {0.02f, 20.0f},
-                                         gridColor);
-        }
-        for (float y = -10.0f; y <= 10.0f; y += gridSpacing) {
-          renderer::Renderer2D::DrawQuad({0.0f, y, -0.1f}, {20.0f, 0.02f},
-                                         gridColor);
-        }
-        renderer::Renderer2D::EndScene();
+        DrawGridOverlay(ImGui::GetWindowDrawList(), viewportBounds_, viewportSize_,
+                        cameraPosition_);
       }
     
       // Mouse Picking
@@ -149,24 +224,22 @@ void ViewportPanel::OnImGuiRender() {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver()) {
           int pixelData = framebuffer_->ReadPixel(1, mouseX, mouseY);
           if (pixelData == -1) {
-            EditorToolbar::GetHierarchyPanel()->SetSelectedEntity(
-                ecs::INVALID_ENTITY);
+            EditorToolbar::ClearSelection();
           } else {
-            // Convert pixel index to Entity handle
-            // Since handles are index-based, we can reconstruct it (assuming
-            // version 0 for now or finding a way to get the real entity) Better:
-            // The pixelData IS the index. We need to find the entity with this
-            // index. For now, let's create a temp entity to test selection
-            EditorToolbar::GetHierarchyPanel()->SetSelectedEntity(
-                ecs::Entity::Create((uint32_t)pixelData, 0));
+            ecs::Entity pickedEntity = ecs::INVALID_ENTITY;
+            if (sceneContext_) {
+              pickedEntity =
+                  sceneContext_->ResolveEntityByIndex((uint32_t)pixelData);
+            }
+            EditorToolbar::SetSelectedEntity(pickedEntity);
           }
         }
       }
     
       // Gizmos
-      ecs::Entity selectedEntity =
-          EditorToolbar::GetHierarchyPanel()->GetSelectedEntity();
+      ecs::Entity selectedEntity = EditorToolbar::GetSelectedEntity();
       if (selectedEntity && sceneContext_ &&
+          sceneContext_->IsAlive(selectedEntity) &&
           sceneContext_->HasComponent<ecs::TransformComponent>(selectedEntity)) {
         ImGuizmo::SetOrthographic(true);
         ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
@@ -174,25 +247,11 @@ void ViewportPanel::OnImGuiRender() {
                           viewportBounds_[1].x - viewportBounds_[0].x,
                           viewportBounds_[1].y - viewportBounds_[0].y);
     
-        // Setup camera matrices for 2D orthographic projection
+        const auto camera = BuildEditorCamera(viewportSize_, cameraPosition_);
         float view[16];
         float projection[16];
-    
-        // View matrix with camera offset
-        for (int i = 0; i < 16; i++) {
-          view[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-          projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-        }
-        view[12] = -cameraPosition_.x;
-        view[13] = -cameraPosition_.y;
-    
-        // Calculate aspect-ratio aware orthographic projection
-        if (viewportSizeNorm.y > 0) {
-          projection[0] =
-              2.0f / viewportSizeNorm.x * (viewportSizeNorm.x / viewportSizeNorm.y);
-          projection[5] = 2.0f / viewportSizeNorm.y;
-        }
-        projection[10] = 1.0f;
+        std::copy_n(camera.GetViewMatrix().Data(), 16, view);
+        std::copy_n(camera.GetProjectionMatrix().Data(), 16, projection);
     
         auto &tc =
             sceneContext_->GetComponent<ecs::TransformComponent>(selectedEntity);
@@ -252,17 +311,14 @@ void ViewportPanel::OnImGuiRender() {
         auto drawList = ImGui::GetWindowDrawList();
         // Iterate through all entities that have a TagComponent
         for (auto e : sceneContext_->Query<ecs::TagComponent>()) {
-          if (sceneContext_->HasComponent<ecs::TransformComponent>(e)) {
+          if (sceneContext_->IsAlive(e) &&
+              sceneContext_->HasComponent<ecs::TransformComponent>(e)) {
             auto &tag = sceneContext_->GetComponent<ecs::TagComponent>(e).tag;
             if (tag == "SpawnPoint") {
               auto &tc = sceneContext_->GetComponent<ecs::TransformComponent>(e);
-              // Project 3D/2D world pos to screen pos
-              // For now, assuming world == screen with offset
-              ImVec2 pos = {viewportBounds_[0].x +
-                                (tc.position.x + 1.0f) * 0.5f * viewportSize_.x,
-                            viewportBounds_[0].y +
-                                (1.0f - (tc.position.y + 1.0f) * 0.5f) *
-                                    viewportSize_.y};
+              ImVec2 pos =
+                  WorldToScreen(tc.position, viewportBounds_, viewportSize_,
+                                cameraPosition_);
     
               drawList->AddCircleFilled(pos, 10.0f, IM_COL32(0, 255, 0, 200));
               drawList->AddText(ImVec2(pos.x + 12, pos.y - 6),

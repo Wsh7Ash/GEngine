@@ -1,8 +1,9 @@
 #include "ContentBrowserPanel.h"
+#include "EditorPaths.h"
+#include "EditorToolbar.h"
 #include "../scene/SceneSerializer.h"
 #include "VSCodeUtility.h"
 #include <algorithm>
-#include <cstdlib>
 #include <filesystem>
 #include <imgui.h>
 #include <string>
@@ -13,16 +14,6 @@
 
 namespace ge {
 namespace editor {
-
-static std::filesystem::path GetAssetPath() {
-  std::vector<std::string> paths = {"./", "../", "../../", "../../../"};
-  for (auto p : paths) {
-    if (std::filesystem::exists(p + "assets")) {
-      return std::filesystem::path(p + "assets");
-    }
-  }
-  return "";
-}
 
 static const char* GetFileIcon(const std::filesystem::path& path) {
   if (std::filesystem::is_directory(path)) return "[D]";
@@ -37,8 +28,41 @@ static const char* GetFileIcon(const std::filesystem::path& path) {
 }
 
 ContentBrowserPanel::ContentBrowserPanel() {
-  base_dir_ = GetAssetPath();
+  base_dir_ = EditorPaths::ResolveAssetRoot();
   cur_dir_ = base_dir_;
+}
+
+void ContentBrowserPanel::SetBaseDirectory(const std::filesystem::path& directory) {
+  base_dir_ = EditorPaths::NormalizePath(directory);
+  cur_dir_ = base_dir_;
+  first_render_ = true;
+  asset_stamp_valid_ = false;
+}
+
+void ContentBrowserPanel::RefreshAssets(bool force) {
+  if (base_dir_.empty()) {
+    base_dir_ = EditorPaths::ResolveAssetRoot();
+  }
+
+  std::error_code ec;
+  if (base_dir_.empty() || !std::filesystem::exists(base_dir_, ec)) {
+    return;
+  }
+
+  const auto newStamp = std::filesystem::last_write_time(base_dir_, ec);
+  if (!force && asset_stamp_valid_ && !ec && newStamp == asset_stamp_) {
+    return;
+  }
+
+  assets::AssetImporter::ScanDirectory(base_dir_);
+  if (!ec) {
+    asset_stamp_ = newStamp;
+    asset_stamp_valid_ = true;
+  }
+
+  if (cur_dir_.empty() || !std::filesystem::exists(cur_dir_, ec)) {
+    cur_dir_ = base_dir_;
+  }
 }
 
 void ContentBrowserPanel::DrawDirectoryTree(const std::filesystem::path &directory) {
@@ -46,8 +70,18 @@ void ContentBrowserPanel::DrawDirectoryTree(const std::filesystem::path &directo
   if (!std::filesystem::exists(directory, ec) || !std::filesystem::is_directory(directory, ec))
     return;
 
+  std::vector<std::filesystem::directory_entry> subDirectories;
   for (auto &entry : std::filesystem::directory_iterator(directory, ec)) {
     if (ec || !entry.is_directory(ec)) continue;
+    subDirectories.push_back(entry);
+  }
+
+  std::sort(subDirectories.begin(), subDirectories.end(),
+            [](const auto& a, const auto& b) {
+              return a.path().filename().string() < b.path().filename().string();
+            });
+
+  for (auto &entry : subDirectories) {
 
     std::string name = entry.path().filename().string();
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
@@ -81,6 +115,10 @@ void ContentBrowserPanel::DrawDirectoryTree(const std::filesystem::path &directo
 void ContentBrowserPanel::OnImGuiRender() {
   ImGui::Begin("Content Browser");
 
+  if (base_dir_.empty()) {
+    SetBaseDirectory(EditorToolbar::GetAssetRoot());
+  }
+
   if (base_dir_.empty() || !std::filesystem::exists(base_dir_)) {
     ImGui::TextColored(ImVec4(0.85f, 0.25f, 0.25f, 1.0f),
                        "Assets directory not found!");
@@ -89,8 +127,10 @@ void ContentBrowserPanel::OnImGuiRender() {
   }
 
   if (first_render_) {
-    assets::AssetImporter::ScanDirectory(base_dir_);
+    RefreshAssets(true);
     first_render_ = false;
+  } else {
+    RefreshAssets(false);
   }
 
   float panelWidth = ImGui::GetContentRegionAvail().x;
@@ -103,6 +143,17 @@ void ContentBrowserPanel::OnImGuiRender() {
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.00f, 0.71f, 0.85f, 1.00f));
   ImGui::Text("Folders");
   ImGui::PopStyleColor();
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Refresh")) {
+    RefreshAssets(true);
+  }
+  ImGui::SameLine();
+  if (ImGui::SmallButton("Up") && cur_dir_ != base_dir_) {
+    const auto parent = cur_dir_.parent_path();
+    if (!parent.empty() && parent.string().find(base_dir_.string()) == 0) {
+      cur_dir_ = parent;
+    }
+  }
   ImGui::Separator();
 
   // Root node
@@ -130,7 +181,8 @@ void ContentBrowserPanel::OnImGuiRender() {
 
   // Breadcrumb / current path
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.60f, 0.60f, 0.60f, 1.00f));
-  std::string relPath = std::filesystem::relative(cur_dir_, base_dir_).string();
+  std::error_code ec;
+  std::string relPath = std::filesystem::relative(cur_dir_, base_dir_, ec).string();
   if (relPath == ".") relPath = "Assets";
   else relPath = "Assets/" + relPath;
   ImGui::Text("%s", relPath.c_str());
@@ -147,9 +199,25 @@ void ContentBrowserPanel::OnImGuiRender() {
 
   ImGui::Columns(columnCount, 0, false);
 
-  std::error_code ec;
+  std::vector<std::filesystem::directory_entry> entries;
   for (auto &directoryEntry : std::filesystem::directory_iterator(cur_dir_, ec)) {
     if (ec) continue;
+    entries.push_back(directoryEntry);
+  }
+
+  std::sort(entries.begin(), entries.end(),
+            [](const auto& a, const auto& b) {
+              std::error_code leftEc;
+              std::error_code rightEc;
+              const bool leftDir = a.is_directory(leftEc);
+              const bool rightDir = b.is_directory(rightEc);
+              if (leftDir != rightDir) {
+                return leftDir > rightDir;
+              }
+              return a.path().filename().string() < b.path().filename().string();
+            });
+
+  for (auto &directoryEntry : entries) {
     const auto &path = directoryEntry.path();
     if (path.extension() == ".geasset") continue;
 
@@ -192,10 +260,8 @@ void ContentBrowserPanel::OnImGuiRender() {
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
       if (isDirectory) {
         cur_dir_ = path;
-      } else if (path.extension() == ".json" && context_) {
-        scene::SceneSerializer serializer(*context_);
-        serializer.Deserialize(path.string());
-        GE_LOG_INFO("Scene loaded from %s", path.filename().string().c_str());
+      } else if (EditorPaths::LooksLikeSceneAsset(path) && context_) {
+        EditorToolbar::LoadScene(path);
       } else if (path.extension() == ".cpp" || path.extension() == ".h") {
         VSCodeUtility::OpenInVSCode(std::filesystem::absolute(path, ec).string());
       }
@@ -204,14 +270,16 @@ void ContentBrowserPanel::OnImGuiRender() {
     // Context Menu
     if (ImGui::BeginPopupContextItem()) {
       if (ImGui::MenuItem("Open in Explorer")) {
-        std::string command = "explorer /select,\"" +
-                              std::filesystem::absolute(path, ec).string() + "\"";
-        std::replace(command.begin(), command.end(), '/', '\\');
-        std::system(command.c_str());
+        VSCodeUtility::OpenInExplorer(std::filesystem::absolute(path, ec).string());
       }
       if (ImGui::MenuItem("Copy Path")) {
         ImGui::SetClipboardText(
             std::filesystem::absolute(path, ec).string().c_str());
+      }
+      if (!isDirectory && EditorPaths::LooksLikeSceneAsset(path)) {
+        if (ImGui::MenuItem("Load Scene")) {
+          EditorToolbar::LoadScene(path);
+        }
       }
       if (!isDirectory && (path.extension() == ".cpp" || path.extension() == ".h")) {
         if (ImGui::MenuItem("Edit in VS Code")) {

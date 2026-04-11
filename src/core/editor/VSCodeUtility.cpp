@@ -96,6 +96,25 @@ void VSCodeUtility::OpenInVSCode(const std::string& path) {
     GE_LOG_INFO("Opening in VS Code: {0}", path.c_str());
 }
 
+void VSCodeUtility::OpenInExplorer(const std::string& path) {
+#ifdef GE_PLATFORM_WINDOWS
+    std::error_code ec;
+    const std::filesystem::path absolute = std::filesystem::absolute(path, ec);
+    const std::filesystem::path target = ec ? std::filesystem::path(path) : absolute;
+
+    if (std::filesystem::is_directory(target, ec)) {
+        ShellExecuteA(NULL, "open", target.string().c_str(), NULL, NULL, SW_SHOWNORMAL);
+        return;
+    }
+
+    std::string args = "/select,\"" + target.string() + "\"";
+    ShellExecuteA(NULL, "open", "explorer.exe", args.c_str(), NULL, SW_SHOWNORMAL);
+#else
+    std::string command = "xdg-open \"" + path + "\" &";
+    system(command.c_str());
+#endif
+}
+
 void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoot, const std::vector<std::string>& includePaths) {
     std::filesystem::path vscodeDir = projectRoot / ".vscode";
     if (!std::filesystem::exists(vscodeDir)) {
@@ -144,7 +163,7 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
         {
             "label": "Build GEngine",
             "type": "shell",
-            "command": "cmake --build build --config Debug",
+            "command": "cmake --build build --config Debug --target GameEngine",
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -165,7 +184,7 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/Debug/GameEngine.exe",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build/bin/Debug",
             "stopOnEntry": false,
             "preLaunchTask": "Build GEngine"
         },
@@ -176,7 +195,7 @@ void VSCodeUtility::GenerateVSCodeConfig(const std::filesystem::path& projectRoo
             "program": "${workspaceFolder}/build/bin/Debug/GameEngine.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build/bin/Debug",
             "environment": [],
             "console": "integratedTerminal",
             "preLaunchTask": "Build GEngine"

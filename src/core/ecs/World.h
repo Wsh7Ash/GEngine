@@ -114,6 +114,9 @@ public:
 
   void Clear();
 
+  [[nodiscard]] Entity ResolveEntityByIndex(uint32_t index) const;
+  [[nodiscard]] bool IsDescendantOf(Entity entity, Entity potentialAncestor) const;
+
   [[nodiscard]] bool IsAlive(Entity e) const noexcept {
     return entityManager_.IsAlive(e);
   }
@@ -156,6 +159,10 @@ public:
 
   template <typename T> [[nodiscard]] T &GetComponent(Entity e) {
     return GetComponentArray<T>()->GetData(e);
+  }
+
+  template <typename T> [[nodiscard]] const T &GetComponent(Entity e) const {
+    return const_cast<World *>(this)->GetComponentArray<T>()->GetData(e);
   }
 
   // Helper accessors to avoid template specialization issues in some translation units

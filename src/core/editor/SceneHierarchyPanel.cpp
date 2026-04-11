@@ -1,4 +1,5 @@
 #include "SceneHierarchyPanel.h"
+#include "EditorToolbar.h"
 #include "../ecs/ScriptableEntity.h"
 #include "../ecs/components/MeshComponent.h"
 #include "../ecs/components/LightComponent.h"
@@ -21,6 +22,11 @@
 #include <nlohmann/json.hpp>
 #include "../ecs/ScriptRegistry.h"
 #include "../scene/PrefabSerializer.h"
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -34,12 +40,99 @@ SceneHierarchyPanel::SceneHierarchyPanel(ecs::World &world)
 
 void SceneHierarchyPanel::SetContext(ecs::World &world) {
   context_ = &world;
-  selection_context_ = ecs::Entity(); // Reset selection
+  selection_context_ = ecs::INVALID_ENTITY;
+}
+
+void SceneHierarchyPanel::SetSelectedEntity(ecs::Entity entity) {
+  if (!context_ || entity == ecs::INVALID_ENTITY) {
+    selection_context_ = ecs::INVALID_ENTITY;
+    return;
+  }
+
+  selection_context_ = context_->IsAlive(entity) ? entity : ecs::INVALID_ENTITY;
+}
+
+void SceneHierarchyPanel::ClearSelection() {
+  selection_context_ = ecs::INVALID_ENTITY;
+}
+
+bool SceneHierarchyPanel::HasValidSelection() const {
+  return context_ && selection_context_ != ecs::INVALID_ENTITY &&
+         context_->IsAlive(selection_context_);
+}
+
+void SceneHierarchyPanel::ValidateSelection() {
+  if (!HasValidSelection()) {
+    selection_context_ = ecs::INVALID_ENTITY;
+  }
+}
+
+bool SceneHierarchyPanel::IsRootEntity(ecs::Entity entity) const {
+  if (!context_ || !context_->IsAlive(entity)) {
+    return false;
+  }
+
+  if (!context_->HasComponent<ecs::RelationshipComponent>(entity)) {
+    return true;
+  }
+
+  return context_->GetComponent<ecs::RelationshipComponent>(entity).Parent ==
+         ecs::INVALID_ENTITY;
+}
+
+bool SceneHierarchyPanel::EntityMatchesFilter(ecs::Entity entity,
+                                              const std::string &filter) const {
+  if (!context_ || !context_->IsAlive(entity) || filter.empty()) {
+    return filter.empty();
+  }
+
+  std::string tag = context_->HasComponent<ecs::TagComponent>(entity)
+                        ? context_->GetComponent<ecs::TagComponent>(entity).tag
+                        : ("Entity " + std::to_string(entity.GetIndex()));
+  std::transform(tag.begin(), tag.end(), tag.begin(),
+                 [](unsigned char c) { return (char)std::tolower(c); });
+  return tag.find(filter) != std::string::npos;
+}
+
+bool SceneHierarchyPanel::HasMatchingDescendant(ecs::Entity entity,
+                                                const std::string &filter) const {
+  if (!context_ || filter.empty() || !context_->IsAlive(entity) ||
+      !context_->HasComponent<ecs::RelationshipComponent>(entity)) {
+    return false;
+  }
+
+  const auto &children =
+      context_->GetComponent<ecs::RelationshipComponent>(entity).Children;
+  for (auto child : children) {
+    if (!context_->IsAlive(child)) {
+      continue;
+    }
+    if (EntityMatchesFilter(child, filter) || HasMatchingDescendant(child, filter)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool SceneHierarchyPanel::IsEntityInSubtree(ecs::Entity root,
+                                            ecs::Entity candidate) const {
+  if (!context_ || !context_->IsAlive(root) || candidate == ecs::INVALID_ENTITY) {
+    return false;
+  }
+
+  if (root == candidate) {
+    return true;
+  }
+
+  return context_->IsDescendantOf(candidate, root);
 }
 
 void SceneHierarchyPanel::OnImGuiRender() {
   if (!context_)
     return;
+
+  ValidateSelection();
 
   // 1. Hierarchy Window
   ImGui::Begin("Scene Hierarchy");
@@ -57,19 +150,8 @@ void SceneHierarchyPanel::OnImGuiRender() {
                  [](unsigned char c) { return std::tolower(c); });
 
   for (auto entity : context_->Query<ecs::TagComponent>()) {
-    if (!filter.empty()) {
-        DrawEntityNode(entity);
-    } else {
-        // Only start drawing from root entities (no parent) when not filtering
-        bool hasRelationship = context_->HasComponent<ecs::RelationshipComponent>(entity);
-        bool hasParent = false;
-        if (hasRelationship) {
-            hasParent = context_->GetComponent<ecs::RelationshipComponent>(entity).Parent != ecs::INVALID_ENTITY;
-        }
-
-        if (!hasParent) {
-            DrawEntityNode(entity);
-        }
+    if (IsRootEntity(entity)) {
+      DrawEntityNode(entity, filter);
     }
   }
 
@@ -80,6 +162,7 @@ void SceneHierarchyPanel::OnImGuiRender() {
         auto e = context_->CreateEntity();
         context_->AddComponent(e, ecs::TransformComponent{});
         context_->AddComponent(e, ecs::TagComponent{"Entity"});
+        SetSelectedEntity(e);
       }
 
       if (ImGui::MenuItem("Sprite")) {
@@ -87,12 +170,14 @@ void SceneHierarchyPanel::OnImGuiRender() {
         context_->AddComponent(e, ecs::TransformComponent{});
         context_->AddComponent(e, ecs::TagComponent{"Sprite"});
         context_->AddComponent(e, ecs::SpriteComponent{});
+        SetSelectedEntity(e);
       }
 
       if (ImGui::MenuItem("Spawn Point")) {
         auto e = context_->CreateEntity();
         context_->AddComponent(e, ecs::TransformComponent{});
         context_->AddComponent(e, ecs::TagComponent{"SpawnPoint"});
+        SetSelectedEntity(e);
       }
 
       ImGui::EndMenu();
@@ -100,13 +185,15 @@ void SceneHierarchyPanel::OnImGuiRender() {
     ImGui::EndPopup();
   }
 
-  if (ImGui::IsMouseDown(0) && ImGui::IsWindowHovered())
-    selection_context_ = ecs::Entity();
+  if (ImGui::IsMouseDown(0) && ImGui::IsWindowHovered() &&
+      !ImGui::IsAnyItemHovered())
+    selection_context_ = ecs::INVALID_ENTITY;
 
   ImGui::End();
 
   // 2. Inspector Window
   ImGui::Begin("Inspector");
+  ValidateSelection();
   if (selection_context_) {
     DrawComponents(selection_context_);
   }
@@ -114,14 +201,34 @@ void SceneHierarchyPanel::OnImGuiRender() {
   ImGui::End();
 }
 
-void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
+void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity,
+                                         const std::string &filter) {
+  if (!context_ || !context_->IsAlive(entity)) {
+    return;
+  }
+
+  const bool matchesFilter = EntityMatchesFilter(entity, filter);
+  const bool hasMatchingDescendants = HasMatchingDescendant(entity, filter);
+  if (!filter.empty() && !matchesFilter && !hasMatchingDescendants) {
+    return;
+  }
+
   std::string tag = context_->HasComponent<ecs::TagComponent>(entity)
                         ? context_->GetComponent<ecs::TagComponent>(entity).tag
                         : "Entity " + std::to_string(entity.GetIndex());
 
+  bool hasChildren = context_->HasComponent<ecs::RelationshipComponent>(entity) &&
+                     !context_->GetComponent<ecs::RelationshipComponent>(entity)
+                          .Children.empty();
   ImGuiTreeNodeFlags flags =
       ((selection_context_ == entity) ? ImGuiTreeNodeFlags_Selected : 0) |
       ImGuiTreeNodeFlags_OpenOnArrow;
+  if (!hasChildren) {
+    flags |= ImGuiTreeNodeFlags_Leaf;
+  }
+  if (!filter.empty() && hasMatchingDescendants) {
+    flags |= ImGuiTreeNodeFlags_DefaultOpen;
+  }
   flags |= ImGuiTreeNodeFlags_SpanAvailWidth;
   bool opened = ImGui::TreeNodeEx((void *)(uint64_t)entity.GetIndex(), flags,
                                   tag.c_str());
@@ -140,7 +247,9 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
   if (ImGui::BeginDragDropTarget()) {
       if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_REORDER")) {
           ecs::Entity droppedEntity = *(const ecs::Entity*)payload->Data;
-          context_->SetParent(droppedEntity, entity);
+          if (context_->IsAlive(droppedEntity)) {
+            context_->SetParent(droppedEntity, entity);
+          }
       }
       ImGui::EndDragDropTarget();
   }
@@ -154,8 +263,14 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
         std::string prefabTag = context_->HasComponent<ecs::TagComponent>(entity) 
             ? context_->GetComponent<ecs::TagComponent>(entity).tag 
             : "Entity";
-        std::string filepath = "assets/" + prefabTag + ".prefab";
-        scene::PrefabSerializer::Serialize(*context_, entity, filepath);
+        std::filesystem::path prefabDir = EditorToolbar::GetAssetRoot();
+        if (prefabDir.empty()) {
+          prefabDir = "assets";
+        }
+        std::error_code ec;
+        std::filesystem::create_directories(prefabDir, ec);
+        std::filesystem::path filepath = prefabDir / (prefabTag + ".prefab");
+        scene::PrefabSerializer::Serialize(*context_, entity, filepath.string());
     }
 
     ImGui::EndPopup();
@@ -165,16 +280,17 @@ void SceneHierarchyPanel::DrawEntityNode(ecs::Entity entity) {
     if (context_->HasComponent<ecs::RelationshipComponent>(entity)) {
         auto& rc = context_->GetComponent<ecs::RelationshipComponent>(entity);
         for (auto child : rc.Children) {
-            DrawEntityNode(child);
+            DrawEntityNode(child, filter);
         }
     }
     ImGui::TreePop();
   }
 
   if (entityDeleted) {
+    if (IsEntityInSubtree(entity, selection_context_)) {
+      selection_context_ = ecs::INVALID_ENTITY;
+    }
     context_->DestroyEntity(entity);
-    if (selection_context_ == entity)
-      selection_context_ = ecs::Entity();
   }
 }
 
@@ -259,12 +375,17 @@ static bool DrawVec3Control(const std::string &label, Math::Vec3f &values,
 }
 
 void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
+  if (!context_ || !context_->IsAlive(entity)) {
+    selection_context_ = ecs::INVALID_ENTITY;
+    return;
+  }
+
   if (context_->HasComponent<ecs::TagComponent>(entity)) {
     auto &tag = context_->GetComponent<ecs::TagComponent>(entity).tag;
 
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
-    strncpy(buffer, tag.c_str(), sizeof(buffer));
+    std::snprintf(buffer, sizeof(buffer), "%s", tag.c_str());
     if (ImGui::InputText("##Tag", buffer, sizeof(buffer))) {
       tag = std::string(buffer);
     }
@@ -533,9 +654,8 @@ void SceneHierarchyPanel::DrawComponents(ecs::Entity entity) {
         // Mesh Path
         ImGui::TableNextRow();
         ImGui::TableNextColumn(); ImGui::Text("Mesh");
-        ImGui::TableNextColumn(); ImGui::PushItemWidth(-1);
-        ImGui::InputText("##meshpath", (char*)mc.MeshPath.c_str(), mc.MeshPath.capacity(), ImGuiInputTextFlags_ReadOnly);
-        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        ImGui::TextWrapped("%s", mc.MeshPath.empty() ? "None" : mc.MeshPath.c_str());
 
         // Albedo
         ImGui::TableNextRow();

@@ -309,6 +309,7 @@ set(GE_CORE_HEADERS
     src/core/renderer/opengl/OpenGLTexture.h
     src/core/renderer/opengl/OpenGLFramebuffer.h
     src/core/editor/EditorToolbar.h
+    src/core/editor/EditorPaths.h
     src/core/editor/SceneHierarchyPanel.h
     src/core/editor/ContentBrowserPanel.h
     src/core/editor/ViewportPanel.h
@@ -331,6 +332,7 @@ set(GE_CORE_SOURCES
     src/core/platform/GLFWInput.cpp
     src/core/platform/ImGuiLayer.cpp
     src/core/editor/EditorToolbar.cpp
+    src/core/editor/EditorPaths.cpp
     src/core/editor/MaterialEditorPanel.cpp
     src/core/editor/MemoryStatsPanel.cpp
     src/core/editor/TransformGizmo.cpp

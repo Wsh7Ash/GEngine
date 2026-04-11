@@ -23,6 +23,7 @@ public:
      * @param path The absolute path to open.
      */
     static void OpenInVSCode(const std::string& path);
+    static void OpenInExplorer(const std::string& path);
 
     /**
      * @brief Generates the .vscode configuration files in the project root.

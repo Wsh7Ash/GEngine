@@ -159,7 +159,9 @@ void World::DestroyEntity(Entity e) {
 }
 
 void World::SetParent(Entity child, Entity parent) {
-    if (child == parent || child == INVALID_ENTITY) return;
+    if (child == parent || child == INVALID_ENTITY || !IsAlive(child)) return;
+    if (parent != INVALID_ENTITY && !IsAlive(parent)) return;
+    if (parent != INVALID_ENTITY && IsDescendantOf(parent, child)) return;
 
     // Ensure RelationshipComponent exists on child
     if (!HasRelationship(child)) {
@@ -183,7 +185,9 @@ void World::SetParent(Entity child, Entity parent) {
             AddComponent<RelationshipComponent>(parent, RelationshipComponent{});
         }
         auto &parentRc = GetRelationship(parent);
-        parentRc.Children.push_back(child);
+        if (std::find(parentRc.Children.begin(), parentRc.Children.end(), child) == parentRc.Children.end()) {
+            parentRc.Children.push_back(child);
+        }
     }
     
     isDirty_ = true;
@@ -203,6 +207,33 @@ void World::Clear() {
             }
         }
     }
+}
+
+Entity World::ResolveEntityByIndex(uint32_t index) const {
+    for (const auto& entity : allEntities_) {
+        if (entity.GetIndex() == index && IsAlive(entity)) {
+            return entity;
+        }
+    }
+
+    return INVALID_ENTITY;
+}
+
+bool World::IsDescendantOf(Entity entity, Entity potentialAncestor) const {
+    if (entity == INVALID_ENTITY || potentialAncestor == INVALID_ENTITY || entity == potentialAncestor) {
+        return false;
+    }
+
+    Entity cursor = entity;
+    while (cursor != INVALID_ENTITY && HasRelationship(cursor)) {
+        const Entity parent = GetComponent<RelationshipComponent>(cursor).Parent;
+        if (parent == potentialAncestor) {
+            return true;
+        }
+        cursor = parent;
+    }
+
+    return false;
 }
 
 } // namespace ecs

@@ -1,4 +1,5 @@
 #include "EditorToolbar.h"
+#include "EditorPaths.h"
 #include "../debug/log.h"
 #include "../platform/ImGuiLayer.h"
 #include "../renderer/Renderer2D.h"
@@ -22,7 +23,7 @@
 namespace ge {
 namespace editor {
 
-static ecs::World *s_ActiveWorld = nullptr;
+ecs::World *EditorToolbar::s_ActiveWorld = nullptr;
 std::unique_ptr<SceneHierarchyPanel> EditorToolbar::s_HierarchyPanel = nullptr;
 std::shared_ptr<ViewportPanel> EditorToolbar::s_SceneViewportPanel = nullptr;
 std::shared_ptr<ViewportPanel> EditorToolbar::s_GameViewportPanel = nullptr;
@@ -31,25 +32,48 @@ std::shared_ptr<ContentBrowserPanel> EditorToolbar::s_ContentBrowserPanel =
 std::shared_ptr<ConsolePanel> EditorToolbar::s_ConsolePanel = nullptr;
 std::shared_ptr<MaterialEditorPanel> EditorToolbar::s_MaterialEditorPanel = nullptr;
 std::shared_ptr<MemoryStatsPanel> EditorToolbar::s_MemoryStatsPanel = nullptr;
+std::filesystem::path EditorToolbar::s_ProjectRoot = {};
+std::filesystem::path EditorToolbar::s_AssetRoot = {};
+std::filesystem::path EditorToolbar::s_LoadedScenePath = {};
+std::filesystem::path EditorToolbar::s_PlayTempScenePath = {};
 static bool s_ShowPostProcessingPanel = true;
 SceneState EditorToolbar::s_SceneState = SceneState::Edit;
 
-static std::filesystem::path FindProjectRoot() {
-  std::filesystem::path cur = std::filesystem::current_path();
-  for (int i = 0; i < 5; ++i) { // Search up to 5 levels
-    if (std::filesystem::exists(cur / "CMakeLists.txt"))
-      return cur;
-    if (cur.has_parent_path()) cur = cur.parent_path();
-    else break;
+namespace {
+
+std::filesystem::path DefaultScenePath() {
+  if (!EditorToolbar::GetLoadedScenePath().empty()) {
+    return EditorToolbar::GetLoadedScenePath();
   }
-  return std::filesystem::current_path();
+
+  if (!EditorToolbar::GetAssetRoot().empty()) {
+    return EditorToolbar::GetAssetRoot() / "scene.json";
+  }
+
+  return "scene.json";
 }
+
+void EnsureParentDirectoryExists(const std::filesystem::path &path) {
+  std::error_code ec;
+  const auto parent = path.parent_path();
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent, ec);
+  }
+}
+
+} // namespace
 
 void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
   s_ActiveWorld = &world;
+  s_ProjectRoot = EditorPaths::ResolveProjectRoot();
+  s_AssetRoot = EditorPaths::ResolveAssetRoot();
+  s_LoadedScenePath.clear();
+  s_PlayTempScenePath = s_ProjectRoot / ".ge_editor" / "play_temp.json";
+
   s_HierarchyPanel = std::make_unique<SceneHierarchyPanel>(world);
   s_ContentBrowserPanel = std::make_shared<ContentBrowserPanel>();
   s_ContentBrowserPanel->SetContext(world);
+  s_ContentBrowserPanel->SetBaseDirectory(s_AssetRoot);
   s_ConsolePanel = std::make_shared<ConsolePanel>();
   s_SceneViewportPanel = std::make_shared<ViewportPanel>("Scene", false);
   s_SceneViewportPanel->SetContext(world);
@@ -63,16 +87,130 @@ void EditorToolbar::Init(void *windowHandle, ecs::World &world) {
 }
 
 void EditorToolbar::Shutdown() {
+  s_ActiveWorld = nullptr;
   s_GameViewportPanel = nullptr;
   s_SceneViewportPanel = nullptr;
   s_HierarchyPanel = nullptr;
   s_ContentBrowserPanel = nullptr;
   s_ConsolePanel = nullptr;
+  s_MaterialEditorPanel = nullptr;
   s_MemoryStatsPanel = nullptr;
+  s_ProjectRoot.clear();
+  s_AssetRoot.clear();
+  s_LoadedScenePath.clear();
+  s_PlayTempScenePath.clear();
   ImGuiLayer::Shutdown();
 }
 
+void EditorToolbar::NotifyWorldReloaded(bool clearSelection) {
+  if (s_HierarchyPanel && s_ActiveWorld) {
+    s_HierarchyPanel->SetContext(*s_ActiveWorld);
+    if (!clearSelection) {
+      s_HierarchyPanel->ValidateSelection();
+    }
+  }
+
+  if (s_ContentBrowserPanel && s_ActiveWorld) {
+    s_ContentBrowserPanel->SetContext(*s_ActiveWorld);
+    s_ContentBrowserPanel->SetBaseDirectory(s_AssetRoot);
+  }
+
+  if (s_SceneViewportPanel && s_ActiveWorld) {
+    s_SceneViewportPanel->SetContext(*s_ActiveWorld);
+  }
+
+  if (s_GameViewportPanel && s_ActiveWorld) {
+    s_GameViewportPanel->SetContext(*s_ActiveWorld);
+  }
+
+  if (clearSelection) {
+    ClearSelection();
+  } else {
+    ValidateSelection();
+  }
+}
+
+ecs::Entity EditorToolbar::GetSelectedEntity() {
+  if (!s_HierarchyPanel) {
+    return ecs::INVALID_ENTITY;
+  }
+
+  return s_HierarchyPanel->GetSelectedEntity();
+}
+
+void EditorToolbar::SetSelectedEntity(ecs::Entity entity) {
+  if (s_HierarchyPanel) {
+    s_HierarchyPanel->SetSelectedEntity(entity);
+  }
+}
+
+void EditorToolbar::ClearSelection() {
+  if (s_HierarchyPanel) {
+    s_HierarchyPanel->ClearSelection();
+  }
+}
+
+void EditorToolbar::ValidateSelection() {
+  if (s_HierarchyPanel) {
+    s_HierarchyPanel->ValidateSelection();
+  }
+}
+
+bool EditorToolbar::LoadScene(const std::filesystem::path &path) {
+  return LoadSceneInternal(path, true);
+}
+
+bool EditorToolbar::SaveScene(const std::filesystem::path &path) {
+  return SaveSceneInternal(path, true);
+}
+
+bool EditorToolbar::LoadSceneInternal(const std::filesystem::path &path,
+                                      bool trackAsCurrentScene) {
+  if (!s_ActiveWorld) {
+    return false;
+  }
+
+  const auto normalizedPath = EditorPaths::NormalizePath(path);
+  scene::SceneSerializer serializer(*s_ActiveWorld);
+  if (!serializer.Deserialize(normalizedPath.string())) {
+    GE_LOG_ERROR("Failed to load scene: %s", normalizedPath.string().c_str());
+    return false;
+  }
+
+  if (trackAsCurrentScene) {
+    s_LoadedScenePath = normalizedPath;
+  }
+
+  NotifyWorldReloaded(true);
+  GE_LOG_INFO("Scene loaded: %s", normalizedPath.string().c_str());
+  return true;
+}
+
+bool EditorToolbar::SaveSceneInternal(const std::filesystem::path &path,
+                                      bool trackAsCurrentScene) {
+  if (!s_ActiveWorld) {
+    return false;
+  }
+
+  const auto normalizedPath = EditorPaths::NormalizePath(path);
+  EnsureParentDirectoryExists(normalizedPath);
+
+  scene::SceneSerializer serializer(*s_ActiveWorld);
+  if (!serializer.Serialize(normalizedPath.string())) {
+    GE_LOG_ERROR("Failed to save scene: %s", normalizedPath.string().c_str());
+    return false;
+  }
+
+  if (trackAsCurrentScene) {
+    s_LoadedScenePath = normalizedPath;
+  }
+
+  return true;
+}
+
 void EditorToolbar::OnImGuiRender() {
+  ValidateSelection();
+
   // 0. DockSpace logic
   static bool dockspaceOpen = true;
   static bool opt_fullscreen = true;
@@ -164,15 +302,18 @@ void EditorToolbar::OnImGuiRender() {
   // 1. Horizontal Main Menu Bar
   if (ImGui::BeginMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      if (ImGui::MenuItem("New Scene")) { /* Clear logic */
+      if (ImGui::MenuItem("New Scene")) {
+        if (s_ActiveWorld) {
+          s_ActiveWorld->Clear();
+          s_LoadedScenePath.clear();
+          NotifyWorldReloaded(true);
+        }
       }
       if (ImGui::MenuItem("Open Scene...")) {
-        scene::SceneSerializer serializer(*s_ActiveWorld);
-        serializer.Deserialize("scene.json");
+        LoadScene(DefaultScenePath());
       }
       if (ImGui::MenuItem("Save Scene")) {
-        scene::SceneSerializer serializer(*s_ActiveWorld);
-        serializer.Serialize("scene.json");
+        SaveScene(DefaultScenePath());
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Exit")) { /* Exit logic */
@@ -202,11 +343,11 @@ void EditorToolbar::OnImGuiRender() {
               "${workspaceFolder}/deps/imgui",
               "${workspaceFolder}/deps/imguizmo"
           };
-          VSCodeUtility::GenerateVSCodeConfig(FindProjectRoot(), includePaths);
+          VSCodeUtility::GenerateVSCodeConfig(s_ProjectRoot, includePaths);
       }
 
       if (ImGui::MenuItem("Open Project in VS Code")) {
-          VSCodeUtility::OpenInVSCode(FindProjectRoot().string());
+          VSCodeUtility::OpenInVSCode(s_ProjectRoot.string());
       }
 
       ImGui::EndMenu();
@@ -217,12 +358,14 @@ void EditorToolbar::OnImGuiRender() {
          auto entity = s_ActiveWorld->CreateEntity();
          s_ActiveWorld->AddComponent(entity, ecs::TransformComponent{});
          s_ActiveWorld->AddComponent(entity, ecs::TagComponent{"Empty Entity"});
+         SetSelectedEntity(entity);
       }
       if (ImGui::MenuItem("Create Sprite")) {
          auto entity = s_ActiveWorld->CreateEntity();
          s_ActiveWorld->AddComponent(entity, ecs::TransformComponent{});
          s_ActiveWorld->AddComponent(entity, ecs::TagComponent{"Sprite"});
          s_ActiveWorld->AddComponent(entity, ecs::SpriteComponent{});
+         SetSelectedEntity(entity);
       }
       ImGui::EndMenu();
     }
@@ -258,11 +401,11 @@ void EditorToolbar::OnImGuiRender() {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(0.10f, 0.45f, 0.20f, 1.00f));
     if (ImGui::Button("Play", ImVec2(buttonSize * 2.0f, buttonSize))) {
-      scene::SceneSerializer serializer(*s_ActiveWorld);
-      serializer.Serialize("play_temp.json");
-      s_SceneState = SceneState::Play;
-      ImGui::SetWindowFocus("Game");
-      GE_LOG_INFO("Play started - Scene state captured");
+      if (SaveSceneInternal(s_PlayTempScenePath, false)) {
+        s_SceneState = SceneState::Play;
+        ImGui::SetWindowFocus("Game");
+        GE_LOG_INFO("Play started - Scene state captured");
+      }
     }
     ImGui::PopStyleColor(3);
   } else {
@@ -274,11 +417,10 @@ void EditorToolbar::OnImGuiRender() {
 
     if (ImGui::Button("Stop", ImVec2(buttonSize * 2.0f, buttonSize))) {
       s_SceneState = SceneState::Edit;
-      s_ActiveWorld->Clear();
-      scene::SceneSerializer serializer(*s_ActiveWorld);
-      serializer.Deserialize("play_temp.json");
-      ImGui::SetWindowFocus("Scene");
-      GE_LOG_INFO("Play stopped - Scene state restored");
+      if (LoadSceneInternal(s_PlayTempScenePath, false)) {
+        ImGui::SetWindowFocus("Scene");
+        GE_LOG_INFO("Play stopped - Scene state restored");
+      }
     }
     ImGui::PopStyleColor(3);
   }
@@ -295,7 +437,8 @@ void EditorToolbar::OnImGuiRender() {
   ImGui::Separator();
   ImGui::Spacing();
   ImGui::Text("FPS:          %.1f", io.Framerate);
-  ImGui::Text("Frame Time:   %.3f ms", 1000.0f / io.Framerate);
+  const float safeFrameRate = io.Framerate > 0.001f ? io.Framerate : 0.001f;
+  ImGui::Text("Frame Time:   %.3f ms", 1000.0f / safeFrameRate);
   ImGui::Text("Uptime:       %.1f s", stats.Uptime);
   ImGui::Spacing();
 
